@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="panel panel-primary">
+            <div class="panel-heading">
+                <h3 class="panel-title">{{ paciente.nome }}</h3>
+            </div>
+            <div class="panel-body">
+                <p><strong>CPF:</strong> {{ paciente.cpf }}</p>
+                <p><strong>Nascimento:</strong> {{ paciente.data_nascimento|date:"d/m/Y" }}</p>
+                <p><strong>Telefone:</strong> {{ paciente.telefone|default:"Não informado" }}</p>
+                
+                {% if user.is_superuser %}
+                <hr>
+                <a href="{% url 'editar_paciente' paciente.id %}" class="btn btn-warning btn-block">Editar Dados Pessoais</a>
+                {% endif %}
+
+                <hr>
+                <button type="button" class="btn btn-danger btn-block" data-toggle="modal" data-target="#modalExcluirFuturos">
+                    <i class="glyphicon glyphicon-trash"></i> Excluir Agenda Futura
+                </button>
+                <p class="text-muted text-center" style="font-size: 0.8em; margin-top: 5px;">
+                    Remove consultas não realizadas a partir de hoje.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="row" style="margin-bottom: 20px; align-items: center; display: flex;">
+            <div class="col-md-6">
+                <h3 style="margin-top: 0;">Histórico Clínico</h3>
+            </div>
+            <div class="col-md-6">
+                <select id="filtroTerapeuta" class="form-control" onchange="filtrarEvolucoes()">
+                    <option value="todos">Ver Todos os Profissionais</option>
+                    {% for terapeuta in terapeutas_filtros %}
+                        <option value="{{ terapeuta.id }}">Dr(a). {{ terapeuta.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div id="container-evolucoes">
+            {% for consulta in historico %}
+            <div class="panel panel-info item-evolucao" data-terapeuta="{{ consulta.agendamento.terapeuta.id }}">
+                <div class="panel-heading">
+                    <i class="glyphicon glyphicon-calendar"></i> {{ consulta.agendamento.data_hora|date:"d/m/Y H:i" }} 
+                    <span class="pull-right badge" style="background-color: #fff; color:#31708f;">
+                        Dr(a). {{ consulta.agendamento.terapeuta.nome }}
+                    </span>
+                </div>
+                <div class="panel-body">
+                    {{ consulta.evolucao|linebreaksbr }}
+                </div>
+                <div class="panel-footer text-muted small">
+                    Registrado em: {{ consulta.data_registro|date:"d/m/Y H:i" }}
+                </div>
+            </div>
+            {% empty %}
+                <div class="alert alert-warning">Nenhum histórico encontrado para este paciente.</div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div id="modalExcluirFuturos" class="modal fade" role="dialog">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header" style="background: #d9534f; color: white;">
+        <button type="button" class="close" data-dismiss="modal">&times;</button>
+        <h4 class="modal-title">Confirmar Exclusão em Massa</h4>
+      </div>
+      <div class="modal-body">
+        <p>Você está prestes a excluir <strong>TODOS</strong> os agendamentos futuros de <strong>{{ paciente.nome }}</strong>.</p>
+        
+        {% if not user.is_superuser %}
+            <div class="alert alert-info">
+                Como você é terapeuta, apenas os agendamentos <strong>vinculados a você</strong> serão removidos. Agendamentos com outros profissionais serão mantidos.
+            </div>
+        {% else %}
+            <div class="alert alert-warning">
+                <strong>Atenção Admin:</strong> Isso removerá os agendamentos deste paciente com <strong>TODOS</strong> os terapeutas.
+            </div>
+        {% endif %}
+
+        <p>Tem certeza que deseja continuar?</p>
+      </div>
+      <div class="modal-footer">
+        <form action="{% url 'excluir_agendamentos_futuros' paciente.id %}" method="POST">
+            {% csrf_token %}
+            <button type="button" class="btn btn-default" data-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-danger">Sim, Excluir Tudo</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function filtrarEvolucoes() {
+    var idSelecionado = document.getElementById("filtroTerapeuta").value;
+    var cards = document.getElementsByClassName("item-evolucao");
+    for (var i = 0; i < cards.length; i++) {
+        var card = cards[i];
+        var idTerapeutaCard = card.getAttribute("data-terapeuta");
+        if (idSelecionado === "todos" || idTerapeutaCard === idSelecionado) {
+            card.style.display = "block";
+        } else {
+            card.style.display = "none";
+        }
+    }
+}
+</script>
+{% endblock %}

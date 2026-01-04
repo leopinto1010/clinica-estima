@@ -1,0 +1,175 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clínica Estima</title>
+
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+    <style>
+        body { padding-top: 70px; background-color: #f8f8f8; }
+        
+        /* NAVBAR ROXA CUSTOMIZADA */
+        .navbar-estima {
+            background-color: #a48abd; 
+            border-color: #937ba8;
+            border-radius: 0;
+        }
+        
+        .navbar-estima .navbar-nav > li > a { color: #ffffff !important; }
+        
+        .navbar-estima .navbar-nav > li > a:hover,
+        .navbar-estima .navbar-nav > li > a:focus {
+            background-color: #937ba8;
+            color: #fff !important;
+        }
+        
+        .navbar-estima .navbar-nav > .open > a,
+        .navbar-estima .navbar-nav > .open > a:hover,
+        .navbar-estima .navbar-nav > .open > a:focus {
+            background-color: #836b96 !important;
+            color: #fff !important;
+        }
+
+        /* DROPDOWN ROXO */
+        .dropdown-menu {
+            background-color: #a48abd;
+            border: none;
+            box-shadow: 0 6px 12px rgba(0,0,0,.175);
+            padding: 0;
+        }
+        
+        .dropdown-menu > li > a {
+            color: #ffffff;
+            padding: 10px 20px;
+            border-bottom: 1px solid #937ba8;
+        }
+        
+        .dropdown-menu > li:last-child > a { border-bottom: none; }
+        
+        .dropdown-menu > li > a:hover {
+            background-color: #937ba8;
+            color: #ffffff;
+        }
+        
+        .dropdown-menu .divider { background-color: #937ba8; margin: 0; }
+
+        .flatpickr-calendar { z-index: 9999 !important; }
+        .select2-container .select2-selection--single { height: 34px !important; border: 1px solid #ccc !important; }
+        .select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 32px !important; }
+
+        /* CORES DE STATUS */
+        .label-confirmado { background-color: #f0ad4e; }
+        .label-falta { background-color: #d9534f; }
+        .label-cancelado { background-color: #777; }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-estima navbar-fixed-top">
+      <div class="container-fluid">
+        <div class="navbar-header">
+          <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar">
+            <span class="icon-bar" style="background-color: #fff;"></span>
+            <span class="icon-bar" style="background-color: #fff;"></span>
+            <span class="icon-bar" style="background-color: #fff;"></span>
+          </button>
+        </div>
+        
+        <div id="navbar" class="collapse navbar-collapse">
+          <ul class="nav navbar-nav">
+            <li class="active"><a href="{% url 'dashboard' %}" style="font-weight: bold;">Home</a></li>
+            
+            <li class="dropdown">
+                <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button">
+                    Agendamentos <span class="caret"></span>
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a href="{% url 'novo_agendamento' %}">Novo Agendamento</a></li>
+                    <li><a href="{% url 'lista_agendamentos' %}">Ver Agenda</a></li>
+                </ul>
+            </li>
+
+            <li class="dropdown">
+                <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button">
+                    Pacientes <span class="caret"></span>
+                </a>
+                <ul class="dropdown-menu">
+                    {% if user.is_superuser %}
+                        <li><a href="{% url 'cadastro_paciente' %}">Novo Paciente</a></li>
+                    {% endif %}
+                    <li><a href="{% url 'lista_pacientes' %}">Lista de Pacientes</a></li>
+                </ul>
+            </li>
+
+            <li class="dropdown">
+                <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button">
+                    Consultas <span class="caret"></span>
+                </a>
+                <ul class="dropdown-menu">
+                    <li><a href="{% url 'lista_consultas_geral' %}">Histórico Geral</a></li>
+                </ul>
+            </li>
+
+            {% if user.is_superuser %}
+                <li>
+                    <a href="{% url 'cadastrar_equipe' %}" style="font-weight: bold; color: #ffd700;">
+                        <i class="glyphicon glyphicon-plus-sign"></i> Nova Equipe
+                    </a>
+                </li>
+                <li><a href="/admin" target="_blank">Painel Admin</a></li>
+            {% endif %}
+          </ul>
+
+          <ul class="nav navbar-nav navbar-right">
+            <li class="dropdown">
+                <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button">
+                    <i class="glyphicon glyphicon-user"></i> {{ user.username|default:"Usuário" }} <span class="caret"></span>
+                </a>
+                <ul class="dropdown-menu">
+                    <li>
+                        <form id="logout-form" action="{% url 'logout' %}" method="POST" style="display: none;">
+                            {% csrf_token %}
+                        </form>
+                        <a href="#" onclick="document.getElementById('logout-form').submit();">Sair</a>
+                    </li>
+                </ul>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container-fluid main-container">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible" role="alert" style="margin-top: 20px;">
+                    <button type="button" class="close" data-dismiss="alert">&times;</button>
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        {% block content %}
+        {% endblock %}
+    </div>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://npmcdn.com/flatpickr/dist/l10n/pt.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    
+    <script>
+        $(document).ready(function() {
+            flatpickr(".seletor-data", { enableTime: true, dateFormat: "Y-m-d H:i", time_24hr: true, locale: "pt", disableMobile: "true" });
+            flatpickr(".seletor-apenas-data", { enableTime: false, dateFormat: "Y-m-d", locale: "pt", disableMobile: "true" });
+            $('.campo-busca').select2({ placeholder: "Clique para buscar...", allowClear: true, width: '100%' });
+        });
+    </script>
+</body>
+</html>

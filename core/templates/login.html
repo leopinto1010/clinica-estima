@@ -1,0 +1,177 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log In | Clínica Estima</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+    <style>
+        body { 
+            background-color: #ffffff; 
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+        
+        /* Faixa Roxa Superior */
+        .navbar-top {
+            background-color: #a48abd;
+            height: 40px;
+            width: 100%;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            padding-right: 20px;
+            position: absolute;
+            top: 0;
+            z-index: 10;
+        }
+
+        .navbar-top a {
+            color: white;
+            text-decoration: none;
+            font-size: 13px;
+        }
+
+        /* Container Centralizador */
+        .login-main-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh; /* Ocupa a altura total da tela */
+            padding-top: 40px; /* Compensa a faixa roxa */
+        }
+
+        .login-wrapper {
+            width: 100%;
+            max-width: 1100px; /* Limita a largura para não espalhar demais em monitores grandes */
+        }
+
+        h2 {
+            font-weight: 300;
+            color: #333;
+            margin-bottom: 25px;
+            font-size: 32px;
+        }
+
+        label {
+            font-weight: bold;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .form-control {
+            border: 1px solid #a48abd;
+            border-radius: 4px;
+            box-shadow: none;
+            height: 40px;
+            background-color: #f0f4f9;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .btn-login {
+            background-color: #a48abd;
+            color: white;
+            border: none;
+            padding: 8px 25px;
+            font-size: 15px;
+            border-radius: 4px;
+            margin-top: 10px;
+            transition: 0.3s;
+        }
+
+        .btn-login:hover {
+            background-color: #937ba8;
+            color: white;
+        }
+
+        .remember-me {
+            font-weight: normal;
+            font-size: 13px;
+            color: #555;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        /* Lado da Logo */
+        .logo-container {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .logo-image {
+            max-width: 100%;
+            height: auto;
+            max-height: 450px; /* Evita que a logo fique gigante */
+        }
+
+        /* Ajustes Mobile */
+        @media (max-width: 768px) {
+            .login-main-container { padding: 80px 20px 20px 20px; }
+            .logo-container { margin-bottom: 40px; }
+            .col-md-6 { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="navbar-top">
+        <a href="#">Log In <span class="caret"></span></a>
+    </div>
+
+    <div class="login-main-container">
+        <div class="container login-wrapper">
+            <div class="row" style="display: flex; align-items: center; flex-wrap: wrap;">
+                
+                <div class="col-md-6 col-sm-6">
+                    <div style="max-width: 450px; margin: 0 auto;">
+                        <h2>Log In</h2>
+                        
+                        {% if form.errors %}
+                            <div class="alert alert-danger">
+                                Usuário ou senha incorretos.
+                            </div>
+                        {% endif %}
+
+                        <form method="POST">
+                            {% csrf_token %}
+                            
+                            <div class="form-group">
+                                <label>Username</label>
+                                <input type="text" name="username" class="form-control" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Password</label>
+                                <input type="password" name="password" class="form-control" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="remember-me">
+                                    <input type="checkbox" name="remember"> Remember me (for 30 days)
+                                </label>
+                            </div>
+
+                            <button type="submit" class="btn btn-login">Log In</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="col-md-6 col-sm-6 hidden-xs">
+                    <div class="logo-container">
+                        <img src="{% static 'img/logo_estima.png' %}" alt="Estima Logo" class="logo-image">
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

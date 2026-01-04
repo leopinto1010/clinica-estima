@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 col-md-offset-2">
+        
+        <div class="panel panel-info">
+            <div class="panel-heading">
+                <h3 class="panel-title">
+                    {% if agendamento.status == 'REALIZADO' %}
+                        <i class="glyphicon glyphicon-pencil"></i> Editando Prontuário
+                    {% else %}
+                        <i class="glyphicon glyphicon-user"></i> Atendimento Médico
+                    {% endif %}
+                </h3>
+            </div>
+            <div class="panel-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Paciente:</strong> {{ agendamento.paciente.nome }}</p>
+                        <p><strong>Terapeuta:</strong> {{ agendamento.terapeuta.nome }}</p>
+                    </div>
+                    <div class="col-md-6 text-right">
+                        <p>
+                            <strong>Data:</strong> {{ agendamento.data|date:"d/m/Y" }}<br>
+                            <strong>Horário:</strong> {{ agendamento.hora_inicio|date:"H:i" }} às {{ agendamento.hora_fim|date:"H:i"|default:"..." }}
+                        </p>
+                        
+                        {% if agendamento.status == 'REALIZADO' %}
+                            <span class="label label-success">Consulta Já Realizada</span>
+                        {% else %}
+                            <span class="label label-warning">Em Andamento</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel {% if agendamento.status == 'REALIZADO' %}panel-warning{% else %}panel-primary{% endif %}">
+            <div class="panel-heading">
+                {% if agendamento.status == 'REALIZADO' %}
+                    Editar Evolução Clínica
+                {% else %}
+                    Registro de Evolução
+                {% endif %}
+            </div>
+            <div class="panel-body">
+                <form method="POST">
+                    {% csrf_token %}
+                    
+                    <div class="form-group">
+                        <label>Descrição do Atendimento:</label>
+                        {{ form.evolucao }}
+                        <span class="text-danger">{{ form.evolucao.errors }}</span>
+                    </div>
+
+                    <hr>
+                    
+                    {% if agendamento.status == 'REALIZADO' %}
+                        <button type="submit" class="btn btn-warning btn-lg btn-block">
+                            <i class="glyphicon glyphicon-floppy-disk"></i> Salvar Alterações
+                        </button>
+                    {% else %}
+                        <button type="submit" class="btn btn-success btn-lg btn-block">
+                            <i class="glyphicon glyphicon-ok"></i> Finalizar Consulta
+                        </button>
+                    {% endif %}
+                    
+                    <br>
+                    <a href="{% url 'lista_agendamentos' %}{% if filtros %}?{{ filtros }}{% endif %}" class="btn btn-default btn-block">
+                        Voltar
+                    </a>
+                </form>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}
