@@ -11,6 +11,7 @@ DEBUG = True
 ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
+    'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -64,10 +65,13 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 
-# Configuração robusta para encontrar a pasta static
-# Verifique se a pasta 'static' está no mesmo nível que o 'manage.py'
+# ESTA é a pasta onde o comando collectstatic vai JUNTAR tudo no servidor (Destino)
+# Mudamos o nome para 'staticfiles' para não dar conflito
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# ESTA é a pasta onde você coloca seus CSS personalizados (Origem)
 STATICFILES_DIRS = [
-    BASE_DIR / "static",
+    os.path.join(BASE_DIR, 'static'),
 ]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
