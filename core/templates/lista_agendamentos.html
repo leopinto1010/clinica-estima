@@ -264,9 +264,10 @@
                                 {% endif %}
                             </div>
 
-                            {% if agendamento.status == 'AGUARDANDO' or agendamento.status == 'CANCELADO' %}
+                            {# --- MUDANÇA 1: Lixeira apenas para AGUARDANDO --- #}
+                            {% if agendamento.status == 'AGUARDANDO' %}
                                 <div class="vr mx-1 text-secondary opacity-25"></div>
-                                <a href="{% url 'excluir_agendamento' agendamento.id %}?{{ params }}" class="btn-trash-icon ms-2" onclick="return confirm('Excluir visualmente este agendamento?')" title="Excluir do Sistema">
+                                <a href="{% url 'excluir_agendamento' agendamento.id %}?{{ params }}" class="btn-trash-icon ms-2" onclick="return confirm('ATENÇÃO: Isso apagará permanentemente o agendamento. Confirmar?')" title="Excluir Permanentemente">
                                     <i class="bi bi-trash fs-6"></i>
                                 </a>
                             {% endif %}
@@ -348,8 +349,9 @@
         var htmlBotoes = '';
         var htmlLixeira = '';
 
-        if (props.status_cod === 'AGUARDANDO' || props.status_cod === 'CANCELADO') {
-             htmlLixeira = `<a href="${props.url_excluir}" class="btn-trash-icon" onclick="return confirm('Excluir visualmente?')" title="Excluir"><i class="bi bi-trash fs-5"></i></a>`;
+        // --- MUDANÇA 1: Lixeira apenas para AGUARDANDO no Modal ---
+        if (props.status_cod === 'AGUARDANDO') {
+             htmlLixeira = `<a href="${props.url_excluir}" class="btn-trash-icon" onclick="return confirm('ATENÇÃO: Apagar permanentemente?')" title="Excluir"><i class="bi bi-trash fs-5"></i></a>`;
         }
 
         if (props.status_cod === 'AGUARDANDO') {

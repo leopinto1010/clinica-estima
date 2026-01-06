@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
-from datetime import timedelta
+from datetime import timedelta, datetime # Adicionado datetime aqui
 from django.db.models import Q
 from django.db import transaction
 from django import forms
@@ -295,9 +295,26 @@ def cancelar_agendamento(request, agendamento_id):
     agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
     if not is_admin(request.user) and agendamento.terapeuta.usuario != request.user:
         return redirect('lista_agendamentos')
-             
-    agendamento.status = 'CANCELADO'
+    
+    # --- MUDANÇA 2: Soft Delete se já passou o horário ---
+    # Cria datetime aware com data e hora do agendamento
+    dt_agendamento = datetime.combine(agendamento.data, agendamento.hora_inicio)
+    if timezone.is_naive(dt_agendamento):
+        dt_agendamento = timezone.make_aware(dt_agendamento)
+    
+    agora = timezone.now()
+
+    if dt_agendamento < agora:
+        # Se é passado, esconde (Soft Delete)
+        agendamento.deletado = True
+        msg = "Agendamento antigo removido da lista."
+    else:
+        # Se é futuro, mantem histórico como Cancelado
+        agendamento.status = 'CANCELADO'
+        msg = "Agendamento cancelado com sucesso."
+
     agendamento.save()
+    messages.success(request, msg)
     return redirect('lista_agendamentos')
 
 @login_required
@@ -306,9 +323,11 @@ def excluir_agendamento(request, agendamento_id):
     if not is_admin(request.user) and agendamento.terapeuta.usuario != request.user:
         return redirect('lista_agendamentos')
 
-    agendamento.deletado = True
-    agendamento.save()
-    messages.success(request, "Removido da visualização.")
+    # --- MUDANÇA 3: Hard Delete (Apagar Permanentemente) ---
+    # Usado apenas para erros de cadastro (status AGUARDANDO)
+    agendamento.delete()
+    messages.success(request, "Agendamento excluído permanentemente.")
+    
     return redirect('lista_agendamentos')
 
 @login_required
