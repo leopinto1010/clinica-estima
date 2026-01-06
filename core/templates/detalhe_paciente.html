@@ -12,7 +12,7 @@
                 <p><strong>Nascimento:</strong> {{ paciente.data_nascimento|date:"d/m/Y" }}</p>
                 <p><strong>Telefone:</strong> {{ paciente.telefone|default:"Não informado" }}</p>
                 
-                {% if user.is_superuser %}
+                {% if is_admin %}
                 <hr>
                 <a href="{% url 'editar_paciente' paciente.id %}" class="btn btn-warning btn-block">Editar Dados Pessoais</a>
                 {% endif %}
@@ -21,9 +21,6 @@
                 <button type="button" class="btn btn-danger btn-block" data-toggle="modal" data-target="#modalExcluirFuturos">
                     <i class="glyphicon glyphicon-trash"></i> Excluir Agenda Futura
                 </button>
-                <p class="text-muted text-center" style="font-size: 0.8em; margin-top: 5px;">
-                    Remove consultas não realizadas a partir de hoje.
-                </p>
             </div>
         </div>
     </div>
@@ -47,13 +44,27 @@
             {% for consulta in historico %}
             <div class="panel panel-info item-evolucao" data-terapeuta="{{ consulta.agendamento.terapeuta.id }}">
                 <div class="panel-heading">
-                    <i class="glyphicon glyphicon-calendar"></i> {{ consulta.agendamento.data_hora|date:"d/m/Y H:i" }} 
+                    <i class="glyphicon glyphicon-calendar"></i> {{ consulta.agendamento.data_hora_inicio|date:"d/m/Y H:i" }} 
+                    
+                    {% if user.is_superuser %}
+                    <span class="label" style="background-color: #a48abd; margin-left: 10px;">
+                        {{ consulta.agendamento.get_tipo_atendimento_display }}
+                    </span>
+                    {% endif %}
+
                     <span class="pull-right badge" style="background-color: #fff; color:#31708f;">
                         Dr(a). {{ consulta.agendamento.terapeuta.nome }}
                     </span>
                 </div>
                 <div class="panel-body">
-                    {{ consulta.evolucao|linebreaksbr }}
+                    {% if ocultar_evolucao %}
+                        <div class="text-center text-muted" style="padding: 10px; background: #f9f9f9; border-radius: 4px;">
+                            <i class="glyphicon glyphicon-lock" style="font-size: 1.2em;"></i><br>
+                            <em>Conteúdo clínico confidencial. Acesso restrito à equipe médica.</em>
+                        </div>
+                    {% else %}
+                        {{ consulta.evolucao|linebreaksbr }}
+                    {% endif %}
                 </div>
                 <div class="panel-footer text-muted small">
                     Registrado em: {{ consulta.data_registro|date:"d/m/Y H:i" }}
@@ -76,13 +87,13 @@
       <div class="modal-body">
         <p>Você está prestes a excluir <strong>TODOS</strong> os agendamentos futuros de <strong>{{ paciente.nome }}</strong>.</p>
         
-        {% if not user.is_superuser %}
+        {% if not is_admin %}
             <div class="alert alert-info">
-                Como você é terapeuta, apenas os agendamentos <strong>vinculados a você</strong> serão removidos. Agendamentos com outros profissionais serão mantidos.
+                Apenas os agendamentos vinculados a você serão removidos.
             </div>
         {% else %}
             <div class="alert alert-warning">
-                <strong>Atenção Admin:</strong> Isso removerá os agendamentos deste paciente com <strong>TODOS</strong> os terapeutas.
+                Isso removerá os agendamentos com <strong>TODOS</strong> os terapeutas.
             </div>
         {% endif %}
 

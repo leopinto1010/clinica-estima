@@ -11,18 +11,36 @@
                 <form method="POST">
                     {% csrf_token %}
                     
+                    {# --- BLOCO DE ERROS MELHORADO --- #}
                     {% if form.errors %}
-                        <div class="alert alert-danger">Verifique os dados informados.</div>
+                        <div class="alert alert-danger">
+                            <strong>Atenção:</strong><br>
+                            {% for field, errors in form.errors.items %}
+                                {% for error in errors %}
+                                    {% if field != '__all__' %}
+                                        - <strong>{{ field }}:</strong> {{ error }}<br>
+                                    {% else %}
+                                        - {{ error }}<br>
+                                    {% endif %}
+                                {% endfor %}
+                            {% endfor %}
+                        </div>
                     {% endif %}
 
                     {% for field in form %}
-                        <div class="form-group">
-                            <label>{{ field.label }}</label>
+                        {# Se o campo for Hidden (como o terapeuta para não-admins), não mostra label #}
+                        {% if not field.is_hidden %}
+                            <div class="form-group">
+                                <label>{{ field.label }}</label>
+                                {{ field }}
+                                {% if field.errors %}
+                                    <span class="text-danger small">{{ field.errors|striptags }}</span>
+                                {% endif %}
+                            </div>
+                        {% else %}
+                            {# Renderiza o campo oculto para que o dado seja enviado no POST #}
                             {{ field }}
-                            {% if field.errors %}
-                                <span class="text-danger small">{{ field.errors|striptags }}</span>
-                            {% endif %}
-                        </div>
+                        {% endif %}
                     {% endfor %}
 
                     <hr>

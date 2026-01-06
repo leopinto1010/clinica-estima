@@ -1,14 +1,27 @@
 import os
 from pathlib import Path
+from decouple import config, Csv
 
-# BASE_DIR aponta para a raiz do projeto (onde está o manage.py)
+# BASE_DIR aponta para a raiz do projeto
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure-mx*wrywzxpo5$@ynhg+c@^rl@uq-fz$n1fjadpgo%r*5m2lch@'
+# --- SEGURANÇA: Configuração com python-decouple ---
+# Lê a chave do arquivo .env. Se não achar, dá erro (para forçar segurança)
+SECRET_KEY = config('SECRET_KEY')
 
-DEBUG = True
+# Lê do .env. O 'cast=bool' converte a string 'True'/'False' para booleano do Python
+DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = ['leozinreal1.pythonanywhere.com', 'localhost', '127.0.0.1']
+# Lê a lista separada por vírgulas do .env
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='127.0.0.1,localhost', cast=Csv())
+
+# Mantenho o CSRF hardcoded pois geralmente é fixo por domínio, 
+# mas você pode mover para o .env se precisar alterar dinamicamente.
+CSRF_TRUSTED_ORIGINS = [
+    'https://leozinreal1.pythonanywhere.com',
+    'http://127.0.0.1:8000',
+    'http://localhost:8000',
+]
 
 INSTALLED_APPS = [
     'jazzmin',

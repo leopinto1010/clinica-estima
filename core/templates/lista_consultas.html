@@ -2,7 +2,6 @@
 
 {% block content %}
 <style>
-    /* Estilos do Container de Filtros */
     .filtro-box { 
         background: #fff; 
         padding: 20px; 
@@ -11,51 +10,18 @@
         border-radius: 8px; 
         box-shadow: 0 4px 6px rgba(0,0,0,0.05); 
     }
+    .filtro-box label { font-weight: 600; font-size: 13px; color: #555; margin-bottom: 5px; }
     
-    /* Alinhamento dos rótulos */
-    .filtro-box label {
-        font-weight: 600;
-        font-size: 13px;
-        color: #555;
-        margin-bottom: 5px;
-    }
-
-    /* Cores de Status */
-    .label-confirmado { background-color: #f0ad4e; }
-    .label-faltou { background-color: #777; }
+    .label-cancelado { background-color: #777; }    
+    .label-falta { background-color: #d9534f; }
     
-    /* Select2 e Inputs */
-    .select2-container { min-width: 100%; }
-    .select2-container--default .select2-selection--single {
-        border: 1px solid #ccc !important;
-        height: 34px !important;
-    }
-
-    /* Feedback visual de campo desativado */
-    input:disabled { 
-        background-color: #f5f5f5 !important; 
-        cursor: not-allowed; 
-        opacity: 0.6;
-    }
-
-    /* Alinhamento vertical da linha de filtros */
-    .flex-row {
-        display: flex;
-        align-items: flex-end;
-        flex-wrap: wrap;
-    }
-
-    .ou-divider {
-        padding-bottom: 7px;
-        font-weight: bold;
-        color: #999;
-    }
+    input:disabled { background-color: #f5f5f5 !important; cursor: not-allowed; opacity: 0.6; }
 </style>
 
 <div class="row">
     <div class="col-md-12">
         <h3 style="margin-top: 0; color: #333;">Histórico Geral de Consultas</h3>
-        <p class="text-muted">Utilize os filtros abaixo para localizar atendimentos específicos.</p>
+        <p class="text-muted">Utilize os filtros abaixo para localizar atendimentos específicos (inclusive cancelados).</p>
     </div>
 </div>
 
@@ -63,59 +29,102 @@
     <div class="col-md-12">
         <div class="filtro-box">
             <form method="GET" id="formFiltro">
-                <div class="row flex-row">
-                    
+                
+                <div class="row">
                     <div class="col-md-3">
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label>Paciente:</label>
-                            <select name="paciente" class="form-control campo-busca">
-                                <option value="">Todos os Pacientes</option>
-                                {% for p in pacientes %}
-                                    <option value="{{ p.id }}" {% if p.id == paciente_selecionado %}selected{% endif %}>
-                                        {{ p.nome }}
+                        <div class="form-group">
+                            <label>Nome do Paciente:</label>
+                            <input type="text" name="busca_nome" class="form-control" placeholder="Digite o nome..." value="{{ busca_nome }}">
+                        </div>
+                    </div>
+
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label>Status:</label>
+                            <select name="filtro_status" class="form-control">
+                                <option value="">Todos</option>
+                                {% for codigo, label in status_choices %}
+                                    <option value="{{ codigo }}" {% if codigo == filtro_status_selecionado %}selected{% endif %}>
+                                        {{ label }}
                                     </option>
                                 {% endfor %}
                             </select>
                         </div>
                     </div>
 
-                    <div class="col-md-2">
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label>Dia Específico:</label>
-                            <input type="date" name="data_unica" id="data_unica" class="form-control" value="{{ data_unica }}">
+                    {% if user.is_superuser %}
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label>Tipo de Atendimento:</label>
+                            <select name="filtro_tipo" class="form-control">
+                                <option value="">Todos</option>
+                                {% for codigo, nome in tipos_atendimento %}
+                                    <option value="{{ codigo }}" {% if codigo == filtro_tipo_selecionado %}selected{% endif %}>
+                                        {{ nome }}
+                                    </option>
+                                {% endfor %}
+                            </select>
                         </div>
                     </div>
+                    {% endif %}
 
-                    <div class="col-md-1 text-center ou-divider">
-                        OU
-                    </div>
-
-                    <div class="col-md-2">
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label>Início (De):</label>
-                            <input type="date" name="data_inicio" id="data_inicio" class="form-control" value="{{ data_inicio }}">
+                    {% if is_admin %}
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label>Terapeuta:</label>
+                            <select name="filtro_terapeuta" class="form-control">
+                                <option value="">Todos</option>
+                                {% for t in terapeutas %}
+                                    <option value="{{ t.id }}" {% if t.id == filtro_terapeuta_selecionado %}selected{% endif %}>
+                                        {{ t.nome }}
+                                    </option>
+                                {% endfor %}
+                            </select>
                         </div>
                     </div>
-
-                    <div class="col-md-2">
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label>Fim (Até):</label>
-                            <input type="date" name="data_fim" id="data_fim" class="form-control" value="{{ data_fim }}">
-                        </div>
-                    </div>
-
-                    <div class="col-md-2">
-                        <div class="form-group" style="margin-bottom: 0; display: flex; gap: 5px;">
-                            <button type="submit" class="btn btn-primary" style="flex: 2;">
-                                <i class="glyphicon glyphicon-search"></i> Filtrar
-                            </button>
-                            <a href="{% url 'lista_consultas_geral' %}" class="btn btn-default" title="Limpar Filtros" style="flex: 1;">
-                                <i class="glyphicon glyphicon-erase"></i>
-                            </a>
-                        </div>
-                    </div>
-
+                    {% endif %}
                 </div>
+
+                <div class="row" style="margin-top: 10px;">
+                    <div class="col-md-2">
+                        <div class="form-group">
+                            <label>De:</label>
+                            <input type="date" name="data_inicio" class="form-control" value="{{ data_inicio|default:'' }}">
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <div class="form-group">
+                            <label>Até:</label>
+                            <input type="date" name="data_fim" class="form-control" value="{{ data_fim|default:'' }}">
+                        </div>
+                    </div>
+
+                    <div class="col-md-3" style="padding-top: 25px;">
+                         <label class="radio-inline">
+                            <input type="radio" name="atalho_data" value="hoje" onclick="aplicarAtalho('hoje')" {% if filtro_hoje %}checked{% endif %}> Hoje
+                        </label>
+                        <label class="radio-inline">
+                            <input type="radio" name="atalho_data" value="semana" onclick="aplicarAtalho('semana')" {% if filtro_semana %}checked{% endif %}> Semana
+                        </label>
+                        <label class="radio-inline">
+                            <input type="radio" name="atalho_data" value="personalizado" onclick="aplicarAtalho('limpar')" {% if not filtro_hoje and not filtro_semana %}checked{% endif %}> Intervalo
+                        </label>
+                        
+                        <input type="hidden" name="filtro_hoje" id="inputFiltroHoje" value="{% if filtro_hoje %}1{% endif %}">
+                        <input type="hidden" name="filtro_semana" id="inputFiltroSemana" value="{% if filtro_semana %}1{% endif %}">
+                    </div>
+
+                    <div class="col-md-3" style="padding-top: 23px;">
+                        <button type="submit" class="btn btn-primary btn-block">
+                            <i class="glyphicon glyphicon-search"></i> Filtrar Histórico
+                        </button>
+                    </div>
+                    
+                    <div class="col-md-2" style="padding-top: 23px;">
+                        <a href="{% url 'lista_consultas_geral' %}" class="btn btn-default btn-block">Limpar</a>
+                    </div>
+                </div>
+
             </form>
         </div>
     </div>
@@ -132,25 +141,50 @@
                     <thead>
                         <tr>
                             <th style="width: 20%;">Data/Hora</th>
-                            <th style="width: 40%;">Paciente</th>
-                            <th style="width: 20%;">Status</th>
-                            <th style="width: 20%;">Ações</th>
+                            <th style="width: 30%;">Paciente</th>
+                            
+                            {% if is_admin %}
+                            <th style="width: 20%;">Terapeuta</th>
+                            {% endif %}
+                            
+                            {% if user.is_superuser %}
+                            <th style="width: 15%;">Tipo</th>
+                            {% endif %}
+                            
+                            <th style="width: 15%;">Status</th>
+                            <th style="width: 10%;">Ações</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for agendamento in agendamentos %}
                         <tr>
-                            <td>{{ agendamento.data_hora|date:"d/m/Y H:i" }}</td>
+                            <td>
+                                <strong>{{ agendamento.data|date:"d/m/Y" }}</strong><br>
+                                <small class="text-muted">
+                                    {{ agendamento.hora_inicio|date:"H:i" }} - {{ agendamento.hora_fim|date:"H:i"|default:"..." }}
+                                </small>
+                            </td>
                             <td><strong>{{ agendamento.paciente.nome }}</strong></td>
+                            
+                            {% if is_admin %}
+                            <td>{{ agendamento.terapeuta.nome }}</td>
+                            {% endif %}
+
+                            {% if user.is_superuser %}
+                            <td>
+                                <span class="label label-default" style="background-color: #a48abd;">
+                                    {{ agendamento.get_tipo_atendimento_display }}
+                                </span>
+                            </td>
+                            {% endif %}
+                            
                             <td>
                                 {% if agendamento.status == 'REALIZADO' %}
                                     <span class="label label-success">Realizado</span>
                                 {% elif agendamento.status == 'CANCELADO' %}
-                                    <span class="label label-danger">Cancelado</span>
-                                {% elif agendamento.status == 'CONFIRMADO' %}
-                                    <span class="label label-confirmado">Confirmado</span>
-                                {% elif agendamento.status == 'FALTOU' %}
-                                    {% elif agendamento.status == 'FALTA' %} <span class="label label-faltou">Falta</span>
+                                    <span class="label label-cancelado">Cancelado</span> 
+                                {% elif agendamento.status == 'FALTA' %} 
+                                    <span class="label label-falta">Falta</span> 
                                 {% else %}
                                     <span class="label label-info">Aguardando</span>
                                 {% endif %}
@@ -165,7 +199,7 @@
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="4" class="text-center" style="padding: 30px; color: #999;">
+                            <td colspan="{% if is_admin %}6{% else %}5{% endif %}" class="text-center" style="padding: 30px; color: #999;">
                                 <i class="glyphicon glyphicon-info-sign" style="font-size: 20px;"></i><br>
                                 Nenhum atendimento encontrado para os filtros selecionados.
                             </td>
@@ -179,43 +213,17 @@
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const inputUnico = document.getElementById('data_unica');
-        const inputInicio = document.getElementById('data_inicio');
-        const inputFim = document.getElementById('data_fim');
+    function aplicarAtalho(tipo) {
+        document.getElementById('inputFiltroHoje').value = '';
+        document.getElementById('inputFiltroSemana').value = '';
 
-        function gerenciarBloqueio() {
-            // Se houver data no campo "Dia Específico"
-            if (inputUnico.value !== "") {
-                inputInicio.disabled = true;
-                inputFim.disabled = true;
-                inputInicio.style.opacity = "0.5";
-                inputFim.style.opacity = "0.5";
-            } 
-            // Se houver data em qualquer campo do "Intervalo"
-            else if (inputInicio.value !== "" || inputFim.value !== "") {
-                inputUnico.disabled = true;
-                inputUnico.style.opacity = "0.5";
-            } 
-            // Se tudo estiver vazio, libera todos os campos
-            else {
-                inputUnico.disabled = false;
-                inputInicio.disabled = false;
-                inputFim.disabled = false;
-                inputUnico.style.opacity = "1";
-                inputInicio.style.opacity = "1";
-                inputFim.style.opacity = "1";
-            }
+        if (tipo === 'hoje') {
+            document.getElementById('inputFiltroHoje').value = '1';
+            document.getElementById('formFiltro').submit();
+        } else if (tipo === 'semana') {
+            document.getElementById('inputFiltroSemana').value = '1';
+            document.getElementById('formFiltro').submit();
         }
-
-        // Executa ao carregar para manter consistência em filtros já aplicados
-        gerenciarBloqueio();
-
-        // Adiciona os ouvintes de evento para mudanças nos campos
-        inputUnico.addEventListener('input', gerenciarBloqueio);
-        inputInicio.addEventListener('input', gerenciarBloqueio);
-        inputFim.addEventListener('input', gerenciarBloqueio);
-    });
+    }
 </script>
-
 {% endblock %}

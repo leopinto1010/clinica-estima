@@ -5,23 +5,26 @@
     <div class="col-md-6 col-md-offset-3">
         <div class="panel panel-primary">
             <div class="panel-heading">
-                <h3 class="panel-title">Cadastrar Novo Terapeuta</h3>
+                <h3 class="panel-title">Cadastrar Novo Membro da Equipe</h3>
             </div>
             <div class="panel-body">
-                <div class="alert alert-info">
-                    Este formulário cria o <strong>Login</strong> e o <strong>Perfil de Terapeuta</strong> simultaneamente.
-                </div>
-
                 <form method="POST">
                     {% csrf_token %}
                     
+                    <div class="form-group">
+                        <label>Função no Sistema:</label>
+                        <select name="papel_sistema" class="form-control" id="selectPapel">
+                            <option value="terapeuta">Terapeuta</option>
+                            <option value="admin">Administrativo</option>
+                            <option value="financeiro">Financeiro</option>
+                        </select>
+                        <small class="text-muted">Isso define as permissões de acesso do usuário.</small>
+                    </div>
+
                     {% for field in form %}
                         <div class="form-group">
                             <label>{{ field.label }}</label>
                             {{ field }}
-                            {% if field.help_text %}
-                                <small class="text-muted">{{ field.help_text }}</small>
-                            {% endif %}
                             {% if field.errors %}
                                 <div class="text-danger small">{{ field.errors }}</div>
                             {% endif %}

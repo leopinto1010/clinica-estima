@@ -2,6 +2,14 @@ from django.db import models
 from django.core.validators import RegexValidator
 from datetime import datetime
 
+# --- LISTA DE OPÇÕES ---
+TIPO_ATENDIMENTO_CHOICES = [
+    ('PARTICULAR', 'Particular'),
+    ('DESCONTO', 'Particular com Desconto'),
+    ('CONVENIO', 'Convênio'),
+    ('SOCIAL', 'Social'),
+]
+
 # --- 1. PACIENTE ---
 class Paciente(models.Model):
     nome = models.CharField(max_length=100)
@@ -9,23 +17,20 @@ class Paciente(models.Model):
         max_length=11, 
         unique=True,
         validators=[
-            RegexValidator(
-                regex=r'^\d{11}$', 
-                message='O CPF deve ter exatamente 11 dígitos (apenas números).'
-            )
+            RegexValidator(regex=r'^\d{11}$', message='CPF deve ter 11 dígitos.')
         ]
     )
     data_nascimento = models.DateField()
     telefone = models.CharField(
-        max_length=11, 
-        blank=True, 
-        null=True,
-        validators=[
-            RegexValidator(
-                regex=r'^\d{10,11}$', 
-                message='O telefone deve ter 10 ou 11 dígitos (DDD + Número, sem traços).'
-            )
-        ]
+        max_length=11, blank=True, null=True,
+        validators=[RegexValidator(regex=r'^\d{10,11}$', message='Telefone inválido.')]
+    )
+    
+    tipo_padrao = models.CharField(
+        max_length=20, 
+        choices=TIPO_ATENDIMENTO_CHOICES, 
+        default='PARTICULAR',
+        verbose_name="Tipo de Atendimento Padrão"
     )
     
     def __str__(self):
@@ -33,9 +38,9 @@ class Paciente(models.Model):
 
 # --- 2. TERAPEUTA ---
 class Terapeuta(models.Model):
-    usuario = models.OneToOneField('auth.User', on_delete=models.CASCADE, null=True, blank=True, verbose_name="Usuário de Login")
+    usuario = models.OneToOneField('auth.User', on_delete=models.CASCADE, null=True, blank=True)
     nome = models.CharField(max_length=100)
-    registro_profissional = models.CharField(max_length=50, blank=True, null=True, verbose_name="CRP/CRM")
+    registro_profissional = models.CharField(max_length=50, blank=True, null=True)
     especialidade = models.CharField(max_length=50, blank=True, null=True)
     
     def __str__(self):
@@ -43,32 +48,39 @@ class Terapeuta(models.Model):
 
 # --- 3. AGENDAMENTO ---
 class Agendamento(models.Model):
+    # [CORREÇÃO] Removido 'CONFIRMADO' desta lista. Isso remove do filtro automaticamente.
     STATUS_CHOICES = [
         ('AGUARDANDO', 'Aguardando'),
-        ('CONFIRMADO', 'Confirmado'),
         ('REALIZADO', 'Realizado'),
         ('CANCELADO', 'Cancelado'),
         ('FALTA', 'Falta'),
     ]
 
     paciente = models.ForeignKey(Paciente, on_delete=models.CASCADE)
-    terapeuta = models.ForeignKey(Terapeuta, on_delete=models.PROTECT, verbose_name="Terapeuta Responsável")
+    terapeuta = models.ForeignKey(Terapeuta, on_delete=models.PROTECT)
     
-    # NOVOS CAMPOS SEPARADOS
     data = models.DateField(verbose_name="Data da Consulta")
     hora_inicio = models.TimeField(verbose_name="Horário de Início")
     hora_fim = models.TimeField(verbose_name="Horário de Término", blank=True, null=True)
     
+    tipo_atendimento = models.CharField(
+        max_length=20, 
+        choices=TIPO_ATENDIMENTO_CHOICES, 
+        default='PARTICULAR',
+        verbose_name="Tipo (Nesta consulta)"
+    )
+    
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='AGUARDANDO')
+    
+    # SOFT DELETE
+    deletado = models.BooleanField(default=False, verbose_name="Excluído da Agenda")
     
     class Meta:
         ordering = ['data', 'hora_inicio'] 
 
     def __str__(self):
-        fim_str = self.hora_fim.strftime('%H:%M') if self.hora_fim else '??:??'
-        return f"{self.data.strftime('%d/%m')} - {self.hora_inicio} às {fim_str} | {self.paciente}"
+        return f"{self.data} - {self.paciente}"
     
-    # Helper para facilitar o uso onde o código espera um datetime completo
     @property
     def data_hora_inicio(self):
         return datetime.combine(self.data, self.hora_inicio)

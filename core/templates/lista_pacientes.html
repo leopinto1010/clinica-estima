@@ -16,7 +16,7 @@
   </div>
   
   <div class="col-lg-6 text-right">
-      {% if user.is_superuser %}
+      {% if is_admin %}
       <a href="{% url 'cadastro_paciente' %}" class="btn btn-success">
           <i class="glyphicon glyphicon-plus"></i> Novo Paciente
       </a>
@@ -35,7 +35,12 @@
                     <th>Nome</th>
                     <th>CPF</th>
                     <th>Telefone</th>
+                    
                     {% if user.is_superuser %}
+                    <th>Tipo Padrão</th>
+                    {% endif %}
+                    
+                    {% if is_admin %}
                     <th>Ações</th>
                     {% endif %}
                 </tr>
@@ -53,13 +58,21 @@
                     
                     {% if user.is_superuser %}
                     <td>
+                        <span class="label label-default" style="background-color: #a48abd;">
+                            {{ paciente.get_tipo_padrao_display }}
+                        </span>
+                    </td>
+                    {% endif %}
+
+                    {% if is_admin %}
+                    <td>
                         <a href="{% url 'editar_paciente' paciente.id %}" class="btn btn-xs btn-warning">Editar</a>
                     </td>
                     {% endif %}
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="{% if user.is_superuser %}4{% else %}3{% endif %}" class="text-center">Nenhum paciente encontrado.</td>
+                    <td colspan="{% if user.is_superuser %}5{% elif is_admin %}4{% else %}3{% endif %}" class="text-center">Nenhum paciente encontrado.</td>
                 </tr>
                 {% endfor %}
             </tbody>

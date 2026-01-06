@@ -1,103 +1,135 @@
 {% extends 'base.html' %}
 
 {% block content %}
+<style>
+    /* Cards de Estatística */
+    .stat-card {
+        background: white;
+        padding: 25px;
+        border-radius: 6px;
+        border: 1px solid #e1e4e8;
+        display: flex;
+        align-items: center;
+        transition: box-shadow 0.3s;
+    }
+    .stat-card:hover { 
+        box-shadow: 0 5px 15px rgba(0,0,0,0.08); 
+        border-color: #8e74a5;
+        cursor: pointer;
+    }
+    
+    .stat-icon-wrapper {
+        width: 50px; height: 50px;
+        border-radius: 8px;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 20px;
+        margin-right: 15px;
+    }
+    
+    .icon-purple { background-color: #f3e5f5; color: #8e74a5; }
+    .icon-blue { background-color: #e3f2fd; color: #42a5f5; }
+    
+    .stat-data h3 { margin: 0; font-size: 28px; font-weight: 700; color: #333; }
+    .stat-data p { margin: 0; color: #777; font-size: 13px; font-weight: 500; }
+</style>
+
 <div class="row">
     <div class="col-md-12">
-        <h2 style="margin-top: 0; margin-bottom: 20px;">Painel de Controle</h2>
+        <h4 style="margin-top: 0; margin-bottom: 25px; color: #555;">Painel Geral</h4>
     </div>
 </div>
 
-<div class="row">
+<div class="row" style="margin-bottom: 30px;">
     <div class="col-md-6">
-        <div class="panel panel-success">
-            <div class="panel-heading">
-                <div class="row">
-                    <div class="col-xs-3">
-                        <i class="glyphicon glyphicon-user" style="font-size: 4em;"></i>
-                    </div>
-                    <div class="col-xs-9 text-right">
-                        <div style="font-size: 2.5em;">{{ total_pacientes }}</div>
-                        <div>Pacientes Cadastrados</div>
-                    </div>
+        <a href="{% url 'lista_pacientes' %}" style="text-decoration: none;">
+            <div class="stat-card">
+                <div class="stat-icon-wrapper icon-purple">
+                    <i class="glyphicon glyphicon-user"></i>
+                </div>
+                <div class="stat-data">
+                    <h3>{{ total_pacientes }}</h3>
+                    <p>Pacientes na base</p>
                 </div>
             </div>
-            <a href="{% url 'lista_pacientes' %}">
-                <div class="panel-footer">
-                    <span class="pull-left">Ver Detalhes</span>
-                    <span class="pull-right"><i class="glyphicon glyphicon-circle-arrow-right"></i></span>
-                    <div class="clearfix"></div>
-                </div>
-            </a>
-        </div>
+        </a>
     </div>
 
     <div class="col-md-6">
-        <div class="panel panel-info">
-            <div class="panel-heading">
-                <div class="row">
-                    <div class="col-xs-3">
-                        <i class="glyphicon glyphicon-calendar" style="font-size: 4em;"></i>
-                    </div>
-                    <div class="col-xs-9 text-right">
-                        <div style="font-size: 2.5em;">{{ total_agendamentos_hoje }}</div>
-                        <div>Agendamentos Hoje</div>
-                    </div>
+        <a href="{% url 'lista_agendamentos' %}" style="text-decoration: none;">
+            <div class="stat-card">
+                <div class="stat-icon-wrapper icon-blue">
+                    <i class="glyphicon glyphicon-calendar"></i>
+                </div>
+                <div class="stat-data">
+                    <h3>{{ total_agendamentos_hoje }}</h3>
+                    <p>Agendamentos para hoje</p>
                 </div>
             </div>
-            <a href="{% url 'lista_agendamentos' %}">
-                <div class="panel-footer">
-                    <span class="pull-left">Ver Agenda Completa</span>
-                    <span class="pull-right"><i class="glyphicon glyphicon-circle-arrow-right"></i></span>
-                    <div class="clearfix"></div>
-                </div>
-            </a>
-        </div>
+        </a>
     </div>
 </div>
-
-<hr>
 
 <div class="row">
     <div class="col-md-12">
         <div class="panel panel-default">
-            <div class="panel-heading">
-                <h3 class="panel-title"><i class="glyphicon glyphicon-time"></i> Agenda do Dia</h3>
+            <div class="panel-heading" style="border-left: 4px solid #8e74a5;">
+                Agenda do Dia
             </div>
-            <div class="panel-body">
-                <table class="table table-striped table-hover">
+            <div class="panel-body" style="padding: 0;">
+                <table class="table table-hover" style="margin-bottom: 0;">
                     <thead>
                         <tr>
-                            <th>Horário</th>
+                            <th style="padding-left: 20px;">Horário</th>
                             <th>Paciente</th>
+                            
+                            {% if user.is_superuser %}
+                            <th>Tipo</th>
+                            {% endif %}
+                            
+                            {# --- ALTERAÇÃO: Admins também veem o terapeuta --- #}
+                            {% if is_admin %}
                             <th>Terapeuta</th>
+                            {% endif %}
+                            
                             <th>Status</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for item in agendamentos_hoje %}
                         <tr>
-                            <td><strong>{{ item.data_hora|date:"H:i" }}</strong></td>
+                            <td style="padding-left: 20px;">
+                                <strong>{{ item.data|date:"d/m/Y" }}</strong><br>
+                                <small class="text-muted">{{ item.hora_inicio|date:"H:i" }} - {{ item.hora_fim|date:"H:i"|default:"..." }}</small>
+                            </td>
                             <td>{{ item.paciente.nome }}</td>
-                            <td>{{ item.terapeuta.nome }}</td>
+                            
+                            {% if user.is_superuser %}
                             <td>
-                                {% if item.status == 'REALIZADO' %}
-                                    <span class="label label-success">Realizado</span>
-                                {% elif item.status == 'CANCELADO' %}
-                                    <span class="label label-cancelado" style="background-color: #777;">Cancelado</span>
-                                {% elif item.status == 'CONFIRMADO' %}
-                                    <span class="label label-confirmado" style="background-color: #f0ad4e;">Confirmado</span>
-                                {% elif item.status == 'FALTA' %}
-                                    <span class="label label-falta" style="background-color: #d9534f;">Falta</span>
-                                {% else %}
-                                    <span class="label label-info">Aguardando</span>
-                                {% endif %}
+                                <span class="label" style="background-color: #e9ecef; color: #555; border: 1px solid #ddd;">
+                                    {{ item.get_tipo_atendimento_display }}
+                                </span>
+                            </td>
+                            {% endif %}
+                            
+                            {# --- ALTERAÇÃO --- #}
+                            {% if is_admin %}
+                            <td>{{ item.terapeuta.nome }}</td>
+                            {% endif %}
+                            
+                            <td>
+                                {% if item.status == 'REALIZADO' %}<span class="text-success"><i class="glyphicon glyphicon-ok-sign"></i> Realizado</span>
+                                {% elif item.status == 'CANCELADO' %}<span class="text-muted" style="text-decoration: line-through;">Cancelado</span>
+                                {% elif item.status == 'CONFIRMADO' %}<span class="text-warning"><i class="glyphicon glyphicon-time"></i> Confirmado</span>
+                                {% elif item.status == 'FALTA' %}<span class="text-danger">Falta</span>
+                                {% else %}<span class="text-info">Aguardando</span>{% endif %}
                             </td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="4" class="text-center text-muted">
-                                <em>Nenhum atendimento agendado para hoje.</em> <br><br>
-                                <a href="{% url 'novo_agendamento' %}" class="btn btn-default btn-sm">Agendar Alguém</a>
+                            <td colspan="{% if is_admin %}5{% else %}4{% endif %}" class="text-center text-muted" style="padding: 40px;">
+                                <i class="glyphicon glyphicon-calendar" style="font-size: 24px; margin-bottom: 10px; color: #ccc;"></i><br>
+                                Nenhum atendimento agendado para hoje. <br><br>
+                                <a href="{% url 'novo_agendamento' %}" class="btn btn-default btn-sm">Agendar Paciente</a>
                             </td>
                         </tr>
                         {% endfor %}

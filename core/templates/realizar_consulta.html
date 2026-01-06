@@ -39,17 +39,35 @@
         <div class="panel {% if agendamento.status == 'REALIZADO' %}panel-warning{% else %}panel-primary{% endif %}">
             <div class="panel-heading">
                 {% if agendamento.status == 'REALIZADO' %}
-                    Editar Evolução Clínica
+                    Editar Dados Clínicos e Financeiros
                 {% else %}
-                    Registro de Evolução
+                    Registro de Evolução e Faturamento
                 {% endif %}
             </div>
             <div class="panel-body">
                 <form method="POST">
                     {% csrf_token %}
                     
+                    {# --- PROTEÇÃO TOTAL: Só admin vê o box de tipo --- #}
+                    {% if user.is_superuser %}
+                        <div class="form-group" style="background: #f9f9f9; padding: 10px; border-radius: 5px; border: 1px solid #eee;">
+                            <label for="tipo_atendimento_select" style="color: #555;">Tipo de Atendimento (Financeiro):</label>
+                            <select name="tipo_atendimento_select" id="tipo_atendimento_select" class="form-control">
+                                {% for codigo, nome in tipos_atendimento %}
+                                    <option value="{{ codigo }}" {% if agendamento.tipo_atendimento == codigo %}selected{% endif %}>
+                                        {{ nome }}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">Admin: Você pode alterar o tipo deste atendimento.</small>
+                        </div>
+                    {% else %}
+                        {# Mantém o valor oculto para não quebrar a lógica, mas não mostra visualmente #}
+                        <input type="hidden" name="tipo_atendimento_select" value="{{ agendamento.tipo_atendimento }}">
+                    {% endif %}
+
                     <div class="form-group">
-                        <label>Descrição do Atendimento:</label>
+                        <label>Descrição da Evolução:</label>
                         {{ form.evolucao }}
                         <span class="text-danger">{{ form.evolucao.errors }}</span>
                     </div>
