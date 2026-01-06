@@ -1,33 +1,47 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-6 col-md-offset-3">
-        <div class="panel panel-primary">
-            <div class="panel-heading">
-                <h3 class="panel-title">Novo Paciente</h3>
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3 border-bottom">
+                <h5 class="card-title mb-0 fw-bold text-primary">
+                    {% if editando %}
+                        <i class="bi bi-pencil-square me-2"></i>Editar Paciente
+                    {% else %}
+                        <i class="bi bi-person-plus-fill me-2"></i>Novo Paciente
+                    {% endif %}
+                </h5>
             </div>
-            <div class="panel-body">
+            <div class="card-body p-4">
                 <form method="POST">
-                    {% csrf_token %} {% if form.errors %}
-                        <div class="alert alert-danger">
-                            Por favor, corrija os erros abaixo.
+                    {% csrf_token %} 
+                    
+                    {% if form.errors %}
+                        <div class="alert alert-danger d-flex align-items-center mb-4">
+                            <i class="bi bi-exclamation-octagon-fill fs-4 me-3"></i>
+                            <div>
+                                <strong>Atenção:</strong> Corrija os erros abaixo.
+                            </div>
                         </div>
                     {% endif %}
 
                     {% for field in form %}
-                        <div class="form-group">
-                            <label>{{ field.label }}</label>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted">{{ field.label }}</label>
                             {{ field }}
                             {% if field.errors %}
-                                <span class="text-danger small">{{ field.errors|striptags }}</span>
+                                <div class="text-danger small mt-1">{{ field.errors|striptags }}</div>
                             {% endif %}
                         </div>
                     {% endfor %}
 
-                    <hr>
-                    <button type="submit" class="btn btn-success">Salvar</button>
-                    <a href="{% url 'lista_pacientes' %}" class="btn btn-default">Cancelar</a>
+                    <div class="d-grid gap-2 mt-4 pt-2">
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="bi bi-check-lg me-2"></i>Salvar Cadastro
+                        </button>
+                        <a href="{% url 'lista_pacientes' %}" class="btn btn-light text-muted">Cancelar</a>
+                    </div>
                 </form>
             </div>
         </div>

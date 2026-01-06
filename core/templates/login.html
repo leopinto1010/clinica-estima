@@ -5,104 +5,67 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Acesso | Clínica Estima</title>
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
         body { 
-            background-color: #e9ecef;
-            font-family: 'Roboto', sans-serif;
+            background: #f4f6f8;
+            font-family: 'Inter', sans-serif;
             height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            display: flex; align-items: center; justify-content: center;
         }
-        
         .login-card {
-            background: white;
-            width: 100%;
-            max-width: 380px;
-            padding: 40px 30px;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-            text-align: center;
-            border-top: 4px solid #8e74a5;
+            background: white; width: 100%; max-width: 400px;
+            padding: 40px; border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05); text-align: center;
         }
-
-        .login-logo { max-width: 150px; margin-bottom: 25px; }
-
+        .login-logo { max-width: 140px; margin-bottom: 30px; }
+        .titulo-login {
+            font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1.5px;
+            color: #8898aa; font-weight: 600; margin-bottom: 25px;
+        }
         .form-control {
-            height: 45px;
-            border-radius: 4px;
-            background-color: #f8f9fa;
-            border: 1px solid #ced4da;
-            box-shadow: none;
+            height: 48px; border-radius: 8px; background-color: #fff;
+            border: 1px solid #e0e0e0; font-size: 0.95rem; margin-bottom: 15px;
         }
-        .form-control:focus { border-color: #8e74a5; background: #fff; }
-
+        .form-control:focus { border-color: #8e74a5; box-shadow: 0 0 0 3px rgba(142, 116, 165, 0.15); }
         .btn-login {
-            background-color: #8e74a5;
-            color: white;
-            width: 100%;
-            height: 45px;
-            border-radius: 4px;
-            border: none;
-            font-weight: 500;
-            font-size: 15px;
-            margin-top: 20px;
-            transition: 0.3s;
+            background-color: #8e74a5; color: white; width: 100%; height: 48px;
+            border-radius: 8px; border: none; font-weight: 600; margin-top: 10px;
+            transition: all 0.2s;
         }
-        .btn-login:hover { background-color: #765d8d; }
-
-        /* Estilo da mensagem de erro no Login */
-        .error-box {
-            background-color: #fff;
-            border-left: 4px solid #d9534f;
-            box-shadow: 0 2px 8px rgba(217, 83, 79, 0.15); /* Sombra avermelhada suave */
-            padding: 12px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-            color: #d9534f;
-            font-size: 14px;
-            text-align: left;
-            display: flex;
-            align-items: center;
+        .btn-login:hover { background-color: #765d8d; transform: translateY(-1px); }
+        .footer-text { margin-top: 30px; font-size: 12px; color: #adb5bd; }
+        .alert-erro {
+            background: #fff5f5; border: 1px solid #feb2b2; color: #c53030;
+            font-size: 0.85rem; padding: 10px; border-radius: 6px; margin-bottom: 20px;
+            display: flex; align-items: center; gap: 10px; text-align: left;
         }
-        .error-box i { margin-right: 10px; font-size: 16px; }
-
-        .footer-text { margin-top: 30px; font-size: 12px; color: #aaa; }
     </style>
 </head>
 <body>
-
     <div class="login-card">
         <img src="{% static 'img/logo_estima.png' %}" alt="Logo Estima" class="login-logo">
         
-        <h4 style="margin-bottom: 30px; color: #555; font-weight: 400;">Acesso ao Sistema</h4>
+        <div class="titulo-login">Bem-vindo de volta</div>
 
         {% if form.errors %}
-            <div class="error-box">
-                <i class="glyphicon glyphicon-exclamation-sign"></i>
-                <span>Credenciais inválidas. Verifique usuário e senha.</span>
+            <div class="alert-erro">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M8.982 1.566a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566zM8 5c.535 0 .954.462.9.995l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995A.905.905 0 0 1 8 5zm.002 6a1 1 0 1 1 0 2 1 1 0 0 1 0-2z"/>
+                </svg>
+                <div>Usuário ou senha incorretos.</div>
             </div>
         {% endif %}
 
         <form method="POST">
             {% csrf_token %}
-            <div class="form-group text-left">
-                <input type="text" name="username" class="form-control" placeholder="Usuário" required>
-            </div>
-
-            <div class="form-group text-left">
-                <input type="password" name="password" class="form-control" placeholder="Senha" required>
-            </div>
-
-            <button type="submit" class="btn btn-login">ENTRAR</button>
+            <input type="text" name="username" class="form-control" placeholder="Usuário" required>
+            <input type="password" name="password" class="form-control" placeholder="Senha" required>
+            <button type="submit" class="btn btn-login">ACESSAR CONTA</button>
         </form>
         
-        <div class="footer-text">
-            &copy; 2026 Clínica Estima. Uso exclusivo interno.
-        </div>
+        <div class="footer-text">&copy; 2026 Clínica Estima.</div>
     </div>
-
 </body>
 </html>

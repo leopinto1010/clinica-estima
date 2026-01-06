@@ -1,93 +1,108 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-8 col-md-offset-2">
+<div class="row justify-content-center">
+    <div class="col-lg-8">
         
-        <div class="panel panel-info">
-            <div class="panel-heading">
-                <h3 class="panel-title">
-                    {% if agendamento.status == 'REALIZADO' %}
-                        <i class="glyphicon glyphicon-pencil"></i> Editando Prontuário
-                    {% else %}
-                        <i class="glyphicon glyphicon-user"></i> Atendimento Médico
-                    {% endif %}
-                </h3>
-            </div>
-            <div class="panel-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <p><strong>Paciente:</strong> {{ agendamento.paciente.nome }}</p>
-                        <p><strong>Terapeuta:</strong> {{ agendamento.terapeuta.nome }}</p>
+        <div class="card mb-4 border-0 shadow-sm">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <h4 class="fw-bold mb-1">
+                            {% if agendamento.status == 'REALIZADO' %}
+                                <i class="bi bi-pencil-square text-warning me-2"></i>Editando Prontuário
+                            {% else %}
+                                <i class="bi bi-heart-pulse-fill text-primary me-2"></i>Atendimento Médico
+                            {% endif %}
+                        </h4>
+                        <p class="text-muted mb-0">Registre a evolução clínica abaixo.</p>
                     </div>
-                    <div class="col-md-6 text-right">
-                        <p>
-                            <strong>Data:</strong> {{ agendamento.data|date:"d/m/Y" }}<br>
-                            <strong>Horário:</strong> {{ agendamento.hora_inicio|date:"H:i" }} às {{ agendamento.hora_fim|date:"H:i"|default:"..." }}
-                        </p>
-                        
-                        {% if agendamento.status == 'REALIZADO' %}
-                            <span class="label label-success">Consulta Já Realizada</span>
-                        {% else %}
-                            <span class="label label-warning">Em Andamento</span>
-                        {% endif %}
+                    
+                    {% if agendamento.status == 'REALIZADO' %}
+                        <span class="badge badge-soft badge-realizado fs-6">Consulta Realizada</span>
+                    {% else %}
+                        <span class="badge badge-soft badge-agendado fs-6">Em Andamento</span>
+                    {% endif %}
+                </div>
+
+                <div class="bg-light p-3 rounded-3">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <small class="text-uppercase text-muted fw-bold" style="font-size: 0.75rem;">Paciente</small>
+                            <div class="fw-bold text-dark">{{ agendamento.paciente.nome }}</div>
+                        </div>
+                        <div class="col-md-6 text-md-end">
+                            <small class="text-uppercase text-muted fw-bold" style="font-size: 0.75rem;">Horário</small>
+                            <div class="fw-bold text-dark">
+                                {{ agendamento.data|date:"d/m/Y" }} • {{ agendamento.hora_inicio|date:"H:i" }} às {{ agendamento.hora_fim|date:"H:i" }}
+                            </div>
+                        </div>
+                        <div class="col-md-12 border-top pt-2 mt-2">
+                             <small class="text-uppercase text-muted fw-bold" style="font-size: 0.75rem;">Terapeuta Responsável</small>
+                             <div>{{ agendamento.terapeuta.nome }}</div>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="panel {% if agendamento.status == 'REALIZADO' %}panel-warning{% else %}panel-primary{% endif %}">
-            <div class="panel-heading">
-                {% if agendamento.status == 'REALIZADO' %}
-                    Editar Dados Clínicos e Financeiros
-                {% else %}
-                    Registro de Evolução e Faturamento
-                {% endif %}
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3 border-bottom">
+                <h6 class="mb-0 fw-bold">
+                    {% if agendamento.status == 'REALIZADO' %}
+                        Dados Clínicos e Financeiros
+                    {% else %}
+                        Registro de Evolução
+                    {% endif %}
+                </h6>
             </div>
-            <div class="panel-body">
+            <div class="card-body p-4">
                 <form method="POST">
                     {% csrf_token %}
                     
                     {# --- PROTEÇÃO TOTAL: Só admin vê o box de tipo --- #}
                     {% if user.is_superuser %}
-                        <div class="form-group" style="background: #f9f9f9; padding: 10px; border-radius: 5px; border: 1px solid #eee;">
-                            <label for="tipo_atendimento_select" style="color: #555;">Tipo de Atendimento (Financeiro):</label>
-                            <select name="tipo_atendimento_select" id="tipo_atendimento_select" class="form-control">
-                                {% for codigo, nome in tipos_atendimento %}
-                                    <option value="{{ codigo }}" {% if agendamento.tipo_atendimento == codigo %}selected{% endif %}>
-                                        {{ nome }}
-                                    </option>
-                                {% endfor %}
-                            </select>
-                            <small class="text-muted">Admin: Você pode alterar o tipo deste atendimento.</small>
+                        <div class="alert alert-light border d-flex align-items-center mb-4" role="alert">
+                            <i class="bi bi-cash-coin text-success fs-4 me-3"></i>
+                            <div class="flex-grow-1">
+                                <label for="tipo_atendimento_select" class="form-label fw-bold mb-1">Tipo de Atendimento (Financeiro)</label>
+                                <select name="tipo_atendimento_select" id="tipo_atendimento_select" class="form-select form-select-sm">
+                                    {% for codigo, nome in tipos_atendimento %}
+                                        <option value="{{ codigo }}" {% if agendamento.tipo_atendimento == codigo %}selected{% endif %}>
+                                            {{ nome }}
+                                        </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
                         </div>
                     {% else %}
-                        {# Mantém o valor oculto para não quebrar a lógica, mas não mostra visualmente #}
                         <input type="hidden" name="tipo_atendimento_select" value="{{ agendamento.tipo_atendimento }}">
                     {% endif %}
 
-                    <div class="form-group">
-                        <label>Descrição da Evolução:</label>
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Descrição da Evolução:</label>
                         {{ form.evolucao }}
-                        <span class="text-danger">{{ form.evolucao.errors }}</span>
+                        {% if form.evolucao.errors %}
+                            <div class="text-danger small mt-1">{{ form.evolucao.errors }}</div>
+                        {% endif %}
+                        <div class="form-text">Descreva o progresso, observações e recomendações.</div>
                     </div>
 
-                    <hr>
-                    
-                    {% if agendamento.status == 'REALIZADO' %}
-                        <button type="submit" class="btn btn-warning btn-lg btn-block">
-                            <i class="glyphicon glyphicon-floppy-disk"></i> Salvar Alterações
-                        </button>
-                    {% else %}
-                        <button type="submit" class="btn btn-success btn-lg btn-block">
-                            <i class="glyphicon glyphicon-ok"></i> Finalizar Consulta
-                        </button>
-                    {% endif %}
-                    
-                    <br>
-                    <a href="{% url 'lista_agendamentos' %}{% if filtros %}?{{ filtros }}{% endif %}" class="btn btn-default btn-block">
-                        Voltar
-                    </a>
+                    <div class="d-grid gap-2">
+                        {% if agendamento.status == 'REALIZADO' %}
+                            <button type="submit" class="btn btn-warning text-white">
+                                <i class="bi bi-save me-2"></i>Salvar Alterações
+                            </button>
+                        {% else %}
+                            <button type="submit" class="btn btn-success btn-lg">
+                                <i class="bi bi-check-lg me-2"></i>Finalizar Consulta
+                            </button>
+                        {% endif %}
+                        
+                        <a href="{% url 'lista_agendamentos' %}{% if filtros %}?{{ filtros }}{% endif %}" class="btn btn-light text-muted">
+                            Voltar
+                        </a>
+                    </div>
                 </form>
             </div>
         </div>

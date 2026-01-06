@@ -1,51 +1,54 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-6 col-md-offset-3">
-        <div class="panel panel-primary">
-            <div class="panel-heading">
-                <h3 class="panel-title">Agendar Consulta</h3>
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white py-3 border-bottom-0">
+                <h5 class="card-title fw-bold text-primary mb-0">
+                    <i class="bi bi-calendar-plus me-2"></i>Agendar Consulta
+                </h5>
             </div>
-            <div class="panel-body">
+            <div class="card-body p-4">
                 <form method="POST">
                     {% csrf_token %}
                     
-                    {# --- BLOCO DE ERROS MELHORADO --- #}
                     {% if form.errors %}
-                        <div class="alert alert-danger">
-                            <strong>Atenção:</strong><br>
-                            {% for field, errors in form.errors.items %}
-                                {% for error in errors %}
-                                    {% if field != '__all__' %}
-                                        - <strong>{{ field }}:</strong> {{ error }}<br>
-                                    {% else %}
-                                        - {{ error }}<br>
-                                    {% endif %}
+                        <div class="alert alert-danger d-flex align-items-center mb-4">
+                            <i class="bi bi-exclamation-octagon-fill me-3 fs-4"></i>
+                            <div>
+                                <strong>Erro ao agendar:</strong>
+                                <ul class="mb-0 ps-3 mt-1 small">
+                                {% for field, errors in form.errors.items %}
+                                    {% for error in errors %}
+                                        <li>{% if field != '__all__' %}<strong>{{ field }}:</strong> {% endif %}{{ error }}</li>
+                                    {% endfor %}
                                 {% endfor %}
-                            {% endfor %}
+                                </ul>
+                            </div>
                         </div>
                     {% endif %}
 
                     {% for field in form %}
-                        {# Se o campo for Hidden (como o terapeuta para não-admins), não mostra label #}
                         {% if not field.is_hidden %}
-                            <div class="form-group">
-                                <label>{{ field.label }}</label>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold small text-muted">{{ field.label }}</label>
                                 {{ field }}
-                                {% if field.errors %}
-                                    <span class="text-danger small">{{ field.errors|striptags }}</span>
+                                {% if field.help_text %}
+                                    <div class="form-text">{{ field.help_text }}</div>
                                 {% endif %}
                             </div>
                         {% else %}
-                            {# Renderiza o campo oculto para que o dado seja enviado no POST #}
                             {{ field }}
                         {% endif %}
                     {% endfor %}
 
-                    <hr>
-                    <button type="submit" class="btn btn-success">Confirmar Agendamento</button>
-                    <a href="{% url 'lista_agendamentos' %}" class="btn btn-default">Cancelar</a>
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-success btn-lg">
+                            Confirmar Agendamento
+                        </button>
+                        <a href="{% url 'lista_agendamentos' %}" class="btn btn-light text-muted">Cancelar</a>
+                    </div>
                 </form>
             </div>
         </div>

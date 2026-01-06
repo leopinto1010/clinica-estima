@@ -56,6 +56,7 @@ class AgendamentoForm(forms.ModelForm):
         if not (terapeuta and data and hora_inicio):
             return cleaned_data
 
+        # Calcula hora fim se não fornecida (Regra de Negócio: +1 hora)
         if not hora_fim:
             dt_inicio_naive = datetime.combine(data, hora_inicio)
             dt_inicio_aware = timezone.make_aware(dt_inicio_naive, timezone.get_current_timezone())
@@ -63,20 +64,18 @@ class AgendamentoForm(forms.ModelForm):
             hora_fim = dt_fim.time()
             cleaned_data['hora_fim'] = hora_fim 
 
-        # Validação visual rápida no form
-        # ALTERAÇÃO: Adicionado .exclude(deletado=True) para ignorar os apagados
-        conflitos = Agendamento.objects.filter(terapeuta=terapeuta, data=data)\
-            .exclude(status__in=['CANCELADO', 'FALTA'])\
-            .exclude(deletado=True)
-            
-        conflitos = conflitos.filter(hora_inicio__lt=hora_fim, hora_fim__gt=hora_inicio)
+        # --- NOVA VALIDAÇÃO CENTRALIZADA ---
+        # Usa o método estático criado no Model, garantindo consistência
+        tem_conflito = Agendamento.verificar_conflito(
+            terapeuta=terapeuta,
+            data=data,
+            hora_inicio=hora_inicio,
+            hora_fim=hora_fim,
+            ignorar_id=self.instance.pk if self.instance.pk else None
+        )
 
-        if self.instance.pk:
-            conflitos = conflitos.exclude(pk=self.instance.pk)
-
-        if conflitos.exists():
-            ocupante = conflitos.first()
-            raise forms.ValidationError(f"Conflito! Dr(a) {terapeuta.nome} já atende {ocupante.paciente.nome} neste horário.")
+        if tem_conflito:
+            raise forms.ValidationError(f"Conflito! Dr(a) {terapeuta.nome} já possui agendamento neste horário.")
 
         return cleaned_data
 

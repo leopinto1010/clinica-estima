@@ -1,37 +1,49 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-6 col-md-offset-3">
-        <div class="panel panel-primary">
-            <div class="panel-heading">
-                <h3 class="panel-title">Cadastrar Novo Membro da Equipe</h3>
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-5">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-primary text-white py-3">
+                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-people-fill me-2"></i>Novo Membro da Equipe</h5>
             </div>
-            <div class="panel-body">
+            <div class="card-body p-4">
                 <form method="POST">
                     {% csrf_token %}
                     
-                    <div class="form-group">
-                        <label>Função no Sistema:</label>
-                        <select name="papel_sistema" class="form-control" id="selectPapel">
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Função no Sistema</label>
+                        <select name="papel_sistema" class="form-select" id="selectPapel">
                             <option value="terapeuta">Terapeuta</option>
                             <option value="admin">Administrativo</option>
                             <option value="financeiro">Financeiro</option>
                         </select>
-                        <small class="text-muted">Isso define as permissões de acesso do usuário.</small>
+                        <div class="form-text">Define as permissões de acesso do usuário.</div>
                     </div>
 
                     {% for field in form %}
-                        <div class="form-group">
-                            <label>{{ field.label }}</label>
-                            {{ field }}
+                        <div class="mb-3">
+                            <label class="form-label fw-bold small text-muted">{{ field.label }}</label>
+                            
+                            {# Adiciona classe form-control se não tiver (gambiarra limpa de template) #}
+                            <div class="input-group">
+                                {{ field }}
+                            </div>
+
+                            {% if field.help_text %}
+                                <div class="form-text small">{{ field.help_text }}</div>
+                            {% endif %}
+                            
                             {% if field.errors %}
-                                <div class="text-danger small">{{ field.errors }}</div>
+                                <div class="text-danger small mt-1">{{ field.errors|striptags }}</div>
                             {% endif %}
                         </div>
                     {% endfor %}
 
-                    <button type="submit" class="btn btn-success btn-block">Finalizar Cadastro</button>
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg">Finalizar Cadastro</button>
+                        <a href="{% url 'lista_pacientes' %}" class="btn btn-light text-muted">Cancelar</a>
+                    </div>
                 </form>
             </div>
         </div>
@@ -39,9 +51,14 @@
 </div>
 
 <script>
-    var inputs = document.querySelectorAll('input');
-    inputs.forEach(function(input) {
-        input.classList.add('form-control');
+    // Garante estilo Bootstrap nos inputs gerados pelo Django UserCreationForm
+    document.addEventListener("DOMContentLoaded", function() {
+        var inputs = document.querySelectorAll('input, select');
+        inputs.forEach(function(input) {
+            if (!input.classList.contains('form-control') && !input.classList.contains('form-select')) {
+                input.classList.add('form-control');
+            }
+        });
     });
 </script>
 {% endblock %}

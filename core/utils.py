@@ -11,6 +11,7 @@ def criar_agendamentos_em_lote(form_data, user_request):
     Processa o agendamento inicial e suas repetições.
     Retorna uma tupla: (número_de_criados, lista_de_datas_com_conflito)
     """
+    # Importação atrasada para evitar erro de ciclo (Model <-> Utils)
     from .models import Agendamento
     
     paciente = form_data['paciente']
@@ -28,19 +29,17 @@ def criar_agendamentos_em_lote(form_data, user_request):
     for i in range(0, repeticoes + 1):
         nova_data = data_base + timedelta(weeks=i)
         
-        # Verifica conflito no banco
-        # ALTERAÇÃO: Adicionado .exclude(deletado=True)
-        conflito_qs = Agendamento.objects.filter(
-            terapeuta=terapeuta, 
-            data=nova_data
-        ).exclude(status__in=['CANCELADO', 'FALTA']).exclude(deletado=True)
-        
-        conflito_qs = conflito_qs.filter(
-            hora_inicio__lt=hora_fim, 
-            hora_fim__gt=hora_inicio
+        # --- ATUALIZAÇÃO CRÍTICA ---
+        # Agora usamos o método centralizado do Model para checar conflitos.
+        # Isso garante que a regra é a mesma em todo o sistema.
+        tem_conflito = Agendamento.verificar_conflito(
+            terapeuta=terapeuta,
+            data=nova_data,
+            hora_inicio=hora_inicio,
+            hora_fim=hora_fim
         )
 
-        if conflito_qs.exists():
+        if tem_conflito:
             conflitos.append(nova_data.strftime('%d/%m'))
         else:
             Agendamento.objects.create(
@@ -57,19 +56,10 @@ def criar_agendamentos_em_lote(form_data, user_request):
     return criados, conflitos
 
 # --- PERMISSÕES ---
+# (Mantemos apenas o setup de grupos, pois as verificações de permissão
+# agora estão centralizadas no arquivo decorators.py)
+
 def setup_grupos():
     Group.objects.get_or_create(name='Administrativo')
     Group.objects.get_or_create(name='Terapeutas')
     Group.objects.get_or_create(name='Financeiro')
-
-def is_dono(user):
-    return user.is_superuser
-
-def is_admin(user):
-    return user.groups.filter(name='Administrativo').exists() or user.is_superuser
-
-def is_terapeuta(user):
-    return user.groups.filter(name='Terapeutas').exists()
-
-def is_financeiro(user):
-    return user.groups.filter(name='Financeiro').exists() or user.is_superuser

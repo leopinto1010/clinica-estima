@@ -1,6 +1,8 @@
 from django.db import models
 from django.core.validators import RegexValidator
-from datetime import datetime
+from datetime import datetime, timedelta
+from django.utils import timezone
+from django.db.models import Q
 
 # --- LISTA DE OPÇÕES ---
 TIPO_ATENDIMENTO_CHOICES = [
@@ -33,6 +35,11 @@ class Paciente(models.Model):
         verbose_name="Tipo de Atendimento Padrão"
     )
     
+    class Meta:
+        ordering = ['nome']
+        verbose_name = 'Paciente'
+        verbose_name_plural = 'Pacientes'
+    
     def __str__(self):
         return self.nome
 
@@ -46,9 +53,23 @@ class Terapeuta(models.Model):
     def __str__(self):
         return self.nome
 
+# --- MANAGER PERSONALIZADO ---
+class AgendamentoManager(models.Manager):
+    def ativos(self):
+        """Retorna apenas agendamentos que NÃO foram deletados."""
+        return self.filter(deletado=False)
+
+    def do_paciente(self, paciente_id):
+        return self.ativos().filter(paciente_id=paciente_id)
+    
+    def do_terapeuta(self, terapeuta_user):
+        """Filtra para o terapeuta logado, se ele for terapeuta."""
+        if hasattr(terapeuta_user, 'terapeuta'):
+            return self.ativos().filter(terapeuta=terapeuta_user.terapeuta)
+        return self.none()
+
 # --- 3. AGENDAMENTO ---
 class Agendamento(models.Model):
-    # [CORREÇÃO] Removido 'CONFIRMADO' desta lista. Isso remove do filtro automaticamente.
     STATUS_CHOICES = [
         ('AGUARDANDO', 'Aguardando'),
         ('REALIZADO', 'Realizado'),
@@ -71,10 +92,11 @@ class Agendamento(models.Model):
     )
     
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='AGUARDANDO')
-    
-    # SOFT DELETE
     deletado = models.BooleanField(default=False, verbose_name="Excluído da Agenda")
     
+    # Conecta o Manager
+    objects = AgendamentoManager()
+
     class Meta:
         ordering = ['data', 'hora_inicio'] 
 
@@ -84,6 +106,40 @@ class Agendamento(models.Model):
     @property
     def data_hora_inicio(self):
         return datetime.combine(self.data, self.hora_inicio)
+
+    def save(self, *args, **kwargs):
+        # Garante o cálculo da hora fim se não vier preenchido
+        if not self.hora_fim and self.hora_inicio:
+            # Lógica simples: +1 hora por padrão
+            dummy_date = datetime.now().date()
+            dt_inicio = datetime.combine(dummy_date, self.hora_inicio)
+            self.hora_fim = (dt_inicio + timedelta(hours=1)).time()
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def verificar_conflito(cls, terapeuta, data, hora_inicio, hora_fim, ignorar_id=None):
+        """
+        Retorna True se houver conflito, False se estiver livre.
+        Ignora agendamentos cancelados, faltas ou deletados.
+        """
+        conflitos = cls.objects.ativos().filter(
+            terapeuta=terapeuta,
+            data=data
+        ).exclude(
+            status__in=['CANCELADO', 'FALTA']
+        )
+
+        # Lógica de sobreposição de horários
+        # (StartA < EndB) and (EndA > StartB)
+        conflitos = conflitos.filter(
+            hora_inicio__lt=hora_fim,
+            hora_fim__gt=hora_inicio
+        )
+
+        if ignorar_id:
+            conflitos = conflitos.exclude(id=ignorar_id)
+            
+        return conflitos.exists()
 
 # --- 4. CONSULTA ---
 class Consulta(models.Model):

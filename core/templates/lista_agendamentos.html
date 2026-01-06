@@ -4,275 +4,281 @@
 <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
 
 <style>
-    #calendar-container { background: white; padding: 20px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 30px; min-height: 500px; }
-    .fc-event { cursor: pointer; text-decoration: none; }
-    .label-confirmado { background-color: #f0ad4e; }
-    .label-falta { background-color: #d9534f; } 
-    .label-cancelado { background-color: #777; } 
-    .filtro-box { background: #fff; padding: 15px; border: 1px solid #ddd; margin-bottom: 20px; border-radius: 4px; }
-    .dl-horizontal dt { text-align: left; width: 100px; }
-    .dl-horizontal dd { margin-left: 110px; }
+    #calendar-container { 
+        background: white; 
+        padding: 20px; 
+        border-radius: 12px; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+        margin-bottom: 30px; 
+        min-height: 600px; 
+    }
+    .fc-event { cursor: pointer; border: none; }
+    .fc-toolbar-title { font-size: 1.25rem !important; font-weight: 600; color: #344767; }
+    .fc-button { text-transform: capitalize; }
     
-    /* Cores dos botões do Modal */
-    .btn-outline-primary { background: transparent; border: 2px solid #337ab7; color: #337ab7; font-weight: bold; }
-    .btn-outline-primary:hover { background: #337ab7; color: white; }
-    
-    .btn-outline-danger { background: transparent; border: 2px solid #d9534f; color: #d9534f; font-weight: bold; margin-left: 5px; }
-    .btn-outline-danger:hover { background: #d9534f; color: white; }
-    
-    .btn-outline-cancel { background: transparent; border: 2px solid #777; color: #777; font-weight: bold; margin-left: 5px; }
-    .btn-outline-cancel:hover { background: #777; color: white; }
-    
-    #btnFecharModal { background-color: #eee; border-color: #ccc; color: #555; }
-    #btnFecharModal:hover { background-color: #ddd; }
+    /* Botões personalizados */
+    .btn-outline-action { border: 1px solid #dee2e6; color: #6c757d; }
+    .btn-outline-action:hover { background: #f8f9fa; color: #344767; }
+
+    /* LIXEIRA ISOLADA */
+    .btn-trash-icon { 
+        color: #adb5bd; border: none; background: transparent; padding: 6px 10px; transition: all 0.2s; 
+    }
+    .btn-trash-icon:hover { 
+        color: #dc3545; background-color: #fff5f5; border-radius: 4px;
+    }
+
+    /* BOTÃO REPOR (Azul Petróleo) */
+    .btn-repor {
+        background-color: #0d8a9e;
+        border-color: #0d8a9e;
+        color: white;
+    }
+    .btn-repor:hover {
+        background-color: #0a6c7c;
+        border-color: #0a6c7c;
+        color: white;
+    }
 </style>
 
-<div class="row" style="margin-bottom: 20px; align-items: center; display: flex;">
-    <div class="col-md-6">
-        <h3>Agenda</h3>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold text-dark mb-1">Agenda</h4>
+        <p class="text-muted small mb-0">Gerencie os horários e atendimentos.</p>
     </div>
-    <div class="col-md-6 text-right">
-        <button type="button" class="btn btn-danger" data-toggle="modal" data-target="#modalLimparDia" style="margin-right: 10px;">
-            <i class="glyphicon glyphicon-trash"></i> Limpar Dia
+    <div>
+        <button type="button" class="btn btn-outline-danger me-2" data-bs-toggle="modal" data-bs-target="#modalLimparDia">
+            <i class="bi bi-trash"></i> Limpar Dia
         </button>
-        <a href="{% url 'novo_agendamento' %}" class="btn btn-success">+ Novo Agendamento</a>
+        <a href="{% url 'novo_agendamento' %}" class="btn btn-primary shadow-sm">
+            <i class="bi bi-plus-lg"></i> Novo Agendamento
+        </a>
     </div>
 </div>
 
-<div id="modalLimparDia" class="modal fade" role="dialog">
-  <div class="modal-dialog modal-sm">
+<div id="modalLimparDia" class="modal fade" tabindex="-1">
+  <div class="modal-dialog modal-sm modal-dialog-centered">
     <div class="modal-content">
-      <div class="modal-header" style="background: #d9534f; color: white;">
-        <button type="button" class="close" data-dismiss="modal">&times;</button>
-        <h4 class="modal-title">Limpar Agenda</h4>
+      <div class="modal-header bg-danger text-white border-0">
+        <h5 class="modal-title fs-6"><i class="bi bi-exclamation-triangle-fill me-2"></i>Limpar Agenda</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body">
+      <div class="modal-body text-center p-4">
+        <p class="mb-3">Isso apagará <strong>todos</strong> os agendamentos não realizados do dia selecionado.</p>
         <form action="{% url 'limpar_dia' %}" method="POST">
             {% csrf_token %}
-            <div class="form-group">
-                <label>Selecione o dia para apagar:</label>
+            <div class="mb-3 text-start">
+                <label class="form-label small fw-bold">Selecione o dia:</label>
                 <input type="date" name="data_para_limpar" class="form-control" required min="{{ agora|date:'Y-m-d' }}">
             </div>
-            <button type="submit" class="btn btn-danger btn-block" onclick="return confirm('Tem certeza absoluta? Isso apagará todos os agendamentos (exceto realizados) deste dia.')">Apagar Tudo</button>
+            <button type="submit" class="btn btn-danger w-100" onclick="return confirm('Confirmar exclusão em massa?')">Apagar Tudo</button>
         </form>
       </div>
     </div>
   </div>
 </div>
 
-<div id="modalDetalhes" class="modal fade" tabindex="-1" role="dialog">
-  <div class="modal-dialog" role="document">
-    <div class="modal-content">
-      <div class="modal-header" style="background-color: #a48abd; color: white;">
-        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-        <h4 class="modal-title"><i class="glyphicon glyphicon-calendar"></i> Detalhes do Agendamento</h4>
+<div id="modalDetalhes" class="modal fade" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-header border-bottom-0 pb-0">
+        <h5 class="modal-title fw-bold text-primary">Detalhes do Agendamento</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body">
-        <dl class="dl-horizontal">
-            <dt>Paciente:</dt> <dd id="detalhePaciente" style="font-weight: bold; font-size: 1.2em;"></dd>
-            
-            {% if user.is_superuser %}
-            <dt>Tipo:</dt> <dd id="detalheTipo"></dd> 
-            {% endif %}
-
-            <dt>Terapeuta:</dt> <dd id="detalheTerapeuta"></dd>
-            <dt>Horário:</dt> <dd id="detalheData"></dd>
-            <dt>Status:</dt> <dd id="detalheStatus"></dd>
-        </dl>
-      </div>
-      <div class="modal-footer" id="detalheAcoes">
+      <div class="modal-body pt-2">
+        <div class="d-flex align-items-center mb-4 mt-2">
+            <div class="bg-light rounded-circle p-3 me-3 text-primary">
+                <i class="bi bi-person-fill fs-3"></i>
+            </div>
+            <div>
+                <h5 class="mb-0 fw-bold" id="detalhePaciente">Nome do Paciente</h5>
+                <small class="text-muted" id="detalheTipo">Tipo</small>
+            </div>
         </div>
+        
+        <div class="row g-3 mb-3">
+            <div class="col-6">
+                <label class="small text-muted fw-bold text-uppercase">Data</label>
+                <div id="detalheData" class="fw-medium text-dark"></div>
+            </div>
+            <div class="col-6">
+                <label class="small text-muted fw-bold text-uppercase">Status</label>
+                <div id="detalheStatus" class="fw-medium"></div>
+            </div>
+            <div class="col-12">
+                <label class="small text-muted fw-bold text-uppercase">Terapeuta</label>
+                <div id="detalheTerapeuta" class="fw-medium text-dark"></div>
+            </div>
+        </div>
+      </div>
+      
+      <div class="modal-footer border-top-0 bg-light rounded-bottom justify-content-between">
+          <div id="detalheAcoesPrincipais" class="d-flex gap-2 w-100">
+             </div>
+          <div id="detalheAcaoExcluir" class="border-start ps-3 ms-2">
+             </div>
+      </div>
     </div>
   </div>
 </div>
 
-<div class="row">
-    <div class="col-md-12">
+<div class="row mb-4">
+    <div class="col-12">
         <div id="calendar-container">
             <div id='calendar'></div>
         </div>
     </div>
 </div>
 
-<div class="row">
-    <div class="col-md-12">
-        <div class="filtro-box">
-            <form method="GET" id="formFiltro">
-                <div class="row">
-                    <div class="col-md-3">
-                        <div class="form-group">
-                            <label>Nome do Paciente:</label>
-                            <input type="text" name="busca_nome" class="form-control" placeholder="Digite o nome..." value="{{ busca_nome }}">
-                        </div>
-                    </div>
+<div class="card mb-4">
+    <div class="card-header bg-white py-3">
+        <h6 class="mb-0 fw-bold"><i class="bi bi-funnel me-2"></i>Filtros e Lista Detalhada</h6>
+    </div>
+    <div class="card-body bg-light">
+        <form method="GET" id="formFiltro" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">Paciente</label>
+                <input type="text" name="busca_nome" class="form-control" placeholder="Nome..." value="{{ busca_nome }}">
+            </div>
+            
+            <div class="col-md-2">
+                <label class="form-label small fw-bold text-muted">Status</label>
+                <select name="filtro_status" class="form-select">
+                    <option value="">Todos</option>
+                    {% for codigo, label in status_choices %}
+                        <option value="{{ codigo }}" {% if codigo == filtro_status_selecionado %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
 
+            {% if user.is_superuser %}
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">Tipo</label>
+                <select name="filtro_tipo" class="form-select">
+                    <option value="">Todos</option>
+                    {% for codigo, nome in tipos_atendimento %}
+                        <option value="{{ codigo }}" {% if codigo == filtro_tipo_selecionado %}selected{% endif %}>{{ nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+
+            {% if is_admin %}
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">Terapeuta</label>
+                <select name="filtro_terapeuta" class="form-select">
+                    <option value="">Todos</option>
+                    {% for t in terapeutas %}
+                        <option value="{{ t.id }}" {% if t.id == filtro_terapeuta_selecionado %}selected{% endif %}>{{ t.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            
+            <div class="col-12 border-top pt-3 mt-3">
+                <div class="row align-items-end">
                     <div class="col-md-2">
-                        <div class="form-group">
-                            <label>Status:</label>
-                            <select name="filtro_status" class="form-control">
-                                <option value="">Todos</option>
-                                {% for codigo, label in status_choices %}
-                                    <option value="{{ codigo }}" {% if codigo == filtro_status_selecionado %}selected{% endif %}>
-                                        {{ label }}
-                                    </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                    </div>
-
-                    {% if user.is_superuser %}
-                    <div class="col-md-3">
-                        <div class="form-group">
-                            <label>Tipo de Atendimento:</label>
-                            <select name="filtro_tipo" class="form-control">
-                                <option value="">Todos</option>
-                                {% for codigo, nome in tipos_atendimento %}
-                                    <option value="{{ codigo }}" {% if codigo == filtro_tipo_selecionado %}selected{% endif %}>
-                                        {{ nome }}
-                                    </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                    </div>
-                    {% endif %}
-
-                    {% if is_admin %}
-                    <div class="col-md-3">
-                        <div class="form-group">
-                            <label>Terapeuta:</label>
-                            <select name="filtro_terapeuta" class="form-control">
-                                <option value="">Todos</option>
-                                {% for t in terapeutas %}
-                                    <option value="{{ t.id }}" {% if t.id == filtro_terapeuta_selecionado %}selected{% endif %}>
-                                        {{ t.nome }}
-                                    </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                    </div>
-                    {% endif %}
-                </div>
-
-                <div class="row" style="margin-top: 10px;">
-                    <div class="col-md-2">
-                        <div class="form-group">
-                            <label>De:</label>
-                            <input type="date" name="data_inicio" class="form-control" value="{{ data_inicio }}">
-                        </div>
+                         <label class="form-label small fw-bold text-muted">De</label>
+                         <input type="date" name="data_inicio" class="form-control" value="{{ data_inicio }}">
                     </div>
                     <div class="col-md-2">
-                        <div class="form-group">
-                            <label>Até:</label>
-                            <input type="date" name="data_fim" class="form-control" value="{{ data_fim }}">
-                        </div>
+                         <label class="form-label small fw-bold text-muted">Até</label>
+                         <input type="date" name="data_fim" class="form-control" value="{{ data_fim }}">
                     </div>
-
-                    {# [AJUSTE] Aumentado para col-md-4 para preencher a linha #}
-                    <div class="col-md-4" style="padding-top: 25px;">
-                         <label class="radio-inline">
-                            <input type="radio" name="atalho_data" value="hoje" id="checkHoje" onclick="aplicarAtalho('hoje')" {% if filtro_hoje %}checked{% endif %}> Hoje
-                        </label>
-                        <label class="radio-inline">
-                            <input type="radio" name="atalho_data" value="semana" id="checkSemana" onclick="aplicarAtalho('semana')" {% if filtro_semana %}checked{% endif %}> Semana
-                        </label>
-                        <label class="radio-inline">
-                            <input type="radio" name="atalho_data" value="personalizado" onclick="aplicarAtalho('limpar')" {% if not filtro_hoje and not filtro_semana %}checked{% endif %}> Intervalo
-                        </label>
-                        
+                    
+                    <div class="col-md-4 pt-4">
+                        <div class="btn-group w-100" role="group">
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="aplicarAtalho('hoje')">Hoje</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="aplicarAtalho('semana')">Semana</button>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="aplicarAtalho('limpar')">Mês</button>
+                        </div>
                         <input type="hidden" name="filtro_hoje" id="inputFiltroHoje" value="{% if filtro_hoje %}1{% endif %}">
                         <input type="hidden" name="filtro_semana" id="inputFiltroSemana" value="{% if filtro_semana %}1{% endif %}">
                     </div>
 
-                    <div class="col-md-2" style="padding-top: 23px;">
-                        <button type="submit" class="btn btn-primary btn-block">
-                            <i class="glyphicon glyphicon-search"></i> Filtrar
-                        </button>
+                    <div class="col-md-2 d-grid">
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i> Filtrar</button>
                     </div>
-                    
-                    <div class="col-md-2" style="padding-top: 23px;">
-                        <a href="{% url 'lista_agendamentos' %}" class="btn btn-default btn-block">Limpar</a>
+                    <div class="col-md-2 d-grid">
+                         <a href="{% url 'lista_agendamentos' %}" class="btn btn-outline-secondary">Limpar</a>
                     </div>
-                    {# [REMOVIDO] Botão da Lixeira #}
                 </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<div class="row">
-    <div class="col-md-12">
-        <div class="panel panel-default">
-            {# [AJUSTE] Título simplificado #}
-            <div class="panel-heading">
-                Lista de Agendamentos
             </div>
-            <table class="table table-striped table-hover">
-                <thead>
-                    <tr>
-                        <th>Data/Hora</th>
-                        <th>Paciente</th>
-                        {% if user.is_superuser %}<th>Tipo</th>{% endif %}
-                        {% if is_admin %}<th>Terapeuta</th>{% endif %}
-                        <th>Status</th>
-                        <th>Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for agendamento in agendamentos %}
-                    <tr>
-                        <td>
-                            <strong>{{ agendamento.data|date:"d/m/Y" }}</strong><br>
-                            <small class="text-muted">
-                                {{ agendamento.hora_inicio|date:"H:i" }} - {{ agendamento.hora_fim|date:"H:i"|default:"..." }}
-                            </small>
-                        </td>
-                        <td>{{ agendamento.paciente.nome }}</td>
-                        
-                        {% if user.is_superuser %}
-                        <td>
-                            <span class="label" style="background-color: #a48abd;">
-                                {{ agendamento.get_tipo_atendimento_display }}
-                            </span>
-                        </td>
-                        {% endif %}
+        </form>
+    </div>
+    
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light">
+                <tr>
+                    <th class="ps-4 text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Data/Hora</th>
+                    <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Paciente</th>
+                    {% if user.is_superuser %}<th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Tipo</th>{% endif %}
+                    {% if is_admin %}<th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Terapeuta</th>{% endif %}
+                    <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Status</th>
+                    <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7 text-end pe-4">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for agendamento in agendamentos %}
+                <tr>
+                    <td class="ps-4">
+                        <div class="d-flex flex-column">
+                            <span class="font-weight-bold text-dark">{{ agendamento.data|date:"d/m/Y" }}</span>
+                            <small class="text-muted">{{ agendamento.hora_inicio|date:"H:i" }} - {{ agendamento.hora_fim|date:"H:i" }}</small>
+                        </div>
+                    </td>
+                    <td class="fw-bold text-dark">{{ agendamento.paciente.nome }}</td>
+                    
+                    {% if user.is_superuser %}
+                    <td><span class="badge badge-soft badge-padrao">{{ agendamento.get_tipo_atendimento_display }}</span></td>
+                    {% endif %}
 
-                        {% if is_admin %}
-                        <td>{{ agendamento.terapeuta.nome }}</td>
-                        {% endif %}
+                    {% if is_admin %}
+                    <td class="text-secondary text-sm">{{ agendamento.terapeuta.nome }}</td>
+                    {% endif %}
 
-                        <td>
-                            {% if agendamento.status == 'REALIZADO' %}<span class="label label-success">Realizado</span>
-                            {% elif agendamento.status == 'CANCELADO' %}<span class="label label-cancelado">Cancelado</span>
-                            {% elif agendamento.status == 'FALTA' %}<span class="label label-falta">Falta</span>
-                            {% else %}<span class="label label-info">Aguardando</span>{% endif %}
-                        </td>
-                        <td>
-                            {% with params=request.GET.urlencode %}
+                    <td>
+                        {% if agendamento.status == 'REALIZADO' %}<span class="badge badge-soft badge-realizado">Realizado</span>
+                        {% elif agendamento.status == 'CANCELADO' %}<span class="badge badge-soft badge-cancelado">Cancelado</span>
+                        {% elif agendamento.status == 'FALTA' %}<span class="badge badge-soft badge-falta">Falta</span>
+                        {% else %}<span class="badge badge-soft badge-agendado">Aguardando</span>{% endif %}
+                    </td>
+                    <td class="text-end pe-4">
+                        {% with params=request.GET.urlencode %}
+                        <div class="d-flex justify-content-end align-items-center">
                             
-                            {% if agendamento.status == 'AGUARDANDO' %}
-                                <a href="{% url 'realizar_consulta' agendamento.id %}?{{ params }}" class="btn btn-xs btn-primary">Atender</a>
-                                <a href="{% url 'marcar_falta' agendamento.id %}?{{ params }}" class="btn btn-xs btn-danger">Falta</a>
-                                <a href="{% url 'cancelar_agendamento' agendamento.id %}?{{ params }}" class="btn btn-xs btn-default">Cancelar</a>
-                                <a href="{% url 'excluir_agendamento' agendamento.id %}?{{ params }}" class="btn btn-xs btn-default" style="color: red; margin-left: 5px;" onclick="return confirm('Excluir permanentemente da tela?');">
-                                    <i class="glyphicon glyphicon-trash"></i>
+                            <div class="btn-group me-2">
+                                {% if agendamento.status == 'AGUARDANDO' %}
+                                    <a href="{% url 'realizar_consulta' agendamento.id %}?{{ params }}" class="btn btn-sm btn-outline-primary" title="Atender"><i class="bi bi-play-fill"></i></a>
+                                    <a href="{% url 'marcar_falta' agendamento.id %}?{{ params }}" class="btn btn-sm btn-outline-danger" title="Falta"><i class="bi bi-exclamation-lg"></i></a>
+                                    <a href="{% url 'cancelar_agendamento' agendamento.id %}?{{ params }}" class="btn btn-sm btn-outline-secondary" title="Cancelar"><i class="bi bi-x-lg"></i></a>
+                                
+                                {% elif agendamento.status == 'REALIZADO' %}
+                                    <a href="{% url 'realizar_consulta' agendamento.id %}?{{ params }}" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-medical"></i> Prontuário</a>
+                                
+                                {% else %}
+                                    {% if agendamento.data|date:"Ymd" > agora|date:"Ymd" or agendamento.data|date:"Ymd" == agora|date:"Ymd" and agendamento.hora_inicio|date:"Hi" > agora|date:"Hi" %}
+                                        <a href="{% url 'reposicao_agendamento' agendamento.id %}?{{ params }}" class="btn btn-sm btn-repor"><i class="bi bi-arrow-repeat"></i> Repor</a>
+                                    {% endif %}
+                                {% endif %}
+                            </div>
+
+                            {% if agendamento.status == 'AGUARDANDO' or agendamento.status == 'CANCELADO' %}
+                                <div class="vr mx-1 text-secondary opacity-25"></div>
+                                <a href="{% url 'excluir_agendamento' agendamento.id %}?{{ params }}" class="btn-trash-icon ms-2" onclick="return confirm('Excluir visualmente este agendamento?')" title="Excluir do Sistema">
+                                    <i class="bi bi-trash fs-6"></i>
                                 </a>
-
-                            {% elif agendamento.status == 'REALIZADO' %}
-                                <a href="{% url 'realizar_consulta' agendamento.id %}?{{ params }}" class="btn btn-xs btn-success">Prontuário</a>
-
-                            {% elif agendamento.status == 'CANCELADO' or agendamento.status == 'FALTA' %}
-                                <a href="{% url 'reposicao_agendamento' agendamento.id %}?{{ params }}" class="btn btn-xs btn-info"><i class="glyphicon glyphicon-refresh"></i> Reposição</a>
                             {% endif %}
-                            
-                            {% endwith %}
-                        </td>
-                    </tr>
-                    {% empty %}
-                    <tr><td colspan="{% if is_admin %}6{% else %}5{% endif %}">Nenhum agendamento para este período.</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+                        </div>
+                        {% endwith %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" class="text-center py-4 text-muted">Nenhum agendamento encontrado.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 </div>
 
@@ -280,25 +286,25 @@
   function aplicarAtalho(tipo) {
       document.getElementById('inputFiltroHoje').value = '';
       document.getElementById('inputFiltroSemana').value = '';
-
-      if (tipo === 'hoje') {
-          document.getElementById('inputFiltroHoje').value = '1';
-          document.getElementById('formFiltro').submit();
-      } else if (tipo === 'semana') {
-          document.getElementById('inputFiltroSemana').value = '1';
-          document.getElementById('formFiltro').submit();
-      }
+      if (tipo === 'hoje') document.getElementById('inputFiltroHoje').value = '1';
+      else if (tipo === 'semana') document.getElementById('inputFiltroSemana').value = '1';
+      document.getElementById('formFiltro').submit();
   }
 
   document.addEventListener('DOMContentLoaded', function() {
     var meusEventos = [];
     var paramsUrl = "{{ request.GET.urlencode }}";
+    var agora = new Date();
 
     {% for agendamento in agendamentos %}
-        var corFundo = '#337ab7'; var corBorda = '#2e6da4';
-        {% if agendamento.status == 'REALIZADO' %} corFundo = '#5cb85c'; corBorda = '#4cae4c';
-        {% elif agendamento.status == 'CANCELADO' %} corFundo = '#777'; corBorda = '#555';
-        {% elif agendamento.status == 'FALTA' %} corFundo = '#d9534f'; corBorda = '#d43f3a'; {% endif %}
+        var corFundo = '#3788d8'; var corBorda = '#3788d8';
+        {% if agendamento.status == 'REALIZADO' %} 
+            corFundo = '#198754'; corBorda = '#198754'; 
+        {% elif agendamento.status == 'CANCELADO' %} 
+            corFundo = '#6c757d'; corBorda = '#6c757d'; 
+        {% elif agendamento.status == 'FALTA' %} 
+            corFundo = '#dc3545'; corBorda = '#dc3545'; // VERMELHO
+        {% endif %}
 
         meusEventos.push({
             title: "{{ agendamento.paciente.nome|escapejs }}",
@@ -311,7 +317,7 @@
                 tipo_atendimento: "{{ agendamento.get_tipo_atendimento_display|escapejs }}",
                 status: "{{ agendamento.get_status_display }}",
                 status_cod: "{{ agendamento.status }}",
-                horario_fmt: "{{ agendamento.data|date:'d/m/Y' }} - {{ agendamento.hora_inicio|date:'H:i' }} às {{ agendamento.hora_fim|date:'H:i'|default:'??' }}",
+                horario_fmt: "{{ agendamento.data|date:'d/m/Y' }} - {{ agendamento.hora_inicio|date:'H:i' }} às {{ agendamento.hora_fim|date:'H:i' }}",
                 url_atender: "{% url 'realizar_consulta' agendamento.id %}?" + paramsUrl,
                 url_cancelar: "{% url 'cancelar_agendamento' agendamento.id %}?" + paramsUrl,
                 url_falta: "{% url 'marcar_falta' agendamento.id %}?" + paramsUrl,
@@ -325,12 +331,14 @@
     var calendar = new FullCalendar.Calendar(calendarEl, {
       initialView: 'timeGridWeek', locale: 'pt-br',
       headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' },
-      slotMinTime: '07:00:00', slotMaxTime: '21:00:00', allDaySlot: false, height: 'auto', scrollTime: '08:00:00',
+      slotMinTime: '07:00:00', slotMaxTime: '21:00:00', allDaySlot: false, height: 'auto',
       events: meusEventos,
-      
       eventClick: function(info) { 
         info.jsEvent.preventDefault();
         var props = info.event.extendedProps;
+        var startEvent = new Date(info.event.start);
+        var now = new Date();
+        
         $('#detalhePaciente').text(props.paciente);
         $('#detalheTerapeuta').text(props.terapeuta);
         $('#detalheTipo').text(props.tipo_atendimento);
@@ -338,24 +346,30 @@
         $('#detalheStatus').text(props.status);
 
         var htmlBotoes = '';
-        var btnExcluir = '<a href="' + props.url_excluir + '" class="btn btn-default" style="color:red; margin-left:5px;" onclick="return confirm(\'Excluir este agendamento?\')"><i class="glyphicon glyphicon-trash"></i></a>';
+        var htmlLixeira = '';
 
-        if (props.status_cod === 'AGUARDANDO') {
-            htmlBotoes += '<a href="' + props.url_atender + '" class="btn btn-outline-primary">Atender</a> ';
-            htmlBotoes += '<a href="' + props.url_falta + '" class="btn btn-outline-danger">Falta</a>';
-            htmlBotoes += '<a href="' + props.url_cancelar + '" class="btn btn-outline-cancel">Cancelar</a>';
-            htmlBotoes += btnExcluir;
-            
-        } else if (props.status_cod === 'REALIZADO') {
-            htmlBotoes += '<a href="' + props.url_atender + '" class="btn btn-success">Ver Prontuário</a>';
-            
-        } else if (props.status_cod === 'CANCELADO' || props.status_cod === 'FALTA') {
-             htmlBotoes += '<a href="' + props.url_reposicao + '" class="btn btn-info">Agendar Reposição</a>';
+        if (props.status_cod === 'AGUARDANDO' || props.status_cod === 'CANCELADO') {
+             htmlLixeira = `<a href="${props.url_excluir}" class="btn-trash-icon" onclick="return confirm('Excluir visualmente?')" title="Excluir"><i class="bi bi-trash fs-5"></i></a>`;
         }
 
-        htmlBotoes += ' <button type="button" id="btnFecharModal" class="btn btn-default pull-right" data-dismiss="modal">Fechar</button>';
-        $('#detalheAcoes').html(htmlBotoes);
-        $('#modalDetalhes').modal('show');
+        if (props.status_cod === 'AGUARDANDO') {
+            htmlBotoes += `<a href="${props.url_atender}" class="btn btn-primary flex-grow-1">Atender</a>`;
+            htmlBotoes += `<a href="${props.url_falta}" class="btn btn-outline-danger">Falta</a>`;
+            htmlBotoes += `<a href="${props.url_cancelar}" class="btn btn-outline-secondary">Cancelar</a>`;
+        } else if (props.status_cod === 'REALIZADO') {
+            htmlBotoes += `<a href="${props.url_atender}" class="btn btn-success w-100">Ver Prontuário</a>`;
+        } else {
+             // Só mostra se horário no futuro
+             if (startEvent > now) {
+                htmlBotoes += `<a href="${props.url_reposicao}" class="btn btn-repor w-100"><i class="bi bi-arrow-repeat"></i> Agendar Reposição</a>`;
+             }
+        }
+
+        $('#detalheAcoesPrincipais').html(htmlBotoes);
+        $('#detalheAcaoExcluir').html(htmlLixeira);
+        
+        var modal = new bootstrap.Modal(document.getElementById('modalDetalhes'));
+        modal.show();
       }
     });
     calendar.render();
