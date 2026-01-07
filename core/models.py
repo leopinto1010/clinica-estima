@@ -10,6 +10,11 @@ ESPECIALIDADES_CHOICES = [
     ('Terapeuta Ocupacional', 'Terapeuta Ocupacional'),
     ('Psicólogo(a)', 'Psicólogo(a)'),
     ('Psicomotricista', 'Psicomotricista'),
+    ('Nutricionista', 'Nutricionista'),
+    ('Psicopedagogo(a)', 'Psicopedagogo(a)'),
+    ('Musicoterapeuta', 'Musicoterapeuta'),
+    ('Arteterapeuta', 'Arteterapeuta'),
+    ('Terapeuta Alimentar', 'Terapeuta Alimentar'),
 ]
 
 TIPO_ATENDIMENTO_CHOICES = [
