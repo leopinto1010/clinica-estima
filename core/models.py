@@ -3,6 +3,15 @@ from django.core.validators import RegexValidator
 from datetime import datetime, timedelta
 from django.utils import timezone
 
+# --- LISTA PADRÃO DE ESPECIALIDADES ---
+ESPECIALIDADES_CHOICES = [
+    ('Fonoaudiólogo(a)', 'Fonoaudiólogo(a)'),
+    ('Fisioterapeuta', 'Fisioterapeuta'),
+    ('Terapeuta Ocupacional', 'Terapeuta Ocupacional'),
+    ('Psicólogo(a)', 'Psicólogo(a)'),
+    ('Psicomotricista', 'Psicomotricista'),
+]
+
 TIPO_ATENDIMENTO_CHOICES = [
     ('PARTICULAR', 'Particular'),
     ('DESCONTO', 'Particular com Desconto'),
@@ -11,9 +20,8 @@ TIPO_ATENDIMENTO_CHOICES = [
 ]
 
 class Paciente(models.Model):
+    # ... (código do Paciente mantém igual) ...
     nome = models.CharField(max_length=100)
-    
-    # CPF Opcional
     cpf = models.CharField(
         max_length=11, 
         unique=True,
@@ -21,21 +29,17 @@ class Paciente(models.Model):
         blank=True,
         validators=[RegexValidator(regex=r'^\d{11}$', message='CPF deve ter 11 dígitos.')]
     )
-    
     data_nascimento = models.DateField(null=True, blank=True)
-    
     telefone = models.CharField(
         max_length=11, blank=True, null=True,
         validators=[RegexValidator(regex=r'^\d{10,11}$', message='Telefone inválido.')]
     )
-    
     tipo_padrao = models.CharField(
         max_length=20, 
         choices=TIPO_ATENDIMENTO_CHOICES, 
         default='PARTICULAR',
         verbose_name="Tipo de Atendimento Padrão"
     )
-
     ativo = models.BooleanField(default=True, verbose_name="Cadastro Ativo")
     
     class Meta:
@@ -50,11 +54,14 @@ class Terapeuta(models.Model):
     usuario = models.OneToOneField('auth.User', on_delete=models.CASCADE, null=True, blank=True)
     nome = models.CharField(max_length=100)
     registro_profissional = models.CharField(max_length=50, blank=True, null=True)
-    especialidade = models.CharField(max_length=50, blank=True, null=True)
+    
+    # --- ALTERADO: Usando as escolhas padronizadas ---
+    especialidade = models.CharField(max_length=50, choices=ESPECIALIDADES_CHOICES, blank=True, null=True)
     
     def __str__(self):
         return self.nome
 
+# ... (Agendamento e Consulta mantêm igual) ...
 class AgendamentoManager(models.Manager):
     def ativos(self):
         return self.filter(deletado=False)

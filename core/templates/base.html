@@ -89,6 +89,11 @@
             <li class="nav-item"><a class="nav-link" href="{% url 'lista_agendamentos' %}">Agenda</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'lista_pacientes' %}">Pacientes</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'lista_consultas_geral' %}">Histórico</a></li>
+            
+            {% if is_admin %}
+                <li class="nav-item"><a class="nav-link" href="{% url 'lista_terapeutas' %}">Terapeutas</a></li>
+            {% endif %}
+
             {% if user.is_superuser %}
                 <li class="nav-item ms-3 ps-3 border-start border-white-50"><a class="nav-link" href="{% url 'cadastrar_equipe' %}">Equipe</a></li>
             {% endif %}

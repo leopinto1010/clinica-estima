@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold text-dark mb-1">Equipe de Terapeutas</h4>
+        <p class="text-muted small mb-0">Lista de profissionais cadastrados no sistema.</p>
+    </div>
+    {% if user.is_superuser %}
+    <a href="{% url 'cadastrar_equipe' %}" class="btn btn-primary shadow-sm">
+        <i class="bi bi-person-plus-fill me-2"></i>Novo Membro
+    </a>
+    {% endif %}
+</div>
+
+<div class="card mb-4 border-0 shadow-sm">
+    <div class="card-body bg-light">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label small fw-bold text-muted">Buscar Nome</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
+                    <input type="text" name="q" class="form-control border-start-0" placeholder="Digite o nome..." value="{{ busca_atual|default:'' }}">
+                </div>
+            </div>
+            
+            <div class="col-md-5">
+                <label class="form-label small fw-bold text-muted">Especialidade</label>
+                <select name="especialidade" class="form-select">
+                    <option value="">Todas as especialidades</option>
+                    {% for valor, nome in especialidades %}
+                        <option value="{{ valor }}" {% if valor == filtro_esp_selecionado %}selected{% endif %}>
+                            {{ nome }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light">
+                <tr>
+                    <th class="ps-4 text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Nome Profissional</th>
+                    <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Registro</th>
+                    <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Especialidade</th>
+                    <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Usuário de Acesso</th>
+                    <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7 text-center">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for terapeuta in terapeutas %}
+                <tr>
+                    <td class="ps-4">
+                        <div class="d-flex align-items-center">
+                            <div class="bg-light rounded-circle p-2 me-3 text-primary d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                <i class="bi bi-person-fill"></i>
+                            </div>
+                            <span class="fw-bold text-dark">{{ terapeuta.nome }}</span>
+                        </div>
+                    </td>
+                    <td>{{ terapeuta.registro_profissional|default:"-" }}</td>
+                    <td>
+                        {% if terapeuta.especialidade %}
+                            <span class="badge bg-light text-dark border">{{ terapeuta.especialidade }}</span>
+                        {% else %}
+                            <span class="text-muted small">-</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <div class="d-flex flex-column">
+                            <span class="text-sm fw-medium">{{ terapeuta.usuario.username }}</span>
+                            <span class="text-xs text-muted">{{ terapeuta.usuario.email|default:"" }}</span>
+                        </div>
+                    </td>
+                    <td class="text-center">
+                        {% if terapeuta.usuario.is_active %}
+                            <span class="badge bg-success">Ativo</span>
+                        {% else %}
+                            <span class="badge bg-danger">Inativo</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="text-center py-5 text-muted">
+                        <i class="bi bi-people fs-1 d-block mb-3 opacity-50"></i>
+                        Nenhum terapeuta encontrado com os filtros atuais.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

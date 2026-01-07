@@ -8,7 +8,7 @@ from core.views import (
     editar_paciente,
     lista_agendamentos, 
     novo_agendamento,
-    reposicao_agendamento, # Nova
+    reposicao_agendamento,
     realizar_consulta,
     detalhe_paciente,
     cancelar_agendamento,
@@ -18,7 +18,8 @@ from core.views import (
     limpar_dia,
     lista_consultas_geral,
     cadastrar_equipe,
-    excluir_agendamentos_futuros
+    excluir_agendamentos_futuros,
+    lista_terapeutas  # <--- Adicione este import
 )
 
 urlpatterns = [
@@ -45,6 +46,10 @@ urlpatterns = [
     path('agendamentos/cancelar/<int:agendamento_id>/', cancelar_agendamento, name='cancelar_agendamento'),
     path('agendamentos/excluir/<int:agendamento_id>/', excluir_agendamento, name='excluir_agendamento'),
     path('agendamentos/limpar-dia/', limpar_dia, name='limpar_dia'),
+    
+    # --- Area da Equipe ---
     path('equipe/novo/', cadastrar_equipe, name='cadastrar_equipe'),
+    path('equipe/lista/', lista_terapeutas, name='lista_terapeutas'), # <--- Nova Rota
+    
     path('paciente/<int:paciente_id>/limpar-agenda/', excluir_agendamentos_futuros, name='excluir_agendamentos_futuros'),
 ]

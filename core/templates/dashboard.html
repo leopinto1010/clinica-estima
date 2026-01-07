@@ -80,9 +80,12 @@
                             <tr>
                                 <th class="ps-4 text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Horário</th>
                                 <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Paciente</th>
-                                {% if user.is_superuser %}
+                                
+                                {# --- ALTERADO: Permissão para is_admin --- #}
+                                {% if is_admin %}
                                 <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Tipo</th>
                                 {% endif %}
+                                
                                 {% if is_admin %}
                                 <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Terapeuta</th>
                                 {% endif %}
@@ -102,7 +105,8 @@
                                     <span class="font-weight-bold text-dark">{{ item.paciente.nome }}</span>
                                 </td>
                                 
-                                {% if user.is_superuser %}
+                                {# --- ALTERADO: Permissão para is_admin --- #}
+                                {% if is_admin %}
                                 <td>
                                     <span class="badge badge-soft badge-padrao">
                                         {{ item.get_tipo_atendimento_display }}

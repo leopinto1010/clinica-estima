@@ -8,7 +8,7 @@ from django.db import transaction
 from django import forms
 from django.contrib.auth.models import Group
 
-from .models import Paciente, Terapeuta, Agendamento, Consulta, TIPO_ATENDIMENTO_CHOICES
+from .models import Paciente, Terapeuta, Agendamento, Consulta, TIPO_ATENDIMENTO_CHOICES, ESPECIALIDADES_CHOICES
 from .forms import PacienteForm, AgendamentoForm, ConsultaForm, CadastroEquipeForm
 from .decorators import admin_required, terapeuta_required, dono_required, is_admin, is_terapeuta, is_dono
 from .utils import setup_grupos, criar_agendamentos_em_lote
@@ -265,6 +265,10 @@ def novo_agendamento(request):
 def reposicao_agendamento(request, agendamento_id):
     # Pega qualquer agendamento (mesmo não deletado)
     agendamento_antigo = get_object_or_404(Agendamento, id=agendamento_id)
+    
+    if agendamento_antigo.status == 'FALTA':
+        messages.error(request, "Não é permitido repor agendamentos marcados como Falta.")
+        return redirect('lista_agendamentos')
     
     if not is_admin(request.user):
         if agendamento_antigo.terapeuta.usuario != request.user:
@@ -540,3 +544,31 @@ def excluir_agendamentos_futuros(request, paciente_id):
             qs.update(deletado=True)
             messages.success(request, f"{total} agendamentos removidos.")
     return redirect('detalhe_paciente', paciente_id=paciente_id)
+
+@login_required
+def lista_terapeutas(request):
+    if not is_admin(request.user):
+        messages.error(request, "Acesso restrito.")
+        return redirect('dashboard')
+
+    # Captura parâmetros da URL
+    busca = request.GET.get('q')
+    filtro_esp = request.GET.get('especialidade')
+
+    terapeutas = Terapeuta.objects.all().select_related('usuario').order_by('nome')
+
+    # Aplica os filtros se existirem
+    if busca:
+        terapeutas = terapeutas.filter(nome__icontains=busca)
+    
+    if filtro_esp:
+        terapeutas = terapeutas.filter(especialidade=filtro_esp)
+    
+    return render(request, 'lista_terapeutas.html', {
+        'terapeutas': terapeutas,
+        'is_admin': is_admin(request.user),
+        # Passa as listas e valores atuais para manter o filtro preenchido
+        'especialidades': ESPECIALIDADES_CHOICES,
+        'busca_atual': busca,
+        'filtro_esp_selecionado': filtro_esp
+    })

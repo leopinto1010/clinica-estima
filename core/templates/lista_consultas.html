@@ -32,7 +32,8 @@
                 </select>
             </div>
 
-            {% if user.is_superuser %}
+            {# --- ALTERADO: Permissão para is_admin --- #}
+            {% if is_admin %}
             <div class="col-md-3">
                 <label class="form-label small fw-bold text-muted">Tipo</label>
                 <select name="filtro_tipo" class="form-select">
@@ -104,9 +105,12 @@
                     {% if is_admin %}
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Terapeuta</th>
                     {% endif %}
-                    {% if user.is_superuser %}
+                    
+                    {# --- ALTERADO: Permissão para is_admin --- #}
+                    {% if is_admin %}
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Tipo</th>
                     {% endif %}
+                    
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Status</th>
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7 text-end pe-4">Prontuário</th>
                 </tr>
@@ -126,7 +130,8 @@
                     <td class="text-secondary text-sm">{{ agendamento.terapeuta.nome }}</td>
                     {% endif %}
 
-                    {% if user.is_superuser %}
+                    {# --- ALTERADO: Permissão para is_admin --- #}
+                    {% if is_admin %}
                     <td>
                         <span class="badge badge-soft badge-padrao">
                             {{ agendamento.get_tipo_atendimento_display }}

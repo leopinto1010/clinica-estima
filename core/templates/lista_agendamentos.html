@@ -5,40 +5,18 @@
 
 <style>
     #calendar-container { 
-        background: white; 
-        padding: 20px; 
-        border-radius: 12px; 
-        box-shadow: 0 4px 6px rgba(0,0,0,0.02);
-        margin-bottom: 30px; 
-        min-height: 600px; 
+        background: white; padding: 20px; border-radius: 12px; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.02); margin-bottom: 30px; min-height: 600px; 
     }
     .fc-event { cursor: pointer; border: none; }
     .fc-toolbar-title { font-size: 1.25rem !important; font-weight: 600; color: #344767; }
     .fc-button { text-transform: capitalize; }
-    
-    /* Botões personalizados */
     .btn-outline-action { border: 1px solid #dee2e6; color: #6c757d; }
     .btn-outline-action:hover { background: #f8f9fa; color: #344767; }
-
-    /* LIXEIRA ISOLADA */
-    .btn-trash-icon { 
-        color: #adb5bd; border: none; background: transparent; padding: 6px 10px; transition: all 0.2s; 
-    }
-    .btn-trash-icon:hover { 
-        color: #dc3545; background-color: #fff5f5; border-radius: 4px;
-    }
-
-    /* BOTÃO REPOR (Azul Petróleo) */
-    .btn-repor {
-        background-color: #0d8a9e;
-        border-color: #0d8a9e;
-        color: white;
-    }
-    .btn-repor:hover {
-        background-color: #0a6c7c;
-        border-color: #0a6c7c;
-        color: white;
-    }
+    .btn-trash-icon { color: #adb5bd; border: none; background: transparent; padding: 6px 10px; transition: all 0.2s; }
+    .btn-trash-icon:hover { color: #dc3545; background-color: #fff5f5; border-radius: 4px; }
+    .btn-repor { background-color: #0d8a9e; border-color: #0d8a9e; color: white; }
+    .btn-repor:hover { background-color: #0a6c7c; border-color: #0a6c7c; color: white; }
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -95,28 +73,15 @@
                 <small class="text-muted" id="detalheTipo">Tipo</small>
             </div>
         </div>
-        
         <div class="row g-3 mb-3">
-            <div class="col-6">
-                <label class="small text-muted fw-bold text-uppercase">Data</label>
-                <div id="detalheData" class="fw-medium text-dark"></div>
-            </div>
-            <div class="col-6">
-                <label class="small text-muted fw-bold text-uppercase">Status</label>
-                <div id="detalheStatus" class="fw-medium"></div>
-            </div>
-            <div class="col-12">
-                <label class="small text-muted fw-bold text-uppercase">Terapeuta</label>
-                <div id="detalheTerapeuta" class="fw-medium text-dark"></div>
-            </div>
+            <div class="col-6"><label class="small text-muted fw-bold text-uppercase">Data</label><div id="detalheData" class="fw-medium text-dark"></div></div>
+            <div class="col-6"><label class="small text-muted fw-bold text-uppercase">Status</label><div id="detalheStatus" class="fw-medium"></div></div>
+            <div class="col-12"><label class="small text-muted fw-bold text-uppercase">Terapeuta</label><div id="detalheTerapeuta" class="fw-medium text-dark"></div></div>
         </div>
       </div>
-      
       <div class="modal-footer border-top-0 bg-light rounded-bottom justify-content-between">
-          <div id="detalheAcoesPrincipais" class="d-flex gap-2 w-100">
-             </div>
-          <div id="detalheAcaoExcluir" class="border-start ps-3 ms-2">
-             </div>
+          <div id="detalheAcoesPrincipais" class="d-flex gap-2 w-100"></div>
+          <div id="detalheAcaoExcluir" class="border-start ps-3 ms-2"></div>
       </div>
     </div>
   </div>
@@ -151,7 +116,7 @@
                 </select>
             </div>
 
-            {% if user.is_superuser %}
+            {% if is_admin %}
             <div class="col-md-3">
                 <label class="form-label small fw-bold text-muted">Tipo</label>
                 <select name="filtro_tipo" class="form-select">
@@ -213,7 +178,7 @@
                 <tr>
                     <th class="ps-4 text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Data/Hora</th>
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Paciente</th>
-                    {% if user.is_superuser %}<th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Tipo</th>{% endif %}
+                    {% if is_admin %}<th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Tipo</th>{% endif %}
                     {% if is_admin %}<th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Terapeuta</th>{% endif %}
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Status</th>
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7 text-end pe-4">Ações</th>
@@ -230,7 +195,7 @@
                     </td>
                     <td class="fw-bold text-dark">{{ agendamento.paciente.nome }}</td>
                     
-                    {% if user.is_superuser %}
+                    {% if is_admin %}
                     <td><span class="badge badge-soft badge-padrao">{{ agendamento.get_tipo_atendimento_display }}</span></td>
                     {% endif %}
 
@@ -258,13 +223,14 @@
                                     <a href="{% url 'realizar_consulta' agendamento.id %}?{{ params }}" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-medical"></i> Prontuário</a>
                                 
                                 {% else %}
-                                    {% if agendamento.data|date:"Ymd" > agora|date:"Ymd" or agendamento.data|date:"Ymd" == agora|date:"Ymd" and agendamento.hora_inicio|date:"Hi" > agora|date:"Hi" %}
-                                        <a href="{% url 'reposicao_agendamento' agendamento.id %}?{{ params }}" class="btn btn-sm btn-repor"><i class="bi bi-arrow-repeat"></i> Repor</a>
+                                    {% if agendamento.status != 'FALTA' %}
+                                        {% if agendamento.data|date:"Ymd" > agora|date:"Ymd" or agendamento.data|date:"Ymd" == agora|date:"Ymd" and agendamento.hora_inicio|date:"Hi" > agora|date:"Hi" %}
+                                            <a href="{% url 'reposicao_agendamento' agendamento.id %}?{{ params }}" class="btn btn-sm btn-repor"><i class="bi bi-arrow-repeat"></i> Repor</a>
+                                        {% endif %}
                                     {% endif %}
                                 {% endif %}
                             </div>
 
-                            {# --- MUDANÇA 1: Lixeira apenas para AGUARDANDO --- #}
                             {% if agendamento.status == 'AGUARDANDO' %}
                                 <div class="vr mx-1 text-secondary opacity-25"></div>
                                 <a href="{% url 'excluir_agendamento' agendamento.id %}?{{ params }}" class="btn-trash-icon ms-2" onclick="return confirm('ATENÇÃO: Isso apagará permanentemente o agendamento. Confirmar?')" title="Excluir Permanentemente">
@@ -304,7 +270,7 @@
         {% elif agendamento.status == 'CANCELADO' %} 
             corFundo = '#6c757d'; corBorda = '#6c757d'; 
         {% elif agendamento.status == 'FALTA' %} 
-            corFundo = '#dc3545'; corBorda = '#dc3545'; // VERMELHO
+            corFundo = '#dc3545'; corBorda = '#dc3545';
         {% endif %}
 
         meusEventos.push({
@@ -349,7 +315,6 @@
         var htmlBotoes = '';
         var htmlLixeira = '';
 
-        // --- MUDANÇA 1: Lixeira apenas para AGUARDANDO no Modal ---
         if (props.status_cod === 'AGUARDANDO') {
              htmlLixeira = `<a href="${props.url_excluir}" class="btn-trash-icon" onclick="return confirm('ATENÇÃO: Apagar permanentemente?')" title="Excluir"><i class="bi bi-trash fs-5"></i></a>`;
         }
@@ -361,8 +326,7 @@
         } else if (props.status_cod === 'REALIZADO') {
             htmlBotoes += `<a href="${props.url_atender}" class="btn btn-success w-100">Ver Prontuário</a>`;
         } else {
-             // Só mostra se horário no futuro
-             if (startEvent > now) {
+             if (startEvent > now && props.status_cod !== 'FALTA') {
                 htmlBotoes += `<a href="${props.url_reposicao}" class="btn btn-repor w-100"><i class="bi bi-arrow-repeat"></i> Agendar Reposição</a>`;
              }
         }

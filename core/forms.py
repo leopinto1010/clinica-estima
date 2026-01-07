@@ -1,24 +1,31 @@
 from django import forms
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import UserCreationForm
-from .models import Paciente, Terapeuta, Agendamento, Consulta
+from .models import Paciente, Terapeuta, Agendamento, Consulta, ESPECIALIDADES_CHOICES # Importar a lista
 from datetime import datetime, timedelta
 from django.utils import timezone
 
 class CadastroEquipeForm(UserCreationForm):
     nome_completo = forms.CharField(max_length=100, label="Nome Completo")
     registro = forms.CharField(max_length=50, required=False, label="Registro Profissional")
-    especialidade = forms.CharField(max_length=50, required=False)
+    
+    # --- ALTERADO: Campo com Select ---
+    especialidade = forms.ChoiceField(
+        choices=[('', 'Selecione a especialidade...')] + ESPECIALIDADES_CHOICES,
+        required=False,
+        label="Especialidade / Área",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
 
     class Meta:
         model = User
         fields = ['username', 'nome_completo', 'registro', 'especialidade']
 
+# ... (O restante do arquivo forms.py permanece igual) ...
 class PacienteForm(forms.ModelForm):
     class Meta:
         model = Paciente
         fields = ['nome', 'cpf', 'data_nascimento', 'telefone', 'tipo_padrao', 'ativo']
-        
         widgets = {
             'nome': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nome Completo'}),
             'cpf': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Apenas números'}),
@@ -37,7 +44,6 @@ class AgendamentoForm(forms.ModelForm):
     class Meta:
         model = Agendamento
         fields = ['paciente', 'terapeuta', 'data', 'hora_inicio', 'hora_fim']
-        
         widgets = {
             'paciente': forms.Select(attrs={'class': 'form-control campo-busca'}),
             'terapeuta': forms.Select(attrs={'class': 'form-control campo-busca'}),
@@ -56,7 +62,6 @@ class AgendamentoForm(forms.ModelForm):
         if not (terapeuta and data and hora_inicio):
             return cleaned_data
 
-        # Calcula hora fim se não fornecida (Regra de Negócio: +1 hora)
         if not hora_fim:
             dt_inicio_naive = datetime.combine(data, hora_inicio)
             dt_inicio_aware = timezone.make_aware(dt_inicio_naive, timezone.get_current_timezone())
@@ -64,8 +69,6 @@ class AgendamentoForm(forms.ModelForm):
             hora_fim = dt_fim.time()
             cleaned_data['hora_fim'] = hora_fim 
 
-        # --- NOVA VALIDAÇÃO CENTRALIZADA ---
-        # Usa o método estático criado no Model, garantindo consistência
         tem_conflito = Agendamento.verificar_conflito(
             terapeuta=terapeuta,
             data=data,

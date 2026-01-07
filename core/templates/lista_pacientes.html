@@ -18,7 +18,7 @@
         <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-funnel-fill me-2"></i>Filtros de Busca</h6>
     </div>
     <div class="card-body bg-light">
-        <form method="GET" action="." class="row g-3">
+        <form method="GET" action="." class="row g-3 align-items-end">
             
             <div class="col-md-4">
                 <label class="form-label small fw-bold text-muted">Buscar</label>
@@ -37,6 +37,7 @@
                 </select>
             </div>
 
+            {% if is_admin %}
             <div class="col-md-3">
                 <label class="form-label small fw-bold text-muted">Tipo Padrão</label>
                 <select name="tipo" class="form-select">
@@ -48,14 +49,14 @@
                     {% endfor %}
                 </select>
             </div>
+            {% endif %}
 
-            <div class="col-md-2 d-flex align-items-end gap-2">
-                <button type="submit" class="btn btn-primary w-100">Filtrar</button>
-                {% if busca_atual or filtro_tipo_selecionado or filtro_status_selecionado != 'ativos' %}
-                    <a href="{% url 'lista_pacientes' %}" class="btn btn-outline-secondary" title="Limpar Filtros">
-                        <i class="bi bi-x-lg"></i>
-                    </a>
-                {% endif %}
+            <div class="col-md-2">
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-primary">Filtrar</button>
+                    {% if busca_atual or filtro_tipo_selecionado or filtro_status_selecionado != 'ativos' %}
+                        {% endif %}
+                </div>
             </div>
         </form>
     </div>
@@ -70,9 +71,11 @@
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">CPF</th>
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Status</th>
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Telefone</th>
-                    {% if user.is_superuser %}
+                    
+                    {% if is_admin %}
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Tipo Padrão</th>
                     {% endif %}
+                    
                     {% if is_admin %}
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7 text-end pe-4">Ações</th>
                     {% endif %}
@@ -86,7 +89,7 @@
                         {{ paciente.nome }}
                       </a>
                     </td>
-                    <td>{{ paciente.cpf }}</td>
+                    <td>{{ paciente.cpf|default:"-" }}</td>
                     
                     <td>
                         {% if paciente.ativo %}
@@ -98,7 +101,7 @@
 
                     <td>{{ paciente.telefone|default:"-" }}</td>
                     
-                    {% if user.is_superuser %}
+                    {% if is_admin %}
                     <td><span class="badge badge-soft badge-padrao">{{ paciente.get_tipo_padrao_display }}</span></td>
                     {% endif %}
 
