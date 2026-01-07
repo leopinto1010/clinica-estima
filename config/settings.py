@@ -19,6 +19,8 @@ ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='127.0.0.1,localhost', cast=Csv(
 # mas você pode mover para o .env se precisar alterar dinamicamente.
 CSRF_TRUSTED_ORIGINS = [
     'https://leozinreal1.pythonanywhere.com',
+    'https://www.clinica-estima.com',
+    'https://clinica-estima.com',
     'http://127.0.0.1:8000',
     'http://localhost:8000',
 ]
