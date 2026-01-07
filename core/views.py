@@ -328,29 +328,20 @@ def marcar_falta(request, agendamento_id):
 
 @login_required
 def cancelar_agendamento(request, agendamento_id):
+    # Busca apenas entre os ativos
     agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
+    
+    # Verificação de permissão (mantida igual)
     if not is_admin(request.user) and agendamento.terapeuta.usuario != request.user:
         return redirect('lista_agendamentos')
     
-    # --- MUDANÇA 2: Soft Delete se já passou o horário ---
-    # Cria datetime aware com data e hora do agendamento
-    dt_agendamento = datetime.combine(agendamento.data, agendamento.hora_inicio)
-    if timezone.is_naive(dt_agendamento):
-        dt_agendamento = timezone.make_aware(dt_agendamento)
+    # Agora, independentemente da data, apenas mudamos o status.
+    # O soft delete (deletado=True) ocorrerá APENAS na reposição.
     
-    agora = timezone.now()
-
-    if dt_agendamento < agora:
-        # Se é passado, esconde (Soft Delete)
-        agendamento.deletado = True
-        msg = "Agendamento antigo removido da lista."
-    else:
-        # Se é futuro, mantem histórico como Cancelado
-        agendamento.status = 'CANCELADO'
-        msg = "Agendamento cancelado com sucesso."
-
+    agendamento.status = 'CANCELADO'
     agendamento.save()
-    messages.success(request, msg)
+    
+    messages.success(request, "Agendamento cancelado com sucesso. O horário permanece visível até ser reposto.")
     return redirect('lista_agendamentos')
 
 @login_required
