@@ -7,7 +7,7 @@ from django.utils import timezone
 
 class CadastroEquipeForm(UserCreationForm):
     nome_completo = forms.CharField(max_length=100, label="Nome Completo")
-    registro = forms.CharField(max_length=50, required=False, label="CRP/CRM")
+    registro = forms.CharField(max_length=50, required=False, label="Registro Profissional")
     especialidade = forms.CharField(max_length=50, required=False)
 
     class Meta:
@@ -17,7 +17,7 @@ class CadastroEquipeForm(UserCreationForm):
 class PacienteForm(forms.ModelForm):
     class Meta:
         model = Paciente
-        fields = ['nome', 'cpf', 'data_nascimento', 'telefone', 'tipo_padrao']
+        fields = ['nome', 'cpf', 'data_nascimento', 'telefone', 'tipo_padrao', 'ativo']
         
         widgets = {
             'nome': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nome Completo'}),

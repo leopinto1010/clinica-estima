@@ -43,17 +43,49 @@ def dashboard(request):
 # --- PACIENTES ---
 @login_required
 def lista_pacientes(request):
-    query = request.GET.get('q')
-    if query:
-        pacientes = Paciente.objects.filter(
-            Q(nome__icontains=query) | Q(cpf__icontains=query)
-        )
+    # Parâmetros de Filtro
+    busca = request.GET.get('q')
+    filtro_status = request.GET.get('status')
+    filtro_tipo = request.GET.get('tipo')
+
+    # QuerySet Base (Começa com todos)
+    pacientes = Paciente.objects.all()
+
+    # --- Lógica do Status ---
+    # Se for 'todos', não filtra nada.
+    # Se for 'inativos', filtra ativo=False.
+    # Se não vier nada (padrão) OU vier 'ativos', filtra ativo=True.
+    if filtro_status == 'todos':
+        pass 
+    elif filtro_status == 'inativos':
+        pacientes = pacientes.filter(ativo=False)
     else:
-        pacientes = Paciente.objects.all()
+        # Comportamento padrão: Apenas Ativos
+        pacientes = pacientes.filter(ativo=True)
+        filtro_status = 'ativos' # Garante que o select fique marcado corretamente
+
+    # --- Lógica do Tipo Padrão ---
+    if filtro_tipo:
+        pacientes = pacientes.filter(tipo_padrao=filtro_tipo)
+
+    # --- Busca por Texto ---
+    if busca:
+        pacientes = pacientes.filter(
+            Q(nome__icontains=busca) | Q(cpf__icontains=busca)
+        )
     
+    # Ordenação (opcional, mantém alfabética)
+    pacientes = pacientes.order_by('nome')
+
     return render(request, 'lista_pacientes.html', {
         'pacientes': pacientes,
-        'is_admin': is_admin(request.user)
+        'is_admin': is_admin(request.user),
+        # Passamos as opções para o Template
+        'tipos_atendimento': TIPO_ATENDIMENTO_CHOICES,
+        # Passamos os filtros atuais para manter o formulário preenchido
+        'filtro_status_selecionado': filtro_status,
+        'filtro_tipo_selecionado': filtro_tipo,
+        'busca_atual': busca
     })
 
 @admin_required

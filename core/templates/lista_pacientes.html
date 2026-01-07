@@ -4,7 +4,7 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h4 class="fw-bold text-dark mb-1">Pacientes</h4>
-        <p class="text-muted small mb-0">Base de cadastros ativos.</p>
+        <p class="text-muted small mb-0">Gerenciamento da base de clientes.</p>
     </div>
     {% if is_admin %}
     <a href="{% url 'cadastro_paciente' %}" class="btn btn-success shadow-sm">
@@ -13,25 +13,62 @@
     {% endif %}
 </div>
 
-<div class="card">
-    <div class="card-header bg-white py-3">
-        <form method="GET" action=".">
-            <div class="input-group">
-                <span class="input-group-text bg-light border-end-0"><i class="bi bi-search"></i></span>
-                <input type="text" name="q" class="form-control border-start-0 bg-light" placeholder="Pesquisar por nome ou CPF..." value="{{ request.GET.q|default:'' }}">
-                <button type="submit" class="btn btn-primary">Buscar</button>
-                {% if request.GET.q %}
-                    <a href="{% url 'lista_pacientes' %}" class="btn btn-outline-secondary">Limpar</a>
+<div class="card mb-4 border-0 shadow-sm">
+    <div class="card-header bg-white py-3 border-bottom">
+        <h6 class="mb-0 fw-bold text-primary"><i class="bi bi-funnel-fill me-2"></i>Filtros de Busca</h6>
+    </div>
+    <div class="card-body bg-light">
+        <form method="GET" action="." class="row g-3">
+            
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-muted">Buscar</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
+                    <input type="text" name="q" class="form-control border-start-0" placeholder="Nome ou CPF..." value="{{ busca_atual|default:'' }}">
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">Status</label>
+                <select name="status" class="form-select">
+                    <option value="ativos" {% if filtro_status_selecionado == 'ativos' %}selected{% endif %}>Apenas Ativos</option>
+                    <option value="inativos" {% if filtro_status_selecionado == 'inativos' %}selected{% endif %}>Apenas Inativos</option>
+                    <option value="todos" {% if filtro_status_selecionado == 'todos' %}selected{% endif %}>Todos</option>
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">Tipo Padrão</label>
+                <select name="tipo" class="form-select">
+                    <option value="">Todos</option>
+                    {% for codigo, nome in tipos_atendimento %}
+                        <option value="{{ codigo }}" {% if filtro_tipo_selecionado == codigo %}selected{% endif %}>
+                            {{ nome }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-2 d-flex align-items-end gap-2">
+                <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+                {% if busca_atual or filtro_tipo_selecionado or filtro_status_selecionado != 'ativos' %}
+                    <a href="{% url 'lista_pacientes' %}" class="btn btn-outline-secondary" title="Limpar Filtros">
+                        <i class="bi bi-x-lg"></i>
+                    </a>
                 {% endif %}
             </div>
         </form>
     </div>
+</div>
+
+<div class="card border-0 shadow-sm">
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
             <thead class="bg-light">
                 <tr>
                     <th class="ps-4 text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Nome</th>
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">CPF</th>
+                    <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Status</th>
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Telefone</th>
                     {% if user.is_superuser %}
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Tipo Padrão</th>
@@ -43,13 +80,22 @@
             </thead>
             <tbody>
                 {% for paciente in pacientes %}
-                <tr>
+                <tr class="{% if not paciente.ativo %}table-light text-muted{% endif %}">
                     <td class="ps-4">
-                      <a href="{% url 'detalhe_paciente' paciente.id %}" class="fw-bold text-decoration-none text-primary">
+                      <a href="{% url 'detalhe_paciente' paciente.id %}" class="fw-bold text-decoration-none {% if not paciente.ativo %}text-muted{% else %}text-primary{% endif %}">
                         {{ paciente.nome }}
                       </a>
                     </td>
                     <td>{{ paciente.cpf }}</td>
+                    
+                    <td>
+                        {% if paciente.ativo %}
+                            <span class="badge bg-success">Ativo</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Inativo</span>
+                        {% endif %}
+                    </td>
+
                     <td>{{ paciente.telefone|default:"-" }}</td>
                     
                     {% if user.is_superuser %}
@@ -58,7 +104,7 @@
 
                     {% if is_admin %}
                     <td class="text-end pe-4">
-                        <a href="{% url 'editar_paciente' paciente.id %}" class="btn btn-sm btn-outline-warning">
+                        <a href="{% url 'editar_paciente' paciente.id %}" class="btn btn-sm btn-outline-warning" title="Editar">
                             <i class="bi bi-pencil"></i>
                         </a>
                     </td>
@@ -66,9 +112,9 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="5" class="text-center py-5 text-muted">
-                        <i class="bi bi-person-x fs-2 d-block mb-2"></i>
-                        Nenhum paciente encontrado.
+                    <td colspan="6" class="text-center py-5 text-muted">
+                        <i class="bi bi-person-x fs-2 d-block mb-2 opacity-50"></i>
+                        Nenhum paciente encontrado com estes filtros.
                     </td>
                 </tr>
                 {% endfor %}

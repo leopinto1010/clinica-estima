@@ -22,7 +22,6 @@ class Paciente(models.Model):
         validators=[RegexValidator(regex=r'^\d{11}$', message='CPF deve ter 11 dígitos.')]
     )
     
-    # MUDANÇA AQUI: Data de Nascimento agora aceita vazio
     data_nascimento = models.DateField(null=True, blank=True)
     
     telefone = models.CharField(
@@ -36,6 +35,8 @@ class Paciente(models.Model):
         default='PARTICULAR',
         verbose_name="Tipo de Atendimento Padrão"
     )
+
+    ativo = models.BooleanField(default=True, verbose_name="Cadastro Ativo")
     
     class Meta:
         ordering = ['nome']
