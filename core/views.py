@@ -26,7 +26,7 @@ def dashboard(request):
         else:
             qs = Agendamento.objects.none()
 
-    total_pacientes = Paciente.objects.count()
+    total_pacientes = Paciente.objects.filter(ativo=True).count()
     total_agendamentos_hoje = qs.count()
     
     return render(request, 'dashboard.html', {
