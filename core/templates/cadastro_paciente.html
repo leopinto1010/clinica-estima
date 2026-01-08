@@ -17,6 +17,8 @@
                 <form method="POST">
                     {% csrf_token %} 
                     
+                    <input type="hidden" name="filtros_persistentes" value="{{ filtros_persistentes }}">
+                    
                     {% if form.errors %}
                         <div class="alert alert-danger d-flex align-items-center mb-4">
                             <i class="bi bi-exclamation-octagon-fill fs-4 me-3"></i>
@@ -40,7 +42,8 @@
                         <button type="submit" class="btn btn-success btn-lg">
                             <i class="bi bi-check-lg me-2"></i>Salvar Cadastro
                         </button>
-                        <a href="{% url 'lista_pacientes' %}" class="btn btn-light text-muted">Cancelar</a>
+                        
+                        <a href="{% url 'lista_pacientes' %}{% if filtros_persistentes %}?{{ filtros_persistentes }}{% endif %}" class="btn btn-light text-muted">Cancelar</a>
                     </div>
                 </form>
             </div>

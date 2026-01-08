@@ -32,7 +32,6 @@
                 </select>
             </div>
 
-            {# --- ALTERADO: Permissão para is_admin --- #}
             {% if is_admin %}
             <div class="col-md-3">
                 <label class="form-label small fw-bold text-muted">Tipo</label>
@@ -106,7 +105,6 @@
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Terapeuta</th>
                     {% endif %}
                     
-                    {# --- ALTERADO: Permissão para is_admin --- #}
                     {% if is_admin %}
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Tipo</th>
                     {% endif %}
@@ -130,7 +128,6 @@
                     <td class="text-secondary text-sm">{{ agendamento.terapeuta.nome }}</td>
                     {% endif %}
 
-                    {# --- ALTERADO: Permissão para is_admin --- #}
                     {% if is_admin %}
                     <td>
                         <span class="badge badge-soft badge-padrao">
@@ -150,7 +147,7 @@
                     </td>
                     <td class="text-end pe-4">
                         {% if agendamento.status == 'REALIZADO' %}
-                            <a href="{% url 'realizar_consulta' agendamento.id %}" class="btn btn-sm btn-success" title="Ver Prontuário">
+                            <a href="{% url 'realizar_consulta' agendamento.id %}?origem=historico&{{ request.GET.urlencode }}" class="btn btn-sm btn-success" title="Ver Prontuário">
                                 <i class="bi bi-file-earmark-medical"></i> Prontuário
                             </a>
                         {% else %}

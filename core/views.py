@@ -87,15 +87,32 @@ def cadastro_paciente(request):
 @admin_required
 def editar_paciente(request, paciente_id):
     paciente = get_object_or_404(Paciente, id=paciente_id)
+    
+    # Captura os filtros da URL (se veio da lista)
+    filtros = request.GET.urlencode()
+    
     if request.method == 'POST':
+        # Tenta recuperar os filtros do formulário (hidden input)
+        filtros_post = request.POST.get('filtros_persistentes', '')
+        
         form = PacienteForm(request.POST, instance=paciente)
         if form.is_valid():
             form.save()
             messages.success(request, f"Dados de {paciente.nome} atualizados!")
-            return redirect('lista_pacientes')
+            
+            # Monta a URL de retorno com os filtros
+            url_destino = redirect('lista_pacientes').url
+            if filtros_post:
+                url_destino += f"?{filtros_post}"
+            return redirect(url_destino)
     else:
         form = PacienteForm(instance=paciente)
-    return render(request, 'cadastro_paciente.html', {'form': form, 'editando': True})
+        
+    return render(request, 'cadastro_paciente.html', {
+        'form': form, 
+        'editando': True,
+        'filtros_persistentes': filtros  # Passa para o template
+    })
 
 @login_required
 def detalhe_paciente(request, paciente_id):
@@ -240,20 +257,25 @@ def novo_agendamento(request):
 def reposicao_agendamento(request, agendamento_id):
     agendamento_antigo = get_object_or_404(Agendamento, id=agendamento_id)
     
-    # Verificação de permissão
+    # Captura filtros atuais da URL para manter a persistência
+    filtros = request.GET.urlencode()
+
     if not is_admin(request.user):
         if agendamento_antigo.terapeuta.usuario != request.user:
              messages.error(request, "Acesso negado.")
              return redirect('dashboard')
 
-    # Validação de data futura
     dt_consulta = datetime.combine(agendamento_antigo.data, agendamento_antigo.hora_inicio)
     if timezone.is_naive(dt_consulta):
         dt_consulta = timezone.make_aware(dt_consulta, timezone.get_current_timezone())
     
     if dt_consulta <= timezone.now():
         messages.error(request, "A reposição só é permitida para horários futuros.")
-        return redirect('lista_agendamentos')
+        
+        # Redireciona mantendo filtros em caso de erro
+        url_retorno = redirect('lista_agendamentos').url
+        if filtros: url_retorno += f'?{filtros}'
+        return redirect(url_retorno)
 
     if request.method == 'POST':
         paciente_id = request.POST.get('paciente')
@@ -262,7 +284,6 @@ def reposicao_agendamento(request, agendamento_id):
             try:
                 paciente_selecionado = Paciente.objects.get(id=paciente_id)
                 
-                # 1. Cria o NOVO agendamento na vaga (Ocupando o horário)
                 Agendamento.objects.create(
                     paciente=paciente_selecionado,
                     terapeuta=agendamento_antigo.terapeuta,
@@ -273,15 +294,16 @@ def reposicao_agendamento(request, agendamento_id):
                     tipo_atendimento=paciente_selecionado.tipo_padrao
                 )
 
-                # 2. Atualiza o ANTIGO (A Falta)
-                # Marcamos como deletado=True para ele sumir da agenda visual (Problema 2)
-                # Consequentemente, não será possível clicar em "Repor" novamente (Problema 1)
-                agendamento_antigo.status = 'FALTA' # Mantemos o status para histórico
-                agendamento_antigo.deletado = True  # Oculta da agenda (Soft Delete)
+                agendamento_antigo.status = 'FALTA'
+                agendamento_antigo.deletado = True
                 agendamento_antigo.save()
 
                 messages.success(request, "Vaga preenchida! O agendamento anterior foi removido da visualização.")
-                return redirect('lista_agendamentos')
+                
+                # Redireciona mantendo filtros
+                url_retorno = redirect('lista_agendamentos').url
+                if filtros: url_retorno += f'?{filtros}'
+                return redirect(url_retorno)
                 
             except Paciente.DoesNotExist:
                 messages.error(request, "Paciente inválido.")
@@ -289,7 +311,6 @@ def reposicao_agendamento(request, agendamento_id):
             messages.error(request, "Por favor, selecione um paciente.")
 
     form = AgendamentoForm()
-    # Limpeza de campos desnecessários para a view
     del form.fields['terapeuta']
     del form.fields['data']
     del form.fields['hora_inicio']
@@ -302,38 +323,56 @@ def reposicao_agendamento(request, agendamento_id):
 @login_required
 def confirmar_agendamento(request, agendamento_id):
     agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
+    filtros = request.GET.urlencode() # Captura filtros
+
     if not is_admin(request.user) and agendamento.terapeuta.usuario != request.user:
         return redirect('lista_agendamentos')
         
     agendamento.status = 'CONFIRMADO'
     agendamento.save()
-    return redirect('lista_agendamentos')
+    
+    # Retorno persistente
+    url_retorno = redirect('lista_agendamentos').url
+    if filtros: url_retorno += f'?{filtros}'
+    return redirect(url_retorno)
 
 @login_required
 def marcar_falta(request, agendamento_id):
     agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
+    filtros = request.GET.urlencode() # Captura filtros
+
     if not is_admin(request.user) and agendamento.terapeuta.usuario != request.user:
         return redirect('lista_agendamentos')
 
     agendamento.status = 'FALTA'
     agendamento.save()
-    return redirect('lista_agendamentos')
+    
+    # Retorno persistente
+    url_retorno = redirect('lista_agendamentos').url
+    if filtros: url_retorno += f'?{filtros}'
+    return redirect(url_retorno)
 
 @login_required
 def excluir_agendamento(request, agendamento_id):
     agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
+    filtros = request.GET.urlencode() # Captura filtros
+
     if not is_admin(request.user) and agendamento.terapeuta.usuario != request.user:
         return redirect('lista_agendamentos')
 
     agendamento.delete()
     messages.success(request, "Agendamento excluído permanentemente.")
     
-    return redirect('lista_agendamentos')
+    # Retorno persistente
+    url_retorno = redirect('lista_agendamentos').url
+    if filtros: url_retorno += f'?{filtros}'
+    return redirect(url_retorno)
 
 @login_required
 def realizar_consulta(request, agendamento_id):
     agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
 
+    # ... (blocos de verificação de permissão mantidos iguais) ...
     if is_admin(request.user) and not is_dono(request.user):
         messages.error(request, "Perfil Administrativo não tem acesso a prontuários médicos.")
         return redirect('lista_agendamentos')
@@ -344,8 +383,21 @@ def realizar_consulta(request, agendamento_id):
              return redirect('dashboard')
 
     consulta, _ = Consulta.objects.get_or_create(agendamento=agendamento)
-    filtros = request.GET.urlencode()
     
+    # --- LÓGICA DE VOLTAR ---
+    params = request.GET.copy()
+    origem = params.pop('origem', [''])[0] # Remove 'origem' dos parâmetros
+    query_string = params.urlencode()
+    
+    if origem == 'historico':
+        url_voltar = redirect('lista_consultas_geral').url
+    else:
+        url_voltar = redirect('lista_agendamentos').url
+        
+    if query_string:
+        url_voltar += f"?{query_string}"
+    # ------------------------
+
     if request.method == 'POST':
         form = ConsultaForm(request.POST, instance=consulta)
         if form.is_valid():
@@ -359,14 +411,14 @@ def realizar_consulta(request, agendamento_id):
             agendamento.save()
             messages.success(request, "Prontuário salvo com sucesso!")
             
-            url_retorno = redirect('lista_agendamentos').url
-            if filtros: url_retorno += f'?{filtros}'
-            return redirect(url_retorno)
+            return redirect(url_voltar) # Usa a URL calculada
     else:
         form = ConsultaForm(instance=consulta)
     
     return render(request, 'realizar_consulta.html', {
-        'form': form, 'agendamento': agendamento, 'filtros': filtros,
+        'form': form, 
+        'agendamento': agendamento, 
+        'url_voltar': url_voltar, # Passa para o template
         'tipos_atendimento': TIPO_ATENDIMENTO_CHOICES 
     })
 
@@ -401,14 +453,21 @@ def lista_consultas_geral(request):
     
     agora = timezone.localtime(timezone.now())
     hoje = agora.date()
-    data_inicio, data_fim = None, None
-
-    if filtro_hoje: data_inicio, data_fim = hoje, hoje
+    
+    # Lógica de datas
+    if filtro_hoje: 
+        data_inicio, data_fim = hoje, hoje
     elif filtro_semana:
         start = hoje - timedelta(days=hoje.weekday())
         data_inicio, data_fim = start, start + timedelta(days=6)
     elif data_inicio_get and data_fim_get:
         data_inicio, data_fim = data_inicio_get, data_fim_get
+    else:
+        # --- ALTERADO: Padrão agora é o mês atual ---
+        data_inicio = hoje.replace(day=1)
+        # Calcula o último dia do mês: pega o primeiro dia do próximo mês e subtrai 1 dia
+        prox_mes = (data_inicio + timedelta(days=32)).replace(day=1)
+        data_fim = prox_mes - timedelta(days=1)
 
     agendamentos = Agendamento.objects.ativos().select_related('paciente', 'terapeuta').order_by('-data', '-hora_inicio')
     
@@ -418,6 +477,7 @@ def lista_consultas_geral(request):
         else:
             agendamentos = Agendamento.objects.none()
 
+    # Aplica o filtro de data (que agora sempre terá valores, seja por input ou padrão mês)
     if data_inicio and data_fim:
         agendamentos = agendamentos.filter(data__range=[data_inicio, data_fim])
 
@@ -442,8 +502,11 @@ def lista_consultas_geral(request):
         'filtro_tipo_selecionado': filtro_tipo,
         'filtro_status_selecionado': filtro_status, 
         'filtro_terapeuta_selecionado': int(filtro_terapeuta) if filtro_terapeuta else None,
-        'data_inicio': data_inicio,
-        'data_fim': data_fim,
+        
+        # Passa as datas para o template preencher os inputs
+        'data_inicio': str(data_inicio) if data_inicio else '',
+        'data_fim': str(data_fim) if data_fim else '',
+        
         'filtro_hoje': filtro_hoje,
         'filtro_semana': filtro_semana,
         'is_admin': is_admin(request.user)

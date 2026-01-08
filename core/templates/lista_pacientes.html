@@ -107,7 +107,7 @@
 
                     {% if is_admin %}
                     <td class="text-end pe-4">
-                        <a href="{% url 'editar_paciente' paciente.id %}" class="btn btn-sm btn-outline-warning" title="Editar">
+                        <a href="{% url 'editar_paciente' paciente.id %}?{{ request.GET.urlencode }}" class="btn btn-sm btn-outline-warning" title="Editar">
                             <i class="bi bi-pencil"></i>
                         </a>
                     </td>
