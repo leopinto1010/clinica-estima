@@ -75,7 +75,6 @@ class Agendamento(models.Model):
     STATUS_CHOICES = [
         ('AGUARDANDO', 'Aguardando'),
         ('REALIZADO', 'Realizado'),
-        ('CANCELADO', 'Cancelado'),
         ('FALTA', 'Falta'),
     ]
 
@@ -102,7 +101,7 @@ class Agendamento(models.Model):
 
     @classmethod
     def verificar_conflito(cls, terapeuta, data, hora_inicio, hora_fim, ignorar_id=None):
-        conflitos = cls.objects.ativos().filter(terapeuta=terapeuta, data=data).exclude(status__in=['CANCELADO', 'FALTA'])
+        conflitos = cls.objects.ativos().filter(terapeuta=terapeuta, data=data).exclude(status='FALTA')
         conflitos = conflitos.filter(hora_inicio__lt=hora_fim, hora_fim__gt=hora_inicio)
         if ignorar_id: conflitos = conflitos.exclude(id=ignorar_id)
         return conflitos.exists()

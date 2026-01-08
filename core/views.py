@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
-from datetime import timedelta, datetime # Adicionado datetime aqui
+from datetime import timedelta, datetime
 from django.db.models import Q
 from django.db import transaction
 from django import forms
@@ -21,13 +21,11 @@ def dashboard(request):
     # Usa o Manager personalizado para trazer apenas ativos automaticamente
     qs = Agendamento.objects.ativos().filter(data=hoje).select_related('paciente', 'terapeuta').order_by('hora_inicio')
 
-    # Filtro de permissão: Se não for admin...
+    # Filtro de permissão
     if not is_admin(request.user):
-        # ... e for terapeuta, vê só os seus.
         if is_terapeuta(request.user):
             qs = qs.filter(terapeuta=request.user.terapeuta)
         else:
-            # Se não for nada (erro de cadastro), não vê nada.
             qs = Agendamento.objects.none()
 
     total_pacientes = Paciente.objects.count()
@@ -43,46 +41,34 @@ def dashboard(request):
 # --- PACIENTES ---
 @login_required
 def lista_pacientes(request):
-    # Parâmetros de Filtro
     busca = request.GET.get('q')
     filtro_status = request.GET.get('status')
     filtro_tipo = request.GET.get('tipo')
 
-    # QuerySet Base (Começa com todos)
     pacientes = Paciente.objects.all()
 
-    # --- Lógica do Status ---
-    # Se for 'todos', não filtra nada.
-    # Se for 'inativos', filtra ativo=False.
-    # Se não vier nada (padrão) OU vier 'ativos', filtra ativo=True.
     if filtro_status == 'todos':
         pass 
     elif filtro_status == 'inativos':
         pacientes = pacientes.filter(ativo=False)
     else:
-        # Comportamento padrão: Apenas Ativos
         pacientes = pacientes.filter(ativo=True)
-        filtro_status = 'ativos' # Garante que o select fique marcado corretamente
+        filtro_status = 'ativos'
 
-    # --- Lógica do Tipo Padrão ---
     if filtro_tipo:
         pacientes = pacientes.filter(tipo_padrao=filtro_tipo)
 
-    # --- Busca por Texto ---
     if busca:
         pacientes = pacientes.filter(
             Q(nome__icontains=busca) | Q(cpf__icontains=busca)
         )
     
-    # Ordenação (opcional, mantém alfabética)
     pacientes = pacientes.order_by('nome')
 
     return render(request, 'lista_pacientes.html', {
         'pacientes': pacientes,
         'is_admin': is_admin(request.user),
-        # Passamos as opções para o Template
         'tipos_atendimento': TIPO_ATENDIMENTO_CHOICES,
-        # Passamos os filtros atuais para manter o formulário preenchido
         'filtro_status_selecionado': filtro_status,
         'filtro_tipo_selecionado': filtro_tipo,
         'busca_atual': busca
@@ -117,16 +103,11 @@ def editar_paciente(request, paciente_id):
 def detalhe_paciente(request, paciente_id):
     paciente = get_object_or_404(Paciente, id=paciente_id)
     
-    # Lógica de Permissão de Visualização
     tem_permissao = False
     
     if is_admin(request.user):
         tem_permissao = True
     elif is_terapeuta(request.user):
-        # Verifica se já atendeu este paciente (histórico) ou tem agendamento futuro
-        # .objects.all() aqui para pegar até deletados se quiser ser permissivo, 
-        # mas .ativos() é mais seguro para "vínculo atual".
-        # Vamos usar .ativos() para garantir.
         vinculo = Agendamento.objects.ativos().filter(
             paciente=paciente, 
             terapeuta=request.user.terapeuta
@@ -180,16 +161,13 @@ def lista_agendamentos(request):
         data_inicio, data_fim = data_inicio_get, data_fim_get
     else:
         data_inicio = hoje.replace(day=1)
-        # Gambiarra segura para pegar ultimo dia do mes
         prox_mes = data_inicio.replace(day=28) + timedelta(days=4)
         data_fim = prox_mes - timedelta(days=prox_mes.day)
 
-    # Query Principal (Soft Delete automático via .ativos())
     agendamentos = Agendamento.objects.ativos().select_related('paciente', 'terapeuta').filter(
         data__range=[data_inicio, data_fim]
     ).order_by('data', 'hora_inicio')
 
-    # Filtros de Segurança
     if not is_admin(request.user):
         if is_terapeuta(request.user):
             agendamentos = agendamentos.filter(terapeuta=request.user.terapeuta)
@@ -198,7 +176,6 @@ def lista_agendamentos(request):
     elif filtro_terapeuta:
         agendamentos = agendamentos.filter(terapeuta_id=filtro_terapeuta)
     
-    # Filtros Opcionais
     if busca_nome:
         agendamentos = agendamentos.filter(paciente__nome__icontains=busca_nome)
     if filtro_tipo:
@@ -263,21 +240,27 @@ def novo_agendamento(request):
 
 @login_required
 def reposicao_agendamento(request, agendamento_id):
-    # Pega qualquer agendamento (mesmo não deletado)
     agendamento_antigo = get_object_or_404(Agendamento, id=agendamento_id)
     
-    if agendamento_antigo.status == 'FALTA':
-        messages.error(request, "Não é permitido repor agendamentos marcados como Falta.")
-        return redirect('lista_agendamentos')
-    
+    # Verificação de permissão
     if not is_admin(request.user):
         if agendamento_antigo.terapeuta.usuario != request.user:
              messages.error(request, "Acesso negado.")
              return redirect('dashboard')
 
+    # VERIFICAÇÃO DE TEMPO: Só permite repor se for no FUTURO
+    dt_consulta = datetime.combine(agendamento_antigo.data, agendamento_antigo.hora_inicio)
+    if timezone.is_naive(dt_consulta):
+        dt_consulta = timezone.make_aware(dt_consulta, timezone.get_current_timezone())
+    
+    if dt_consulta <= timezone.now():
+        messages.error(request, "A reposição só é permitida antes do horário da consulta.")
+        return redirect('lista_agendamentos')
+
     if request.method == 'POST':
         paciente_selecionado = Paciente.objects.get(id=request.POST.get('paciente'))
         
+        # Cria o novo agendamento na vaga
         novo = Agendamento(
             paciente=paciente_selecionado,
             terapeuta=agendamento_antigo.terapeuta,
@@ -289,11 +272,16 @@ def reposicao_agendamento(request, agendamento_id):
         )
         novo.save()
 
-        # Marca o antigo como deletado (libera a vaga visualmente, mantendo histórico)
-        agendamento_antigo.deletado = True
-        agendamento_antigo.save()
+        # Marca o antigo como FALTA (se já não for)
+        # Não deleta, para manter no histórico como falta
+        if agendamento_antigo.status != 'FALTA':
+            agendamento_antigo.status = 'FALTA'
+            agendamento_antigo.deletado = False
+            agendamento_antigo.save()
+            messages.success(request, "Reposição realizada! O agendamento anterior foi registrado como Falta.")
+        else:
+            messages.success(request, "Vaga preenchida com sucesso!")
 
-        messages.success(request, "Reposição agendada com sucesso!")
         return redirect('lista_agendamentos')
     else:
         form = AgendamentoForm(initial={
@@ -327,31 +315,12 @@ def marcar_falta(request, agendamento_id):
     return redirect('lista_agendamentos')
 
 @login_required
-def cancelar_agendamento(request, agendamento_id):
-    # Busca apenas entre os ativos
-    agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
-    
-    # Verificação de permissão (mantida igual)
-    if not is_admin(request.user) and agendamento.terapeuta.usuario != request.user:
-        return redirect('lista_agendamentos')
-    
-    # Agora, independentemente da data, apenas mudamos o status.
-    # O soft delete (deletado=True) ocorrerá APENAS na reposição.
-    
-    agendamento.status = 'CANCELADO'
-    agendamento.save()
-    
-    messages.success(request, "Agendamento cancelado com sucesso. O horário permanece visível até ser reposto.")
-    return redirect('lista_agendamentos')
-
-@login_required
 def excluir_agendamento(request, agendamento_id):
     agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
     if not is_admin(request.user) and agendamento.terapeuta.usuario != request.user:
         return redirect('lista_agendamentos')
 
-    # --- MUDANÇA 3: Hard Delete (Apagar Permanentemente) ---
-    # Usado apenas para erros de cadastro (status AGUARDANDO)
+    # Hard Delete (Apagar Permanentemente)
     agendamento.delete()
     messages.success(request, "Agendamento excluído permanentemente.")
     
@@ -359,15 +328,12 @@ def excluir_agendamento(request, agendamento_id):
 
 @login_required
 def realizar_consulta(request, agendamento_id):
-    # AQUI ESTÁ A CORREÇÃO DE ACESSO DO SUPERUSUÁRIO
     agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
 
-    # 1. Admin comum não acessa
     if is_admin(request.user) and not is_dono(request.user):
         messages.error(request, "Perfil Administrativo não tem acesso a prontuários médicos.")
         return redirect('lista_agendamentos')
 
-    # 2. Terapeuta só acessa o seu (A MENOS que seja o Dono)
     if not is_dono(request.user):
         if is_terapeuta(request.user) and agendamento.terapeuta.usuario != request.user:
              messages.error(request, "Acesso negado: Este paciente pertence a outro profissional.")
@@ -440,7 +406,6 @@ def lista_consultas_geral(request):
     elif data_inicio_get and data_fim_get:
         data_inicio, data_fim = data_inicio_get, data_fim_get
 
-    # Histórico mostra tudo que está ATIVO (não deletado visualmente)
     agendamentos = Agendamento.objects.ativos().select_related('paciente', 'terapeuta').order_by('-data', '-hora_inicio')
     
     if not is_admin(request.user):
@@ -542,13 +507,11 @@ def lista_terapeutas(request):
         messages.error(request, "Acesso restrito.")
         return redirect('dashboard')
 
-    # Captura parâmetros da URL
     busca = request.GET.get('q')
     filtro_esp = request.GET.get('especialidade')
 
     terapeutas = Terapeuta.objects.all().select_related('usuario').order_by('nome')
 
-    # Aplica os filtros se existirem
     if busca:
         terapeutas = terapeutas.filter(nome__icontains=busca)
     
@@ -558,7 +521,6 @@ def lista_terapeutas(request):
     return render(request, 'lista_terapeutas.html', {
         'terapeutas': terapeutas,
         'is_admin': is_admin(request.user),
-        # Passa as listas e valores atuais para manter o filtro preenchido
         'especialidades': ESPECIALIDADES_CHOICES,
         'busca_atual': busca,
         'filtro_esp_selecionado': filtro_esp

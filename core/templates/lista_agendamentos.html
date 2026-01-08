@@ -205,7 +205,6 @@
 
                     <td>
                         {% if agendamento.status == 'REALIZADO' %}<span class="badge badge-soft badge-realizado">Realizado</span>
-                        {% elif agendamento.status == 'CANCELADO' %}<span class="badge badge-soft badge-cancelado">Cancelado</span>
                         {% elif agendamento.status == 'FALTA' %}<span class="badge badge-soft badge-falta">Falta</span>
                         {% else %}<span class="badge badge-soft badge-agendado">Aguardando</span>{% endif %}
                     </td>
@@ -217,21 +216,20 @@
                                 {% if agendamento.status == 'AGUARDANDO' %}
                                     <a href="{% url 'realizar_consulta' agendamento.id %}?{{ params }}" class="btn btn-sm btn-outline-primary" title="Atender"><i class="bi bi-play-fill"></i></a>
                                     <a href="{% url 'marcar_falta' agendamento.id %}?{{ params }}" class="btn btn-sm btn-outline-danger" title="Falta"><i class="bi bi-exclamation-lg"></i></a>
-                                    <a href="{% url 'cancelar_agendamento' agendamento.id %}?{{ params }}" class="btn btn-sm btn-outline-secondary" title="Cancelar"><i class="bi bi-x-lg"></i></a>
                                 
                                 {% elif agendamento.status == 'REALIZADO' %}
                                     <a href="{% url 'realizar_consulta' agendamento.id %}?{{ params }}" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-medical"></i> Prontuário</a>
                                 
                                 {% else %}
-                                    {% if agendamento.status != 'FALTA' %}
-                                        {% if agendamento.data|date:"Ymd" > agora|date:"Ymd" or agendamento.data|date:"Ymd" == agora|date:"Ymd" and agendamento.hora_inicio|date:"Hi" > agora|date:"Hi" %}
-                                            <a href="{% url 'reposicao_agendamento' agendamento.id %}?{{ params }}" class="btn btn-sm btn-repor"><i class="bi bi-arrow-repeat"></i> Repor</a>
-                                        {% endif %}
+                                    {# --- LÓGICA ATUALIZADA: Permite Repor se for futuro, mesmo sendo Falta --- #}
+                                    {% if agendamento.data|date:"Ymd" > agora|date:"Ymd" or agendamento.data|date:"Ymd" == agora|date:"Ymd" and agendamento.hora_inicio|date:"Hi" > agora|date:"Hi" %}
+                                        <a href="{% url 'reposicao_agendamento' agendamento.id %}?{{ params }}" class="btn btn-sm btn-repor"><i class="bi bi-arrow-repeat"></i> Repor</a>
                                     {% endif %}
                                 {% endif %}
                             </div>
 
-                            {% if agendamento.status == 'AGUARDANDO' %}
+                            {# --- LÓGICA ATUALIZADA: Permite Excluir se for Aguardando OU Falta --- #}
+                            {% if agendamento.status == 'AGUARDANDO' or agendamento.status == 'FALTA' %}
                                 <div class="vr mx-1 text-secondary opacity-25"></div>
                                 <a href="{% url 'excluir_agendamento' agendamento.id %}?{{ params }}" class="btn-trash-icon ms-2" onclick="return confirm('ATENÇÃO: Isso apagará permanentemente o agendamento. Confirmar?')" title="Excluir Permanentemente">
                                     <i class="bi bi-trash fs-6"></i>
@@ -267,8 +265,6 @@
         var corFundo = '#3788d8'; var corBorda = '#3788d8';
         {% if agendamento.status == 'REALIZADO' %} 
             corFundo = '#198754'; corBorda = '#198754'; 
-        {% elif agendamento.status == 'CANCELADO' %} 
-            corFundo = '#6c757d'; corBorda = '#6c757d'; 
         {% elif agendamento.status == 'FALTA' %} 
             corFundo = '#dc3545'; corBorda = '#dc3545';
         {% endif %}
@@ -286,7 +282,6 @@
                 status_cod: "{{ agendamento.status }}",
                 horario_fmt: "{{ agendamento.data|date:'d/m/Y' }} - {{ agendamento.hora_inicio|date:'H:i' }} às {{ agendamento.hora_fim|date:'H:i' }}",
                 url_atender: "{% url 'realizar_consulta' agendamento.id %}?" + paramsUrl,
-                url_cancelar: "{% url 'cancelar_agendamento' agendamento.id %}?" + paramsUrl,
                 url_falta: "{% url 'marcar_falta' agendamento.id %}?" + paramsUrl,
                 url_reposicao: "{% url 'reposicao_agendamento' agendamento.id %}?" + paramsUrl,
                 url_excluir: "{% url 'excluir_agendamento' agendamento.id %}?" + paramsUrl
@@ -315,18 +310,19 @@
         var htmlBotoes = '';
         var htmlLixeira = '';
 
-        if (props.status_cod === 'AGUARDANDO') {
+        // --- LÓGICA ATUALIZADA DO CALENDÁRIO ---
+        if (props.status_cod === 'AGUARDANDO' || props.status_cod === 'FALTA') {
              htmlLixeira = `<a href="${props.url_excluir}" class="btn-trash-icon" onclick="return confirm('ATENÇÃO: Apagar permanentemente?')" title="Excluir"><i class="bi bi-trash fs-5"></i></a>`;
         }
 
         if (props.status_cod === 'AGUARDANDO') {
             htmlBotoes += `<a href="${props.url_atender}" class="btn btn-primary flex-grow-1">Atender</a>`;
             htmlBotoes += `<a href="${props.url_falta}" class="btn btn-outline-danger">Falta</a>`;
-            htmlBotoes += `<a href="${props.url_cancelar}" class="btn btn-outline-secondary">Cancelar</a>`;
         } else if (props.status_cod === 'REALIZADO') {
             htmlBotoes += `<a href="${props.url_atender}" class="btn btn-success w-100">Ver Prontuário</a>`;
         } else {
-             if (startEvent > now && props.status_cod !== 'FALTA') {
+             // Se for FALTA (futuro) ou qualquer outro status não tratado (futuro)
+             if (startEvent > now) {
                 htmlBotoes += `<a href="${props.url_reposicao}" class="btn btn-repor w-100"><i class="bi bi-arrow-repeat"></i> Agendar Reposição</a>`;
              }
         }

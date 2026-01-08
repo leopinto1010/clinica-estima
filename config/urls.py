@@ -11,7 +11,6 @@ from core.views import (
     reposicao_agendamento,
     realizar_consulta,
     detalhe_paciente,
-    cancelar_agendamento,
     confirmar_agendamento, 
     marcar_falta,          
     excluir_agendamento,
@@ -43,7 +42,6 @@ urlpatterns = [
     path('agendamentos/confirmar/<int:agendamento_id>/', confirmar_agendamento, name='confirmar_agendamento'),
     path('agendamentos/atender/<int:agendamento_id>/', realizar_consulta, name='realizar_consulta'),
     path('agendamentos/falta/<int:agendamento_id>/', marcar_falta, name='marcar_falta'),
-    path('agendamentos/cancelar/<int:agendamento_id>/', cancelar_agendamento, name='cancelar_agendamento'),
     path('agendamentos/excluir/<int:agendamento_id>/', excluir_agendamento, name='excluir_agendamento'),
     path('agendamentos/limpar-dia/', limpar_dia, name='limpar_dia'),
     

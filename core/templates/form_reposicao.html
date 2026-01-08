@@ -5,13 +5,23 @@
     <div class="col-md-6 col-lg-5">
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-info text-white py-3">
-                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-arrow-repeat me-2"></i>Reposição de Horário</h5>
+                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-arrow-repeat me-2"></i>Repor Horário (Substituição)</h5>
             </div>
             <div class="card-body p-4">
+                
+                <div class="alert alert-warning border-warning d-flex align-items-center mb-4" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill fs-3 me-3"></i>
+                    <div>
+                        <strong>Atenção:</strong> Ao confirmar, o agendamento de 
+                        <u>{{ agendamento_antigo.paciente.nome }}</u> será alterado para 
+                        <strong>FALTA</strong> automaticamente.
+                    </div>
+                </div>
+
                 <div class="alert alert-light border mb-4">
                     <div class="d-flex mb-2">
-                        <span class="text-muted w-25 small fw-bold text-uppercase">Horário Vago</span>
-                        <span class="fw-bold text-dark">{{ agendamento_antigo.data_hora_inicio|date:"d/m/Y - H:i" }}</span>
+                        <span class="text-muted w-25 small fw-bold text-uppercase">Data/Hora</span>
+                        <span class="fw-bold text-dark">{{ agendamento_antigo.data|date:"d/m/Y" }} às {{ agendamento_antigo.hora_inicio|date:"H:i" }}</span>
                     </div>
                     <div class="d-flex">
                         <span class="text-muted w-25 small fw-bold text-uppercase">Terapeuta</span>
@@ -23,21 +33,23 @@
                     {% csrf_token %}
                     
                     <div class="mb-4">
-                        <label class="form-label fw-bold">Novo Paciente para este horário:</label>
+                        <label class="form-label fw-bold">Novo Paciente (Reposição):</label>
                         {{ form.paciente }}
                         {% if form.paciente.errors %}
                             <div class="text-danger small mt-1">{{ form.paciente.errors }}</div>
                         {% endif %}
-                        <div class="form-text">Selecione quem irá ocupar esta vaga.</div>
+                        <div class="form-text">Este paciente assumirá o horário.</div>
                     </div>
 
                     <div class="d-none">
                         {{ form.terapeuta }}
-                        {{ form.data_hora }}
+                        {{ form.data }}
+                        {{ form.hora_inicio }}
+                        {{ form.hora_fim }}
                     </div>
 
                     <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-info text-white">Confirmar Reposição</button>
+                        <button type="submit" class="btn btn-info text-white fw-bold">Confirmar e Marcar Falta</button>
                         <a href="{% url 'lista_agendamentos' %}" class="btn btn-light text-muted">Cancelar</a>
                     </div>
                 </form>
