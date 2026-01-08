@@ -9,7 +9,9 @@
                     <i class="bi bi-person-fill text-secondary" style="font-size: 2.5rem;"></i>
                 </div>
                 <h4 class="fw-bold mb-1">{{ paciente.nome }}</h4>
-                <span class="badge badge-soft badge-padrao mb-3">{{ paciente.get_tipo_padrao_display }}</span>
+                {% if is_admin %}
+                    <span class="badge badge-soft badge-padrao mb-3">{{ paciente.get_tipo_padrao_display }}</span>
+                {% endif %}
                 
                 <ul class="list-group list-group-flush text-start mt-3 mb-4">
                     <li class="list-group-item px-0 d-flex justify-content-between">
