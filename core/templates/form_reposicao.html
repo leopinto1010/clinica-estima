@@ -1,23 +1,31 @@
 {% extends 'base.html' %}
 
 {% block content %}
+<style>
+    /* Cor exata do botão da lista */
+    .btn-repor { 
+        background-color: #0d8a9e; 
+        border-color: #0d8a9e; 
+        color: white; 
+        transition: all 0.2s;
+    }
+    .btn-repor:hover { 
+        background-color: #0a6c7c; 
+        border-color: #0a6c7c; 
+        color: white; 
+    }
+</style>
+
 <div class="row justify-content-center">
     <div class="col-md-6 col-lg-5">
         <div class="card border-0 shadow-sm">
-            <div class="card-header bg-info text-white py-3">
-                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-arrow-repeat me-2"></i>Repor Horário (Substituição)</h5>
+            <div class="card-header bg-white py-3 border-bottom">
+                <h5 class="card-title mb-0 fw-bold text-primary">
+                    <i class="bi bi-arrow-repeat me-2"></i>Agendar Reposição
+                </h5>
             </div>
             <div class="card-body p-4">
                 
-                <div class="alert alert-warning border-warning d-flex align-items-center mb-4" role="alert">
-                    <i class="bi bi-exclamation-triangle-fill fs-3 me-3"></i>
-                    <div>
-                        <strong>Atenção:</strong> Ao confirmar, o agendamento de 
-                        <u>{{ agendamento_antigo.paciente.nome }}</u> será alterado para 
-                        <strong>FALTA</strong> automaticamente.
-                    </div>
-                </div>
-
                 <div class="alert alert-light border mb-4">
                     <div class="d-flex mb-2">
                         <span class="text-muted w-25 small fw-bold text-uppercase">Data/Hora</span>
@@ -29,7 +37,8 @@
                     </div>
                 </div>
 
-                <form method="POST">
+                {# Adicionado novalidate para evitar bloqueios de validação do browser em campos Select2 #}
+                <form method="POST" novalidate>
                     {% csrf_token %}
                     
                     <div class="mb-4">
@@ -38,18 +47,15 @@
                         {% if form.paciente.errors %}
                             <div class="text-danger small mt-1">{{ form.paciente.errors }}</div>
                         {% endif %}
-                        <div class="form-text">Este paciente assumirá o horário.</div>
+                        <div class="form-text">Selecione quem ocupará esta vaga.</div>
                     </div>
 
-                    <div class="d-none">
-                        {{ form.terapeuta }}
-                        {{ form.data }}
-                        {{ form.hora_inicio }}
-                        {{ form.hora_fim }}
-                    </div>
+                    {# REMOVIDO: Campos ocultos de terapeuta/data que travavam o envio. #}
 
                     <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-info text-white fw-bold">Confirmar e Marcar Falta</button>
+                        <button type="submit" class="btn btn-repor fw-bold">
+                            <i class="bi bi-check-lg me-2"></i>Confirmar Reposição
+                        </button>
                         <a href="{% url 'lista_agendamentos' %}" class="btn btn-light text-muted">Cancelar</a>
                     </div>
                 </form>

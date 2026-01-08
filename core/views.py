@@ -18,10 +18,8 @@ from .utils import setup_grupos, criar_agendamentos_em_lote
 def dashboard(request):
     hoje = timezone.localtime(timezone.now()).date()
     
-    # Usa o Manager personalizado para trazer apenas ativos automaticamente
     qs = Agendamento.objects.ativos().filter(data=hoje).select_related('paciente', 'terapeuta').order_by('hora_inicio')
 
-    # Filtro de permissão
     if not is_admin(request.user):
         if is_terapeuta(request.user):
             qs = qs.filter(terapeuta=request.user.terapeuta)
@@ -248,48 +246,55 @@ def reposicao_agendamento(request, agendamento_id):
              messages.error(request, "Acesso negado.")
              return redirect('dashboard')
 
-    # VERIFICAÇÃO DE TEMPO: Só permite repor se for no FUTURO
+    # Validação de data futura
     dt_consulta = datetime.combine(agendamento_antigo.data, agendamento_antigo.hora_inicio)
     if timezone.is_naive(dt_consulta):
         dt_consulta = timezone.make_aware(dt_consulta, timezone.get_current_timezone())
     
     if dt_consulta <= timezone.now():
-        messages.error(request, "A reposição só é permitida antes do horário da consulta.")
+        messages.error(request, "A reposição só é permitida para horários futuros.")
         return redirect('lista_agendamentos')
 
     if request.method == 'POST':
-        paciente_selecionado = Paciente.objects.get(id=request.POST.get('paciente'))
+        paciente_id = request.POST.get('paciente')
         
-        # Cria o novo agendamento na vaga
-        novo = Agendamento(
-            paciente=paciente_selecionado,
-            terapeuta=agendamento_antigo.terapeuta,
-            data=agendamento_antigo.data,
-            hora_inicio=agendamento_antigo.hora_inicio,
-            hora_fim=agendamento_antigo.hora_fim,
-            status='AGUARDANDO',
-            tipo_atendimento=paciente_selecionado.tipo_padrao
-        )
-        novo.save()
+        if paciente_id:
+            try:
+                paciente_selecionado = Paciente.objects.get(id=paciente_id)
+                
+                # 1. Cria o NOVO agendamento na vaga (Ocupando o horário)
+                Agendamento.objects.create(
+                    paciente=paciente_selecionado,
+                    terapeuta=agendamento_antigo.terapeuta,
+                    data=agendamento_antigo.data,
+                    hora_inicio=agendamento_antigo.hora_inicio,
+                    hora_fim=agendamento_antigo.hora_fim,
+                    status='AGUARDANDO',
+                    tipo_atendimento=paciente_selecionado.tipo_padrao
+                )
 
-        # Marca o antigo como FALTA (se já não for)
-        # Não deleta, para manter no histórico como falta
-        if agendamento_antigo.status != 'FALTA':
-            agendamento_antigo.status = 'FALTA'
-            agendamento_antigo.deletado = False
-            agendamento_antigo.save()
-            messages.success(request, "Reposição realizada! O agendamento anterior foi registrado como Falta.")
+                # 2. Atualiza o ANTIGO (A Falta)
+                # Marcamos como deletado=True para ele sumir da agenda visual (Problema 2)
+                # Consequentemente, não será possível clicar em "Repor" novamente (Problema 1)
+                agendamento_antigo.status = 'FALTA' # Mantemos o status para histórico
+                agendamento_antigo.deletado = True  # Oculta da agenda (Soft Delete)
+                agendamento_antigo.save()
+
+                messages.success(request, "Vaga preenchida! O agendamento anterior foi removido da visualização.")
+                return redirect('lista_agendamentos')
+                
+            except Paciente.DoesNotExist:
+                messages.error(request, "Paciente inválido.")
         else:
-            messages.success(request, "Vaga preenchida com sucesso!")
+            messages.error(request, "Por favor, selecione um paciente.")
 
-        return redirect('lista_agendamentos')
-    else:
-        form = AgendamentoForm(initial={
-            'terapeuta': agendamento_antigo.terapeuta, 
-            'data': agendamento_antigo.data,
-            'hora_inicio': agendamento_antigo.hora_inicio,
-            'hora_fim': agendamento_antigo.hora_fim
-        })
+    form = AgendamentoForm()
+    # Limpeza de campos desnecessários para a view
+    del form.fields['terapeuta']
+    del form.fields['data']
+    del form.fields['hora_inicio']
+    del form.fields['hora_fim']
+    
     return render(request, 'form_reposicao.html', {'form': form, 'agendamento_antigo': agendamento_antigo})
 
 # --- AÇÕES GERAIS ---
@@ -320,7 +325,6 @@ def excluir_agendamento(request, agendamento_id):
     if not is_admin(request.user) and agendamento.terapeuta.usuario != request.user:
         return redirect('lista_agendamentos')
 
-    # Hard Delete (Apagar Permanentemente)
     agendamento.delete()
     messages.success(request, "Agendamento excluído permanentemente.")
     
