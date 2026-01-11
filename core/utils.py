@@ -56,10 +56,9 @@ def criar_agendamentos_em_lote(form_data, user_request):
     return criados, conflitos
 
 # --- PERMISSÕES ---
-# (Mantemos apenas o setup de grupos, pois as verificações de permissão
-# agora estão centralizadas no arquivo decorators.py)
 
 def setup_grupos():
     Group.objects.get_or_create(name='Administrativo')
     Group.objects.get_or_create(name='Terapeutas')
     Group.objects.get_or_create(name='Financeiro')
+    Group.objects.get_or_create(name='Donos') # <--- NOVO GRUPO

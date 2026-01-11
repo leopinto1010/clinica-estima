@@ -136,6 +136,7 @@ def detalhe_paciente(request, paciente_id):
     terapeutas_ids = historico.values_list('agendamento__terapeuta', flat=True).distinct()
     terapeutas_filtros = Terapeuta.objects.filter(id__in=terapeutas_ids)
     
+    # Donos (is_dono) também podem ver a evolução agora
     ocultar_evolucao = is_admin(request.user) and not is_dono(request.user)
     
     return render(request, 'detalhe_paciente.html', {
@@ -214,7 +215,6 @@ def lista_agendamentos(request):
         'terapeutas': Terapeuta.objects.all() if is_admin(request.user) else None,
         'busca_nome': busca_nome or '',
         'filtro_tipo_selecionado': filtro_tipo,
-        # Alterado: Passamos o valor cru (string ou None) para tratar o 'todos' no template
         'filtro_terapeuta_selecionado': filtro_terapeuta, 
         'status_choices': Agendamento.STATUS_CHOICES,
         'filtro_status_selecionado': filtro_status,
@@ -516,6 +516,9 @@ def cadastrar_equipe(request):
             elif papel == 'financeiro':
                 grupo = Group.objects.get(name='Financeiro')
                 user.groups.add(grupo)
+            elif papel == 'dono':
+                grupo = Group.objects.get(name='Donos')
+                user.groups.add(grupo)
             else: 
                 grupo = Group.objects.get(name='Terapeutas')
                 user.groups.add(grupo)
@@ -582,36 +585,50 @@ def lista_terapeutas(request):
 @login_required
 def relatorio_mensal(request):
     hoje = timezone.now()
-    mes_filtro = int(request.GET.get('mes', hoje.month))
+    
+    # Tratamento para "Todos os Meses" (valor '0')
+    mes_get = request.GET.get('mes')
+    if mes_get == '0':
+        mes_filtro = 0
+    elif mes_get:
+        mes_filtro = int(mes_get)
+    else:
+        mes_filtro = hoje.month
+        
     ano_filtro = int(request.GET.get('ano', hoje.year))
     semana_filtro = request.GET.get('semana')
 
     # --- LÓGICA DE SEMANAS ---
-    cal = calendar.Calendar(firstweekday=0) 
-    calendario_mes = cal.monthdatescalendar(ano_filtro, mes_filtro)
-    
+    # Só calculamos as semanas se um mês específico estiver selecionado
     semanas_opcoes = []
-    for i, semana in enumerate(calendario_mes):
-        inicio = semana[0]
-        fim = semana[-1]
-        label = f"Semana {i+1} ({inicio.strftime('%d/%m')} - {fim.strftime('%d/%m')})"
-        semanas_opcoes.append({
-            'id': str(i), 
-            'inicio': inicio,
-            'fim': fim,
-            'label': label
-        })
+    if mes_filtro:
+        cal = calendar.Calendar(firstweekday=0) 
+        calendario_mes = cal.monthdatescalendar(ano_filtro, mes_filtro)
+        
+        for i, semana in enumerate(calendario_mes):
+            inicio = semana[0]
+            fim = semana[-1]
+            label = f"Semana {i+1} ({inicio.strftime('%d/%m')} - {fim.strftime('%d/%m')})"
+            semanas_opcoes.append({
+                'id': str(i), 
+                'inicio': inicio,
+                'fim': fim,
+                'label': label
+            })
 
-    # QuerySet Base (Mês e Ano)
-    # --- CORREÇÃO AQUI: Filtrar deletado=False para ignorar reposições ---
-    qs_base = Agendamento.objects.filter(
-        data__month=mes_filtro, 
-        data__year=ano_filtro,
-        deletado=False 
-    ).exclude(status='AGUARDANDO')
+    # QuerySet Base
+    filtros_base = {
+        'data__year': ano_filtro,
+        'deletado': False
+    }
+    # Só filtra por mês se mes_filtro for diferente de 0
+    if mes_filtro:
+        filtros_base['data__month'] = mes_filtro
 
-    # --- APLICA FILTRO DE SEMANA ---
-    if semana_filtro:
+    qs_base = Agendamento.objects.filter(**filtros_base).exclude(status='AGUARDANDO')
+
+    # --- APLICA FILTRO DE SEMANA (Apenas se tiver mês selecionado) ---
+    if mes_filtro and semana_filtro:
         try:
             idx = int(semana_filtro)
             if 0 <= idx < len(semanas_opcoes):
@@ -642,23 +659,28 @@ def relatorio_mensal(request):
         return redirect('dashboard')
 
     # 1. Totais Gerais
-    total_geral = qs_base.count()
     total_realizados = qs_base.filter(status='REALIZADO').count()
     total_faltas = qs_base.filter(status='FALTA').count()
     
+    # --- CORREÇÃO DA TAXA DE ABSENTEÍSMO ---
+    # Somamos apenas (Realizados + Faltas) para o denominador
+    total_efetivos = total_realizados + total_faltas
+    
     taxa_faltas_geral = 0
-    if total_geral > 0:
-        taxa_faltas_geral = round((total_faltas / total_geral) * 100, 1)
+    if total_efetivos > 0:
+        taxa_faltas_geral = round((total_faltas / total_efetivos) * 100, 1)
 
     # 2. Dados da Tabela
-    # --- CORREÇÃO AQUI: Adicionar agendamento__deletado=False nos filtros da tabela ---
     filtros_tabela = Q(
-        agendamento__data__month=mes_filtro,
         agendamento__data__year=ano_filtro,
-        agendamento__deletado=False # Ignora faltas que foram repostas
+        agendamento__deletado=False 
     )
     
-    if semana_filtro and 'data_ini' in locals():
+    # Adiciona filtro de mês na tabela se não for "Todos"
+    if mes_filtro:
+        filtros_tabela &= Q(agendamento__data__month=mes_filtro)
+    
+    if mes_filtro and semana_filtro and 'data_ini' in locals():
         filtros_tabela &= Q(agendamento__data__range=[data_ini, data_fim])
 
     stats_terapeutas = terapeutas_para_analise.annotate(
@@ -695,22 +717,31 @@ def relatorio_pacientes(request):
         return redirect('dashboard')
 
     hoje = timezone.now()
-    mes_filtro = int(request.GET.get('mes', hoje.month))
+    
+    # Tratamento para "Todos os Meses"
+    mes_get = request.GET.get('mes')
+    if mes_get == '0':
+        mes_filtro = 0
+    elif mes_get:
+        mes_filtro = int(mes_get)
+    else:
+        mes_filtro = hoje.month
+        
     ano_filtro = int(request.GET.get('ano', hoje.year))
     tipo_filtro = request.GET.get('tipo_atend')
     ordem_filtro = request.GET.get('ordem', 'taxa_desc') 
 
     pacientes_base = Paciente.objects.filter(ativo=True)
     
-    # --- CORREÇÃO DO FILTRO ---
-    # Considera apenas o que já aconteceu (REALIZADO ou FALTA)
-    # Ignora 'AGUARDANDO' (futuro) e 'CANCELADO'
     filtros_agendamento = Q(
-        agendamento__data__month=mes_filtro,
         agendamento__data__year=ano_filtro,
         agendamento__deletado=False,
         agendamento__status__in=['REALIZADO', 'FALTA'] 
     )
+    
+    # Adiciona filtro de mês apenas se selecionado
+    if mes_filtro:
+        filtros_agendamento &= Q(agendamento__data__month=mes_filtro)
 
     if is_terapeuta(request.user) and not is_admin(request.user):
         try:
@@ -725,7 +756,7 @@ def relatorio_pacientes(request):
 
     # --- ANOTAÇÃO ---
     ranking_pacientes = pacientes_base.annotate(
-        total_agendado=Count('agendamento', filter=filtros_agendamento), # Agora isso é SOMA(Realizados + Faltas)
+        total_agendado=Count('agendamento', filter=filtros_agendamento),
         total_faltas=Count('agendamento', filter=filtros_agendamento & Q(agendamento__status='FALTA')),
         total_realizados=Count('agendamento', filter=filtros_agendamento & Q(agendamento__status='REALIZADO'))
     ).annotate(
@@ -735,7 +766,7 @@ def relatorio_pacientes(request):
             output_field=FloatField()
         )
     ).filter(
-        total_agendado__gt=0 # Remove pacientes que só têm agendamentos futuros
+        total_agendado__gt=0 
     )
 
     if ordem_filtro == 'taxa_desc':

@@ -9,7 +9,7 @@
     
     <form class="d-flex gap-2 align-items-center" method="GET">
         
-        <select name="semana" class="form-select form-select-sm" style="min-width: 200px;" onchange="this.form.submit()">
+        <select name="semana" class="form-select form-select-sm" style="min-width: 220px;" onchange="this.form.submit()">
             <option value="">Todas as Semanas</option>
             {% for s in semanas_opcoes %}
                 <option value="{{ s.id }}" {% if s.id == semana_atual %}selected{% endif %}>
@@ -21,6 +21,7 @@
         <div class="vr mx-1 text-secondary opacity-25"></div>
 
         <select name="mes" class="form-select form-select-sm" onchange="this.form.submit()">
+            <option value="0" {% if mes_atual == 0 %}selected{% endif %}>Todos os Meses</option>
             {% for num, nome in meses %}
             <option value="{{ num }}" {% if num == mes_atual %}selected{% endif %}>{{ nome }}</option>
             {% endfor %}
@@ -83,8 +84,6 @@
                     <td class="text-center fw-bold text-success">{{ t.qtd_atendimentos }}</td>
                     <td class="text-center fw-bold text-danger">{{ t.qtd_faltas }}</td>
                     <td class="pe-4" style="width: 40%;">
-                        {# Calcula porcentagem: (Faltas / (Realizados + Faltas)) * 100 #}
-                        {# O widthratio faz regra de três: (A / B) * C #}
                         {% widthratio t.qtd_faltas t.qtd_atendimentos|add:t.qtd_faltas 100 as pct_falta %}
                         
                         <div class="d-flex align-items-center">

@@ -30,11 +30,10 @@
         .nav-link { font-size: 0.9rem; font-weight: 500; opacity: 0.9; }
         .nav-link:hover { opacity: 1; background: rgba(255,255,255,0.1); border-radius: 6px; }
 
-        /* Estilo extra para suavizar o Dropdown */
         .dropdown-menu {
-            margin-top: 10px !important; /* Afasta um pouco do menu */
-            border-radius: 12px;         /* Bordas mais arredondadas */
-            overflow: hidden;            /* Garante que o hover respeite a borda */
+            margin-top: 10px !important; 
+            border-radius: 12px;         
+            overflow: hidden;            
         }
         .dropdown-item {
             font-size: 0.9rem;
@@ -62,7 +61,6 @@
             color: #344767;
         }
 
-        /* --- BADGES (ETIQUETAS) MODERNAS --- */
         .badge-soft {
             padding: 6px 12px;
             border-radius: 8px;
@@ -128,7 +126,7 @@
                 <li class="nav-item"><a class="nav-link" href="{% url 'lista_terapeutas' %}">Terapeutas</a></li>
             {% endif %}
 
-            {% if user.is_superuser %}
+            {% if is_dono %}
                 <li class="nav-item ms-3 ps-3 border-start border-white-50"><a class="nav-link" href="{% url 'cadastrar_equipe' %}">Equipe</a></li>
             {% endif %}
           </ul>

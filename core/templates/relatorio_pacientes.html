@@ -19,7 +19,7 @@
         <div class="vr mx-1 text-secondary opacity-25"></div>
 
         {% if is_admin %}
-        <select name="tipo_atend" class="form-select form-select-sm" style="max-width: 140px;" onchange="this.form.submit()">
+        <select name="tipo_atend" class="form-select form-select-sm" style="min-width: 180px;" onchange="this.form.submit()">
             <option value="">Tipos (Todos)</option>
             {% for cod, label in tipos_atendimento %}
                 <option value="{{ cod }}" {% if cod == tipo_atual %}selected{% endif %}>{{ label }}</option>
@@ -27,13 +27,14 @@
         </select>
         {% endif %}
 
-        <select name="mes" class="form-select form-select-sm" onchange="this.form.submit()">
+        <select name="mes" class="form-select form-select-sm" style="min-width: 180px;" onchange="this.form.submit()">
+            <option value="0" {% if mes_atual == 0 %}selected{% endif %}>Todos os Meses</option>
             {% for num, nome in meses %}
             <option value="{{ num }}" {% if num == mes_atual %}selected{% endif %}>{{ nome }}</option>
             {% endfor %}
         </select>
         
-        <select name="ano" class="form-select form-select-sm" onchange="this.form.submit()">
+        <select name="ano" class="form-select form-select-sm" style="min-width: 180px;" onchange="this.form.submit()">
             {% for ano in anos_disponiveis %}
             <option value="{{ ano }}" {% if ano == ano_atual %}selected{% endif %}>{{ ano }}</option>
             {% endfor %}

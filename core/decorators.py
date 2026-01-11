@@ -2,13 +2,24 @@ from django.contrib.auth.decorators import user_passes_test
 from django.core.exceptions import PermissionDenied
 
 def is_admin(user):
-    return user.is_authenticated and (user.is_superuser or user.groups.filter(name='Administrativo').exists())
+    # Admin agora inclui 'Administrativo' OU 'Donos'
+    return user.is_authenticated and (
+        user.is_superuser or 
+        user.groups.filter(name__in=['Administrativo', 'Donos']).exists()
+    )
 
 def is_terapeuta(user):
-    return user.is_authenticated and (user.is_superuser or user.groups.filter(name='Terapeutas').exists())
+    return user.is_authenticated and (
+        user.is_superuser or 
+        user.groups.filter(name='Terapeutas').exists()
+    )
 
 def is_dono(user):
-    return user.is_superuser
+    # Dono agora verifica o grupo 'Donos' também
+    return user.is_authenticated and (
+        user.is_superuser or 
+        user.groups.filter(name='Donos').exists()
+    )
 
 # --- Decorators para usar nas Views ---
 

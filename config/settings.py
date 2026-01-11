@@ -6,17 +6,10 @@ from decouple import config, Csv
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # --- SEGURANÇA: Configuração com python-decouple ---
-# Lê a chave do arquivo .env. Se não achar, dá erro (para forçar segurança)
 SECRET_KEY = config('SECRET_KEY')
-
-# Lê do .env. O 'cast=bool' converte a string 'True'/'False' para booleano do Python
 DEBUG = config('DEBUG', default=False, cast=bool)
-
-# Lê a lista separada por vírgulas do .env
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='127.0.0.1,localhost', cast=Csv())
 
-# Mantenho o CSRF hardcoded pois geralmente é fixo por domínio, 
-# mas você pode mover para o .env se precisar alterar dinamicamente.
 CSRF_TRUSTED_ORIGINS = [
     'https://leozinreal1.pythonanywhere.com',
     'https://www.clinica-estima.com',
@@ -59,6 +52,8 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                # --- ADICIONADO: Nosso processador de permissões ---
+                'core.context_processors.permissoes_globais', 
             ],
         },
     },
@@ -84,7 +79,6 @@ STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Configurações de Autenticação
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
