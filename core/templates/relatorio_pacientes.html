@@ -19,8 +19,8 @@
         <div class="vr mx-1 text-secondary opacity-25"></div>
 
         {% if is_admin %}
-        <select name="tipo_atend" class="form-select form-select-sm" style="max-width: 220px;" onchange="this.form.submit()">
-            <option value="">Tipo (Todos)</option>
+        <select name="tipo_atend" class="form-select form-select-sm" style="max-width: 140px;" onchange="this.form.submit()">
+            <option value="">Tipos (Todos)</option>
             {% for cod, label in tipos_atendimento %}
                 <option value="{{ cod }}" {% if cod == tipo_atual %}selected{% endif %}>{{ label }}</option>
             {% endfor %}
@@ -47,8 +47,7 @@
             <thead class="bg-light">
                 <tr>
                     <th class="ps-4">Paciente</th>
-                    <th class="text-center">Agendados</th>
-                    <th class="text-center text-success">Compareceu</th>
+                    <th class="text-center">Consultas</th> <th class="text-center text-success">Compareceu</th>
                     <th class="text-center text-danger">Faltou</th>
                     <th>Taxa de Falta</th>
                     <th class="text-end pe-4">Ação</th>
@@ -70,7 +69,6 @@
                     <td class="text-center text-danger fw-bold">{{ p.total_faltas }}</td>
                     
                     <td style="width: 25%;">
-                        {# Calcula Porcentagem Visualmente na Tabela #}
                         {% widthratio p.total_faltas p.total_agendado 100 as taxa_falta %}
                         
                         <div class="d-flex align-items-center">

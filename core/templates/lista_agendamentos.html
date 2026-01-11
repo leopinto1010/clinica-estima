@@ -11,11 +11,14 @@
     .fc-event { cursor: pointer; border: none; }
     .fc-toolbar-title { font-size: 1.25rem !important; font-weight: 600; color: #344767; }
     .fc-button { text-transform: capitalize; }
+    
     .btn-outline-action { border: 1px solid #dee2e6; color: #6c757d; }
     .btn-outline-action:hover { background: #f8f9fa; color: #344767; }
+    
     .btn-trash-icon { color: #adb5bd; border: none; background: transparent; padding: 6px 10px; transition: all 0.2s; }
     .btn-trash-icon:hover { color: #dc3545; background-color: #fff5f5; border-radius: 4px; }
-    .btn-repor { background-color: #0d8a9e; border-color: #0d8a9e; color: white; }
+    
+    .btn-repor { background-color: #0d8a9e; border-color: #0d8a9e; color: white; transition: all 0.2s; }
     .btn-repor:hover { background-color: #0a6c7c; border-color: #0a6c7c; color: white; }
 </style>
 
@@ -132,9 +135,12 @@
             <div class="col-md-3">
                 <label class="form-label small fw-bold text-muted">Terapeuta</label>
                 <select name="filtro_terapeuta" class="form-select">
-                    <option value="">Todos</option>
+                    <option value="">Selecione...</option>
+                    
+                    <option value="todos" {% if filtro_terapeuta_selecionado == 'todos' %}selected{% endif %}>Ver Todos</option>
+                    
                     {% for t in terapeutas %}
-                        <option value="{{ t.id }}" {% if t.id == filtro_terapeuta_selecionado %}selected{% endif %}>{{ t.nome }}</option>
+                        <option value="{{ t.id }}" {% if t.id|stringformat:"s" == filtro_terapeuta_selecionado %}selected{% endif %}>{{ t.nome }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -221,14 +227,14 @@
                                     <a href="{% url 'realizar_consulta' agendamento.id %}?{{ params }}" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-medical"></i> Prontuário</a>
                                 
                                 {% else %}
-                                    {# --- LÓGICA ATUALIZADA: Permite Repor se for futuro, mesmo sendo Falta --- #}
+                                    {# Permite Repor se for futuro #}
                                     {% if agendamento.data|date:"Ymd" > agora|date:"Ymd" or agendamento.data|date:"Ymd" == agora|date:"Ymd" and agendamento.hora_inicio|date:"Hi" > agora|date:"Hi" %}
                                         <a href="{% url 'reposicao_agendamento' agendamento.id %}?{{ params }}" class="btn btn-sm btn-repor"><i class="bi bi-arrow-repeat"></i> Repor</a>
                                     {% endif %}
                                 {% endif %}
                             </div>
 
-                            {# --- LÓGICA ATUALIZADA: Permite Excluir se for Aguardando OU Falta --- #}
+                            {# Permite Excluir se for Aguardando OU Falta #}
                             {% if agendamento.status == 'AGUARDANDO' or agendamento.status == 'FALTA' %}
                                 <div class="vr mx-1 text-secondary opacity-25"></div>
                                 <a href="{% url 'excluir_agendamento' agendamento.id %}?{{ params }}" class="btn-trash-icon ms-2" onclick="return confirm('ATENÇÃO: Isso apagará permanentemente o agendamento. Confirmar?')" title="Excluir Permanentemente">
@@ -240,7 +246,7 @@
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="7" class="text-center py-4 text-muted">Nenhum agendamento encontrado.</td></tr>
+                <tr><td colspan="7" class="text-center py-4 text-muted">Nenhum agendamento encontrado (Selecione um terapeuta ou 'Ver Todos').</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -291,7 +297,10 @@
 
     var calendarEl = document.getElementById('calendar');
     var calendar = new FullCalendar.Calendar(calendarEl, {
-      initialView: 'timeGridWeek', locale: 'pt-br',
+      initialView: 'timeGridWeek', 
+      locale: 'pt-br',
+      
+      // Tradução dos botões
       buttonText: {
         today: 'Hoje',
         month: 'Mês',
@@ -299,6 +308,7 @@
         day: 'Dia',
         list: 'Lista'
       },
+
       headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' },
       slotMinTime: '07:00:00', slotMaxTime: '21:00:00', allDaySlot: false, height: 'auto',
       events: meusEventos,
@@ -317,7 +327,7 @@
         var htmlBotoes = '';
         var htmlLixeira = '';
 
-        // --- LÓGICA ATUALIZADA DO CALENDÁRIO ---
+        // Excluir disponível se Aguardando ou Falta
         if (props.status_cod === 'AGUARDANDO' || props.status_cod === 'FALTA') {
              htmlLixeira = `<a href="${props.url_excluir}" class="btn-trash-icon" onclick="return confirm('ATENÇÃO: Apagar permanentemente?')" title="Excluir"><i class="bi bi-trash fs-5"></i></a>`;
         }

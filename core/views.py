@@ -173,20 +173,33 @@ def lista_agendamentos(request):
         prox_mes = data_inicio.replace(day=28) + timedelta(days=4)
         data_fim = prox_mes - timedelta(days=prox_mes.day)
 
+    # Base da query
     agendamentos = Agendamento.objects.ativos().select_related('paciente', 'terapeuta').filter(
         data__range=[data_inicio, data_fim]
     ).order_by('data', 'hora_inicio')
 
+    # --- LÓGICA DE PERMISSÃO E FILTRO OTIMIZADA ---
     if not is_admin(request.user):
         if is_terapeuta(request.user):
             agendamentos = agendamentos.filter(terapeuta=request.user.terapeuta)
         else:
             agendamentos = Agendamento.objects.none()
-    elif filtro_terapeuta:
-        agendamentos = agendamentos.filter(terapeuta_id=filtro_terapeuta)
+    else:
+        # Se for Admin
+        if filtro_terapeuta == 'todos':
+            # Se escolheu explicitamente "Todos", não filtra (mostra tudo)
+            pass 
+        elif filtro_terapeuta:
+            # Se escolheu um ID específico
+            agendamentos = agendamentos.filter(terapeuta_id=filtro_terapeuta)
+        else:
+            # PADRÃO (Sem filtro): Retorna vazio para otimizar carregamento
+            agendamentos = Agendamento.objects.none()
     
+    # Filtros adicionais (Nome, Tipo, Status) continuam funcionando se houver resultados
     if busca_nome:
         agendamentos = agendamentos.filter(paciente__nome__icontains=busca_nome)
+        
     if filtro_tipo:
         agendamentos = agendamentos.filter(tipo_atendimento=filtro_tipo)
     if filtro_status:
@@ -201,7 +214,8 @@ def lista_agendamentos(request):
         'terapeutas': Terapeuta.objects.all() if is_admin(request.user) else None,
         'busca_nome': busca_nome or '',
         'filtro_tipo_selecionado': filtro_tipo,
-        'filtro_terapeuta_selecionado': int(filtro_terapeuta) if filtro_terapeuta else None,
+        # Alterado: Passamos o valor cru (string ou None) para tratar o 'todos' no template
+        'filtro_terapeuta_selecionado': filtro_terapeuta, 
         'status_choices': Agendamento.STATUS_CHOICES,
         'filtro_status_selecionado': filtro_status,
         'is_admin': is_admin(request.user)
@@ -684,14 +698,18 @@ def relatorio_pacientes(request):
     mes_filtro = int(request.GET.get('mes', hoje.month))
     ano_filtro = int(request.GET.get('ano', hoje.year))
     tipo_filtro = request.GET.get('tipo_atend')
-    ordem_filtro = request.GET.get('ordem', 'taxa_desc') # Padrão: Maior % de falta
+    ordem_filtro = request.GET.get('ordem', 'taxa_desc') 
 
-    # --- LÓGICA DE PERMISSÃO ---
     pacientes_base = Paciente.objects.filter(ativo=True)
+    
+    # --- CORREÇÃO DO FILTRO ---
+    # Considera apenas o que já aconteceu (REALIZADO ou FALTA)
+    # Ignora 'AGUARDANDO' (futuro) e 'CANCELADO'
     filtros_agendamento = Q(
         agendamento__data__month=mes_filtro,
         agendamento__data__year=ano_filtro,
-        agendamento__deletado=False 
+        agendamento__deletado=False,
+        agendamento__status__in=['REALIZADO', 'FALTA'] 
     )
 
     if is_terapeuta(request.user) and not is_admin(request.user):
@@ -705,24 +723,21 @@ def relatorio_pacientes(request):
     if tipo_filtro:
         pacientes_base = pacientes_base.filter(tipo_padrao=tipo_filtro)
 
-    # --- ANOTAÇÃO (Cálculos no Banco) ---
+    # --- ANOTAÇÃO ---
     ranking_pacientes = pacientes_base.annotate(
-        total_agendado=Count('agendamento', filter=filtros_agendamento),
+        total_agendado=Count('agendamento', filter=filtros_agendamento), # Agora isso é SOMA(Realizados + Faltas)
         total_faltas=Count('agendamento', filter=filtros_agendamento & Q(agendamento__status='FALTA')),
         total_realizados=Count('agendamento', filter=filtros_agendamento & Q(agendamento__status='REALIZADO'))
     ).annotate(
-        # Calcula a taxa de falta para ordenação (Faltas * 100.0 / Agendados)
-        # Case/When evita divisão por zero
         taxa_falta=Case(
             When(total_agendado=0, then=0.0),
             default=100.0 * F('total_faltas') / F('total_agendado'),
             output_field=FloatField()
         )
     ).filter(
-        total_agendado__gt=0 
+        total_agendado__gt=0 # Remove pacientes que só têm agendamentos futuros
     )
 
-    # --- ORDENAÇÃO DINÂMICA ---
     if ordem_filtro == 'taxa_desc':
         ranking_pacientes = ranking_pacientes.order_by('-taxa_falta', '-total_faltas')
     elif ordem_filtro == 'taxa_asc':
@@ -732,7 +747,6 @@ def relatorio_pacientes(request):
     elif ordem_filtro == 'atend_desc':
         ranking_pacientes = ranking_pacientes.order_by('-total_realizados')
     else:
-        # Fallback padrão
         ranking_pacientes = ranking_pacientes.order_by('-taxa_falta')
 
     meses = [
@@ -746,7 +760,7 @@ def relatorio_pacientes(request):
         'mes_atual': mes_filtro,
         'ano_atual': ano_filtro,
         'tipo_atual': tipo_filtro,
-        'ordem_atual': ordem_filtro, # Passa para o template manter selecionado
+        'ordem_atual': ordem_filtro,
         'meses': meses,
         'anos_disponiveis': range(hoje.year - 2, hoje.year + 2),
         'tipos_atendimento': TIPO_ATENDIMENTO_CHOICES,
