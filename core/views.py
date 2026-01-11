@@ -733,9 +733,11 @@ def relatorio_pacientes(request):
 
     pacientes_base = Paciente.objects.filter(ativo=True)
     
+    # --- ALTERAÇÃO AQUI: Removemos 'agendamento__deletado=False' ---
+    # Isso permite que faltas de agendamentos repostos (soft deleted) sejam contadas.
     filtros_agendamento = Q(
         agendamento__data__year=ano_filtro,
-        agendamento__deletado=False,
+        # agendamento__deletado=False,  <-- LINHA REMOVIDA PARA CONTAR FALTAS DELETADAS
         agendamento__status__in=['REALIZADO', 'FALTA'] 
     )
     
