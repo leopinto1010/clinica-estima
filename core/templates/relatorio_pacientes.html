@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold text-dark mb-1">Relatório de Pacientes</h4>
+        <p class="text-muted small mb-0">Análise de frequência e faltas.</p>
+    </div>
+    
+    <form class="d-flex gap-2 align-items-center" method="GET">
+        
+        <select name="ordem" class="form-select form-select-sm" style="min-width: 180px; font-weight: 500;" onchange="this.form.submit()">
+            <option value="taxa_desc" {% if ordem_atual == 'taxa_desc' %}selected{% endif %}>Maior % de Faltas</option>
+            <option value="taxa_asc" {% if ordem_atual == 'taxa_asc' %}selected{% endif %}>Menor % de Faltas</option>
+            <option value="faltas_desc" {% if ordem_atual == 'faltas_desc' %}selected{% endif %}>Mais Faltas (Qtd)</option>
+            <option value="atend_desc" {% if ordem_atual == 'atend_desc' %}selected{% endif %}>Mais Atendimentos</option>
+        </select>
+
+        <div class="vr mx-1 text-secondary opacity-25"></div>
+
+        {% if is_admin %}
+        <select name="tipo_atend" class="form-select form-select-sm" style="max-width: 220px;" onchange="this.form.submit()">
+            <option value="">Tipo (Todos)</option>
+            {% for cod, label in tipos_atendimento %}
+                <option value="{{ cod }}" {% if cod == tipo_atual %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+        {% endif %}
+
+        <select name="mes" class="form-select form-select-sm" onchange="this.form.submit()">
+            {% for num, nome in meses %}
+            <option value="{{ num }}" {% if num == mes_atual %}selected{% endif %}>{{ nome }}</option>
+            {% endfor %}
+        </select>
+        
+        <select name="ano" class="form-select form-select-sm" onchange="this.form.submit()">
+            {% for ano in anos_disponiveis %}
+            <option value="{{ ano }}" {% if ano == ano_atual %}selected{% endif %}>{{ ano }}</option>
+            {% endfor %}
+        </select>
+    </form>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table align-middle mb-0 table-hover">
+            <thead class="bg-light">
+                <tr>
+                    <th class="ps-4">Paciente</th>
+                    <th class="text-center">Agendados</th>
+                    <th class="text-center text-success">Compareceu</th>
+                    <th class="text-center text-danger">Faltou</th>
+                    <th>Taxa de Falta</th>
+                    <th class="text-end pe-4">Ação</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in ranking_pacientes %}
+                <tr>
+                    <td class="ps-4">
+                        <div class="d-flex flex-column">
+                            <span class="fw-bold text-dark">{{ p.nome }}</span>
+                            {% if is_admin %}
+                                <small class="text-muted">{{ p.get_tipo_padrao_display }}</small>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td class="text-center fw-medium">{{ p.total_agendado }}</td>
+                    <td class="text-center text-success fw-bold">{{ p.total_realizados }}</td>
+                    <td class="text-center text-danger fw-bold">{{ p.total_faltas }}</td>
+                    
+                    <td style="width: 25%;">
+                        {# Calcula Porcentagem Visualmente na Tabela #}
+                        {% widthratio p.total_faltas p.total_agendado 100 as taxa_falta %}
+                        
+                        <div class="d-flex align-items-center">
+                            <div class="progress flex-grow-1 me-2" style="height: 6px;">
+                                <div class="progress-bar bg-danger" 
+                                     role="progressbar" 
+                                     style="width: {{ taxa_falta }}%"></div>
+                            </div>
+                            <span class="small fw-bold text-muted">
+                                {{ taxa_falta }}%
+                            </span>
+                        </div>
+                    </td>
+                    
+                    <td class="text-end pe-4">
+                        <a href="{% url 'detalhe_paciente' p.id %}" class="btn btn-sm btn-outline-secondary" title="Ver Prontuário">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" class="text-center py-5 text-muted">Nenhum registro encontrado para este período.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

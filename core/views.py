@@ -3,10 +3,11 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.utils import timezone
 from datetime import timedelta, datetime
-from django.db.models import Q
+from django.db.models import Count, Q, F, Case, When, FloatField
 from django.db import transaction
 from django import forms
 from django.contrib.auth.models import Group
+import calendar
 
 from .models import Paciente, Terapeuta, Agendamento, Consulta, TIPO_ATENDIMENTO_CHOICES, ESPECIALIDADES_CHOICES
 from .forms import PacienteForm, AgendamentoForm, ConsultaForm, CadastroEquipeForm
@@ -87,20 +88,14 @@ def cadastro_paciente(request):
 @admin_required
 def editar_paciente(request, paciente_id):
     paciente = get_object_or_404(Paciente, id=paciente_id)
-    
-    # Captura os filtros da URL (se veio da lista)
     filtros = request.GET.urlencode()
     
     if request.method == 'POST':
-        # Tenta recuperar os filtros do formulário (hidden input)
         filtros_post = request.POST.get('filtros_persistentes', '')
-        
         form = PacienteForm(request.POST, instance=paciente)
         if form.is_valid():
             form.save()
             messages.success(request, f"Dados de {paciente.nome} atualizados!")
-            
-            # Monta a URL de retorno com os filtros
             url_destino = redirect('lista_pacientes').url
             if filtros_post:
                 url_destino += f"?{filtros_post}"
@@ -111,13 +106,12 @@ def editar_paciente(request, paciente_id):
     return render(request, 'cadastro_paciente.html', {
         'form': form, 
         'editando': True,
-        'filtros_persistentes': filtros  # Passa para o template
+        'filtros_persistentes': filtros
     })
 
 @login_required
 def detalhe_paciente(request, paciente_id):
     paciente = get_object_or_404(Paciente, id=paciente_id)
-    
     tem_permissao = False
     
     if is_admin(request.user):
@@ -256,8 +250,6 @@ def novo_agendamento(request):
 @login_required
 def reposicao_agendamento(request, agendamento_id):
     agendamento_antigo = get_object_or_404(Agendamento, id=agendamento_id)
-    
-    # Captura filtros atuais da URL para manter a persistência
     filtros = request.GET.urlencode()
 
     if not is_admin(request.user):
@@ -271,15 +263,12 @@ def reposicao_agendamento(request, agendamento_id):
     
     if dt_consulta <= timezone.now():
         messages.error(request, "A reposição só é permitida para horários futuros.")
-        
-        # Redireciona mantendo filtros em caso de erro
         url_retorno = redirect('lista_agendamentos').url
         if filtros: url_retorno += f'?{filtros}'
         return redirect(url_retorno)
 
     if request.method == 'POST':
         paciente_id = request.POST.get('paciente')
-        
         if paciente_id:
             try:
                 paciente_selecionado = Paciente.objects.get(id=paciente_id)
@@ -299,8 +288,6 @@ def reposicao_agendamento(request, agendamento_id):
                 agendamento_antigo.save()
 
                 messages.success(request, "Vaga preenchida! O agendamento anterior foi removido da visualização.")
-                
-                # Redireciona mantendo filtros
                 url_retorno = redirect('lista_agendamentos').url
                 if filtros: url_retorno += f'?{filtros}'
                 return redirect(url_retorno)
@@ -323,7 +310,7 @@ def reposicao_agendamento(request, agendamento_id):
 @login_required
 def confirmar_agendamento(request, agendamento_id):
     agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
-    filtros = request.GET.urlencode() # Captura filtros
+    filtros = request.GET.urlencode()
 
     if not is_admin(request.user) and agendamento.terapeuta.usuario != request.user:
         return redirect('lista_agendamentos')
@@ -331,7 +318,6 @@ def confirmar_agendamento(request, agendamento_id):
     agendamento.status = 'CONFIRMADO'
     agendamento.save()
     
-    # Retorno persistente
     url_retorno = redirect('lista_agendamentos').url
     if filtros: url_retorno += f'?{filtros}'
     return redirect(url_retorno)
@@ -339,7 +325,7 @@ def confirmar_agendamento(request, agendamento_id):
 @login_required
 def marcar_falta(request, agendamento_id):
     agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
-    filtros = request.GET.urlencode() # Captura filtros
+    filtros = request.GET.urlencode()
 
     if not is_admin(request.user) and agendamento.terapeuta.usuario != request.user:
         return redirect('lista_agendamentos')
@@ -347,7 +333,6 @@ def marcar_falta(request, agendamento_id):
     agendamento.status = 'FALTA'
     agendamento.save()
     
-    # Retorno persistente
     url_retorno = redirect('lista_agendamentos').url
     if filtros: url_retorno += f'?{filtros}'
     return redirect(url_retorno)
@@ -355,7 +340,7 @@ def marcar_falta(request, agendamento_id):
 @login_required
 def excluir_agendamento(request, agendamento_id):
     agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
-    filtros = request.GET.urlencode() # Captura filtros
+    filtros = request.GET.urlencode()
 
     if not is_admin(request.user) and agendamento.terapeuta.usuario != request.user:
         return redirect('lista_agendamentos')
@@ -363,7 +348,6 @@ def excluir_agendamento(request, agendamento_id):
     agendamento.delete()
     messages.success(request, "Agendamento excluído permanentemente.")
     
-    # Retorno persistente
     url_retorno = redirect('lista_agendamentos').url
     if filtros: url_retorno += f'?{filtros}'
     return redirect(url_retorno)
@@ -372,7 +356,6 @@ def excluir_agendamento(request, agendamento_id):
 def realizar_consulta(request, agendamento_id):
     agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
 
-    # ... (blocos de verificação de permissão mantidos iguais) ...
     if is_admin(request.user) and not is_dono(request.user):
         messages.error(request, "Perfil Administrativo não tem acesso a prontuários médicos.")
         return redirect('lista_agendamentos')
@@ -384,9 +367,8 @@ def realizar_consulta(request, agendamento_id):
 
     consulta, _ = Consulta.objects.get_or_create(agendamento=agendamento)
     
-    # --- LÓGICA DE VOLTAR ---
     params = request.GET.copy()
-    origem = params.pop('origem', [''])[0] # Remove 'origem' dos parâmetros
+    origem = params.pop('origem', [''])[0]
     query_string = params.urlencode()
     
     if origem == 'historico':
@@ -396,7 +378,6 @@ def realizar_consulta(request, agendamento_id):
         
     if query_string:
         url_voltar += f"?{query_string}"
-    # ------------------------
 
     if request.method == 'POST':
         form = ConsultaForm(request.POST, instance=consulta)
@@ -411,14 +392,14 @@ def realizar_consulta(request, agendamento_id):
             agendamento.save()
             messages.success(request, "Prontuário salvo com sucesso!")
             
-            return redirect(url_voltar) # Usa a URL calculada
+            return redirect(url_voltar)
     else:
         form = ConsultaForm(instance=consulta)
     
     return render(request, 'realizar_consulta.html', {
         'form': form, 
         'agendamento': agendamento, 
-        'url_voltar': url_voltar, # Passa para o template
+        'url_voltar': url_voltar,
         'tipos_atendimento': TIPO_ATENDIMENTO_CHOICES 
     })
 
@@ -454,7 +435,6 @@ def lista_consultas_geral(request):
     agora = timezone.localtime(timezone.now())
     hoje = agora.date()
     
-    # Lógica de datas
     if filtro_hoje: 
         data_inicio, data_fim = hoje, hoje
     elif filtro_semana:
@@ -463,9 +443,7 @@ def lista_consultas_geral(request):
     elif data_inicio_get and data_fim_get:
         data_inicio, data_fim = data_inicio_get, data_fim_get
     else:
-        # --- ALTERADO: Padrão agora é o mês atual ---
         data_inicio = hoje.replace(day=1)
-        # Calcula o último dia do mês: pega o primeiro dia do próximo mês e subtrai 1 dia
         prox_mes = (data_inicio + timedelta(days=32)).replace(day=1)
         data_fim = prox_mes - timedelta(days=1)
 
@@ -477,19 +455,15 @@ def lista_consultas_geral(request):
         else:
             agendamentos = Agendamento.objects.none()
 
-    # Aplica o filtro de data (que agora sempre terá valores, seja por input ou padrão mês)
     if data_inicio and data_fim:
         agendamentos = agendamentos.filter(data__range=[data_inicio, data_fim])
 
     if busca_nome:
         agendamentos = agendamentos.filter(paciente__nome__icontains=busca_nome)
-        
     if filtro_tipo:
         agendamentos = agendamentos.filter(tipo_atendimento=filtro_tipo)
-    
     if filtro_status:
         agendamentos = agendamentos.filter(status=filtro_status)
-        
     if is_admin(request.user) and filtro_terapeuta:
         agendamentos = agendamentos.filter(terapeuta_id=filtro_terapeuta)
         
@@ -502,11 +476,8 @@ def lista_consultas_geral(request):
         'filtro_tipo_selecionado': filtro_tipo,
         'filtro_status_selecionado': filtro_status, 
         'filtro_terapeuta_selecionado': int(filtro_terapeuta) if filtro_terapeuta else None,
-        
-        # Passa as datas para o template preencher os inputs
         'data_inicio': str(data_inicio) if data_inicio else '',
         'data_fim': str(data_fim) if data_fim else '',
-        
         'filtro_hoje': filtro_hoje,
         'filtro_semana': filtro_semana,
         'is_admin': is_admin(request.user)
@@ -591,4 +562,193 @@ def lista_terapeutas(request):
         'especialidades': ESPECIALIDADES_CHOICES,
         'busca_atual': busca,
         'filtro_esp_selecionado': filtro_esp
+    })
+
+# --- RELATÓRIOS ---
+@login_required
+def relatorio_mensal(request):
+    hoje = timezone.now()
+    mes_filtro = int(request.GET.get('mes', hoje.month))
+    ano_filtro = int(request.GET.get('ano', hoje.year))
+    semana_filtro = request.GET.get('semana')
+
+    # --- LÓGICA DE SEMANAS ---
+    cal = calendar.Calendar(firstweekday=0) 
+    calendario_mes = cal.monthdatescalendar(ano_filtro, mes_filtro)
+    
+    semanas_opcoes = []
+    for i, semana in enumerate(calendario_mes):
+        inicio = semana[0]
+        fim = semana[-1]
+        label = f"Semana {i+1} ({inicio.strftime('%d/%m')} - {fim.strftime('%d/%m')})"
+        semanas_opcoes.append({
+            'id': str(i), 
+            'inicio': inicio,
+            'fim': fim,
+            'label': label
+        })
+
+    # QuerySet Base (Mês e Ano)
+    # --- CORREÇÃO AQUI: Filtrar deletado=False para ignorar reposições ---
+    qs_base = Agendamento.objects.filter(
+        data__month=mes_filtro, 
+        data__year=ano_filtro,
+        deletado=False 
+    ).exclude(status='AGUARDANDO')
+
+    # --- APLICA FILTRO DE SEMANA ---
+    if semana_filtro:
+        try:
+            idx = int(semana_filtro)
+            if 0 <= idx < len(semanas_opcoes):
+                data_ini = semanas_opcoes[idx]['inicio']
+                data_fim = semanas_opcoes[idx]['fim']
+                qs_base = qs_base.filter(data__range=[data_ini, data_fim])
+        except ValueError:
+            pass 
+
+    # --- LÓGICA DE PERMISSÃO ---
+    terapeutas_para_analise = Terapeuta.objects.none()
+    titulo_pagina = ""
+
+    if is_admin(request.user):
+        terapeutas_para_analise = Terapeuta.objects.all()
+        titulo_pagina = "Relatório Geral da Clínica"
+    elif is_terapeuta(request.user):
+        try:
+            meu_perfil = request.user.terapeuta
+            terapeutas_para_analise = Terapeuta.objects.filter(id=meu_perfil.id)
+            qs_base = qs_base.filter(terapeuta=meu_perfil)
+            titulo_pagina = "Meu Desempenho Individual"
+        except Exception:
+            messages.error(request, "Perfil de terapeuta não encontrado.")
+            return redirect('dashboard')
+    else:
+        messages.error(request, "Acesso restrito.")
+        return redirect('dashboard')
+
+    # 1. Totais Gerais
+    total_geral = qs_base.count()
+    total_realizados = qs_base.filter(status='REALIZADO').count()
+    total_faltas = qs_base.filter(status='FALTA').count()
+    
+    taxa_faltas_geral = 0
+    if total_geral > 0:
+        taxa_faltas_geral = round((total_faltas / total_geral) * 100, 1)
+
+    # 2. Dados da Tabela
+    # --- CORREÇÃO AQUI: Adicionar agendamento__deletado=False nos filtros da tabela ---
+    filtros_tabela = Q(
+        agendamento__data__month=mes_filtro,
+        agendamento__data__year=ano_filtro,
+        agendamento__deletado=False # Ignora faltas que foram repostas
+    )
+    
+    if semana_filtro and 'data_ini' in locals():
+        filtros_tabela &= Q(agendamento__data__range=[data_ini, data_fim])
+
+    stats_terapeutas = terapeutas_para_analise.annotate(
+        qtd_atendimentos=Count('agendamento', filter=filtros_tabela & Q(agendamento__status='REALIZADO')),
+        qtd_faltas=Count('agendamento', filter=filtros_tabela & Q(agendamento__status='FALTA'))
+    ).order_by('-qtd_atendimentos')
+
+    meses = [
+        (1, 'Janeiro'), (2, 'Fevereiro'), (3, 'Março'), (4, 'Abril'),
+        (5, 'Maio'), (6, 'Junho'), (7, 'Julho'), (8, 'Agosto'),
+        (9, 'Setembro'), (10, 'Outubro'), (11, 'Novembro'), (12, 'Dezembro')
+    ]
+
+    return render(request, 'relatorio_mensal.html', {
+        'titulo_pagina': titulo_pagina,
+        'stats_terapeutas': stats_terapeutas,
+        'total_realizados': total_realizados,
+        'total_faltas': total_faltas,
+        'taxa_faltas_geral': taxa_faltas_geral,
+        'mes_atual': mes_filtro,
+        'ano_atual': ano_filtro,
+        'meses': meses,
+        'anos_disponiveis': range(hoje.year - 2, hoje.year + 2),
+        'is_admin': is_admin(request.user),
+        'semanas_opcoes': semanas_opcoes,
+        'semana_atual': semana_filtro
+    })
+
+@login_required
+def relatorio_pacientes(request):
+    # Apenas Admin e Terapeutas podem ver dados de pacientes
+    if not (is_admin(request.user) or is_terapeuta(request.user)):
+        messages.error(request, "Acesso restrito.")
+        return redirect('dashboard')
+
+    hoje = timezone.now()
+    mes_filtro = int(request.GET.get('mes', hoje.month))
+    ano_filtro = int(request.GET.get('ano', hoje.year))
+    tipo_filtro = request.GET.get('tipo_atend')
+    ordem_filtro = request.GET.get('ordem', 'taxa_desc') # Padrão: Maior % de falta
+
+    # --- LÓGICA DE PERMISSÃO ---
+    pacientes_base = Paciente.objects.filter(ativo=True)
+    filtros_agendamento = Q(
+        agendamento__data__month=mes_filtro,
+        agendamento__data__year=ano_filtro,
+        agendamento__deletado=False 
+    )
+
+    if is_terapeuta(request.user) and not is_admin(request.user):
+        try:
+            meu_perfil = request.user.terapeuta
+            filtros_agendamento &= Q(agendamento__terapeuta=meu_perfil)
+            pacientes_base = pacientes_base.filter(agendamento__terapeuta=meu_perfil).distinct()
+        except:
+            return redirect('dashboard')
+
+    if tipo_filtro:
+        pacientes_base = pacientes_base.filter(tipo_padrao=tipo_filtro)
+
+    # --- ANOTAÇÃO (Cálculos no Banco) ---
+    ranking_pacientes = pacientes_base.annotate(
+        total_agendado=Count('agendamento', filter=filtros_agendamento),
+        total_faltas=Count('agendamento', filter=filtros_agendamento & Q(agendamento__status='FALTA')),
+        total_realizados=Count('agendamento', filter=filtros_agendamento & Q(agendamento__status='REALIZADO'))
+    ).annotate(
+        # Calcula a taxa de falta para ordenação (Faltas * 100.0 / Agendados)
+        # Case/When evita divisão por zero
+        taxa_falta=Case(
+            When(total_agendado=0, then=0.0),
+            default=100.0 * F('total_faltas') / F('total_agendado'),
+            output_field=FloatField()
+        )
+    ).filter(
+        total_agendado__gt=0 
+    )
+
+    # --- ORDENAÇÃO DINÂMICA ---
+    if ordem_filtro == 'taxa_desc':
+        ranking_pacientes = ranking_pacientes.order_by('-taxa_falta', '-total_faltas')
+    elif ordem_filtro == 'taxa_asc':
+        ranking_pacientes = ranking_pacientes.order_by('taxa_falta', 'total_faltas')
+    elif ordem_filtro == 'faltas_desc':
+        ranking_pacientes = ranking_pacientes.order_by('-total_faltas')
+    elif ordem_filtro == 'atend_desc':
+        ranking_pacientes = ranking_pacientes.order_by('-total_realizados')
+    else:
+        # Fallback padrão
+        ranking_pacientes = ranking_pacientes.order_by('-taxa_falta')
+
+    meses = [
+        (1, 'Janeiro'), (2, 'Fevereiro'), (3, 'Março'), (4, 'Abril'),
+        (5, 'Maio'), (6, 'Junho'), (7, 'Julho'), (8, 'Agosto'),
+        (9, 'Setembro'), (10, 'Outubro'), (11, 'Novembro'), (12, 'Dezembro')
+    ]
+
+    return render(request, 'relatorio_pacientes.html', {
+        'ranking_pacientes': ranking_pacientes,
+        'mes_atual': mes_filtro,
+        'ano_atual': ano_filtro,
+        'tipo_atual': tipo_filtro,
+        'ordem_atual': ordem_filtro, # Passa para o template manter selecionado
+        'meses': meses,
+        'anos_disponiveis': range(hoje.year - 2, hoje.year + 2),
+        'tipos_atendimento': TIPO_ATENDIMENTO_CHOICES,
+        'is_admin': is_admin(request.user)
     })

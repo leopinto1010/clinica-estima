@@ -292,6 +292,13 @@
     var calendarEl = document.getElementById('calendar');
     var calendar = new FullCalendar.Calendar(calendarEl, {
       initialView: 'timeGridWeek', locale: 'pt-br',
+      buttonText: {
+        today: 'Hoje',
+        month: 'Mês',
+        week: 'Semana',
+        day: 'Dia',
+        list: 'Lista'
+      },
       headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' },
       slotMinTime: '07:00:00', slotMaxTime: '21:00:00', allDaySlot: false, height: 'auto',
       events: meusEventos,

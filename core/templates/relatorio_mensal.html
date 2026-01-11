@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold text-dark mb-1">{{ titulo_pagina }}</h4>
+        <p class="text-muted small mb-0">Análise de atendimentos e absenteísmo.</p>
+    </div>
+    
+    <form class="d-flex gap-2 align-items-center" method="GET">
+        
+        <select name="semana" class="form-select form-select-sm" style="min-width: 200px;" onchange="this.form.submit()">
+            <option value="">Todas as Semanas</option>
+            {% for s in semanas_opcoes %}
+                <option value="{{ s.id }}" {% if s.id == semana_atual %}selected{% endif %}>
+                    {{ s.label }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <div class="vr mx-1 text-secondary opacity-25"></div>
+
+        <select name="mes" class="form-select form-select-sm" onchange="this.form.submit()">
+            {% for num, nome in meses %}
+            <option value="{{ num }}" {% if num == mes_atual %}selected{% endif %}>{{ nome }}</option>
+            {% endfor %}
+        </select>
+        
+        <select name="ano" class="form-select form-select-sm" onchange="this.form.submit()">
+            {% for ano in anos_disponiveis %}
+            <option value="{{ ano }}" {% if ano == ano_atual %}selected{% endif %}>{{ ano }}</option>
+            {% endfor %}
+        </select>
+    </form>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm border-start border-4 border-success">
+            <div class="card-body">
+                <h6 class="text-uppercase text-muted small fw-bold">Consultas Realizadas</h6>
+                <h2 class="mb-0 text-success fw-bold">{{ total_realizados }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm border-start border-4 border-danger">
+            <div class="card-body">
+                <h6 class="text-uppercase text-muted small fw-bold">Total de Faltas</h6>
+                <h2 class="mb-0 text-danger fw-bold">{{ total_faltas }}</h2>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm border-start border-4 border-warning">
+            <div class="card-body">
+                <h6 class="text-uppercase text-muted small fw-bold">Taxa de Absenteísmo</h6>
+                <h2 class="mb-0 text-dark fw-bold">{{ taxa_faltas_geral }}%</h2>
+                <small class="text-muted">das agendas foram perdidas.</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-white py-3">
+        <h6 class="mb-0 fw-bold">Desempenho por Terapeuta</h6>
+    </div>
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead class="bg-light">
+                <tr>
+                    <th class="ps-4">Terapeuta</th>
+                    <th class="text-center text-success">Realizados</th>
+                    <th class="text-center text-danger">Faltas</th>
+                    <th>Comparativo</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for t in stats_terapeutas %}
+                <tr>
+                    <td class="ps-4 fw-bold">{{ t.nome }}</td>
+                    <td class="text-center fw-bold text-success">{{ t.qtd_atendimentos }}</td>
+                    <td class="text-center fw-bold text-danger">{{ t.qtd_faltas }}</td>
+                    <td class="pe-4" style="width: 40%;">
+                        {# Calcula porcentagem: (Faltas / (Realizados + Faltas)) * 100 #}
+                        {# O widthratio faz regra de três: (A / B) * C #}
+                        {% widthratio t.qtd_faltas t.qtd_atendimentos|add:t.qtd_faltas 100 as pct_falta %}
+                        
+                        <div class="d-flex align-items-center">
+                            <div class="progress flex-grow-1" style="height: 8px;">
+                                <div class="progress-bar bg-success" role="progressbar" style="width: 100%"></div>
+                                <div class="progress-bar bg-danger" role="progressbar" style="width: {{ pct_falta }}%"></div>
+                            </div>
+                            <span class="ms-2 small text-muted fw-bold" style="min-width: 80px; text-align: right;">
+                                {% if t.qtd_atendimentos or t.qtd_faltas %}
+                                    {{ pct_falta }}% faltas
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </span>
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="4" class="text-center py-5 text-muted">Sem dados para este período.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

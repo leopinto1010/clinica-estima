@@ -30,6 +30,23 @@
         .nav-link { font-size: 0.9rem; font-weight: 500; opacity: 0.9; }
         .nav-link:hover { opacity: 1; background: rgba(255,255,255,0.1); border-radius: 6px; }
 
+        /* Estilo extra para suavizar o Dropdown */
+        .dropdown-menu {
+            margin-top: 10px !important; /* Afasta um pouco do menu */
+            border-radius: 12px;         /* Bordas mais arredondadas */
+            overflow: hidden;            /* Garante que o hover respeite a borda */
+        }
+        .dropdown-item {
+            font-size: 0.9rem;
+            color: #344767;
+            padding: 10px 20px;
+        }
+        .dropdown-item:hover {
+            background-color: #f8f9fa;
+            color: #8e74a5;
+            font-weight: 600;
+        }
+
         /* --- CARDS --- */
         .card { 
             border: none; 
@@ -53,16 +70,10 @@
             font-size: 0.75rem;
             letter-spacing: 0.3px;
         }
-        /* Cores Atualizadas conforme Pedido */
-        .badge-agendado { background-color: #e3f2fd; color: #0d47a1; } /* Azul */
-        .badge-realizado { background-color: #e8f5e9; color: #1b5e20; } /* Verde */
-        
-        /* Cancelado foi removido daqui */
-        
-        /* Falta = Vermelho */
+        .badge-agendado { background-color: #e3f2fd; color: #0d47a1; }
+        .badge-realizado { background-color: #e8f5e9; color: #1b5e20; }
         .badge-falta { background-color: #ffebee; color: #b71c1c; } 
-        
-        .badge-padrao { background-color: #f3e5f5; color: #7b1fa2; } /* Roxo */
+        .badge-padrao { background-color: #f3e5f5; color: #7b1fa2; }
 
         /* --- TOASTS --- */
         #toast-container { position: fixed; top: 90px; right: 20px; z-index: 9999; width: 320px; display: flex; flex-direction: column; gap: 10px; }
@@ -89,6 +100,30 @@
             <li class="nav-item"><a class="nav-link" href="{% url 'lista_pacientes' %}">Pacientes</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'lista_consultas_geral' %}">Histórico</a></li>
             
+            {% if is_admin or user.terapeuta %}
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" id="menuRelatorios" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    Relatórios
+                </a>
+                <ul class="dropdown-menu dropdown-menu-start shadow border-0" aria-labelledby="menuRelatorios">
+                    <li>
+                        <a class="dropdown-item" href="{% url 'relatorio_mensal' %}">
+                            {% if is_admin %}
+                                Relatório de Terapeutas
+                            {% else %}
+                                Relatório de Terapeuta
+                            {% endif %}
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="{% url 'relatorio_pacientes' %}">
+                            Relatório de Pacientes
+                        </a>
+                    </li>
+                </ul>
+            </li>
+            {% endif %}
+
             {% if is_admin %}
                 <li class="nav-item"><a class="nav-link" href="{% url 'lista_terapeutas' %}">Terapeutas</a></li>
             {% endif %}

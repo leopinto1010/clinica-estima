@@ -18,7 +18,9 @@ from core.views import (
     lista_consultas_geral,
     cadastrar_equipe,
     excluir_agendamentos_futuros,
-    lista_terapeutas  # <--- Adicione este import
+    lista_terapeutas,
+    relatorio_mensal,
+    relatorio_pacientes
 )
 
 urlpatterns = [
@@ -50,4 +52,7 @@ urlpatterns = [
     path('equipe/lista/', lista_terapeutas, name='lista_terapeutas'), # <--- Nova Rota
     
     path('paciente/<int:paciente_id>/limpar-agenda/', excluir_agendamentos_futuros, name='excluir_agendamentos_futuros'),
+
+    path('relatorios/', relatorio_mensal, name='relatorio_mensal'),
+    path('relatorios/pacientes/', relatorio_pacientes, name='relatorio_pacientes'),
 ]
