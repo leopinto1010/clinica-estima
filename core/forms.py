@@ -35,6 +35,7 @@ class PacienteForm(forms.ModelForm):
         }
 
 class AgendamentoForm(forms.ModelForm):
+    # ... (campos existentes mantidos) ...
     repeticoes = forms.IntegerField(
         required=False, initial=0, min_value=0, max_value=48, 
         label="Repetir por quantas semanas?",
@@ -47,7 +48,7 @@ class AgendamentoForm(forms.ModelForm):
         widgets = {
             'paciente': forms.Select(attrs={'class': 'form-control campo-busca'}),
             'terapeuta': forms.Select(attrs={'class': 'form-control campo-busca'}),
-            'data': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'data': forms.DateInput(attrs={'class': 'form-control seletor-apenas-data'}), # Ajuste de classe se necessário
             'hora_inicio': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
             'hora_fim': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
         }
@@ -69,6 +70,8 @@ class AgendamentoForm(forms.ModelForm):
             hora_fim = dt_fim.time()
             cleaned_data['hora_fim'] = hora_fim 
 
+        # A função verificar_conflito do Model JÁ ignora status='FALTA'.
+        # Portanto, se retornar True aqui, é porque existe um agendamento AGUARDANDO ou REALIZADO.
         tem_conflito = Agendamento.verificar_conflito(
             terapeuta=terapeuta,
             data=data,
@@ -78,7 +81,7 @@ class AgendamentoForm(forms.ModelForm):
         )
 
         if tem_conflito:
-            raise forms.ValidationError(f"Conflito! Dr(a) {terapeuta.nome} já possui agendamento neste horário.")
+            raise forms.ValidationError(f"Conflito! Dr(a) {terapeuta.nome} já possui atendimento válido neste horário.")
 
         return cleaned_data
 
