@@ -274,12 +274,6 @@ def reposicao_agendamento(request, agendamento_id):
     dt_consulta = datetime.combine(agendamento_antigo.data, agendamento_antigo.hora_inicio)
     if timezone.is_naive(dt_consulta):
         dt_consulta = timezone.make_aware(dt_consulta, timezone.get_current_timezone())
-    
-    if dt_consulta <= timezone.now():
-        messages.error(request, "A reposição só é permitida para horários futuros.")
-        url_retorno = redirect('lista_agendamentos').url
-        if filtros: url_retorno += f'?{filtros}'
-        return redirect(url_retorno)
 
     if request.method == 'POST':
         paciente_id = request.POST.get('paciente')

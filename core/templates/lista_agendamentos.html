@@ -227,10 +227,8 @@
                                     <a href="{% url 'realizar_consulta' agendamento.id %}?{{ params }}" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-medical"></i> Prontuário</a>
                                 
                                 {% else %}
-                                    {# Permite Repor se for futuro #}
-                                    {% if agendamento.data|date:"Ymd" > agora|date:"Ymd" or agendamento.data|date:"Ymd" == agora|date:"Ymd" and agendamento.hora_inicio|date:"Hi" > agora|date:"Hi" %}
-                                        <a href="{% url 'reposicao_agendamento' agendamento.id %}?{{ params }}" class="btn btn-sm btn-repor"><i class="bi bi-arrow-repeat"></i> Repor</a>
-                                    {% endif %}
+                                    {# Permite Repor para qualquer FALTA (Passado ou Futuro) #}
+                                    <a href="{% url 'reposicao_agendamento' agendamento.id %}?{{ params }}" class="btn btn-sm btn-repor"><i class="bi bi-arrow-repeat"></i> Repor</a>
                                 {% endif %}
                             </div>
 
@@ -338,10 +336,8 @@
         } else if (props.status_cod === 'REALIZADO') {
             htmlBotoes += `<a href="${props.url_atender}" class="btn btn-success w-100">Ver Prontuário</a>`;
         } else {
-             // Se for FALTA (futuro) ou qualquer outro status não tratado (futuro)
-             if (startEvent > now) {
-                htmlBotoes += `<a href="${props.url_reposicao}" class="btn btn-repor w-100"><i class="bi bi-arrow-repeat"></i> Agendar Reposição</a>`;
-             }
+             // Se for FALTA, permite repor sempre (removemos a checagem startEvent > now)
+             htmlBotoes += `<a href="${props.url_reposicao}" class="btn btn-repor w-100"><i class="bi bi-arrow-repeat"></i> Agendar Reposição</a>`;
         }
 
         $('#detalheAcoesPrincipais').html(htmlBotoes);
