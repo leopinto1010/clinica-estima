@@ -32,6 +32,18 @@ TIPO_ATENDIMENTO_CHOICES = [
     ('SOCIAL', 'Social'),
 ]
 
+class Convenio(models.Model):
+    nome = models.CharField(max_length=100, unique=True, verbose_name="Nome do Convênio")
+    ativo = models.BooleanField(default=True, verbose_name="Ativo?")
+
+    class Meta:
+        ordering = ['nome']
+        verbose_name = "Convênio"
+        verbose_name_plural = "Convênios"
+
+    def __str__(self):
+        return self.nome
+    
 class Paciente(models.Model):
     nome = models.CharField(max_length=100)
     cpf = models.CharField(
@@ -46,6 +58,19 @@ class Paciente(models.Model):
     tipo_padrao = models.CharField(
         max_length=20, choices=TIPO_ATENDIMENTO_CHOICES, default='PARTICULAR',
         verbose_name="Tipo de Atendimento Padrão"
+    )
+    convenio = models.ForeignKey(
+        Convenio, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        verbose_name="Convênio (Se houver)"
+    )
+    carteirinha = models.CharField(
+        max_length=50, 
+        blank=True, 
+        null=True, 
+        verbose_name="Número da Carteirinha"
     )
     ativo = models.BooleanField(default=True, verbose_name="Cadastro Ativo")
     

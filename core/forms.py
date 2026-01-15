@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import UserCreationForm
-from .models import Paciente, Terapeuta, Agendamento, Consulta, ESPECIALIDADES_CHOICES
+from .models import Paciente, Terapeuta, Agendamento, Consulta, ESPECIALIDADES_CHOICES, Convenio
 from datetime import datetime, timedelta
 from django.utils import timezone
 
@@ -20,13 +20,15 @@ class CadastroEquipeForm(UserCreationForm):
 class PacienteForm(forms.ModelForm):
     class Meta:
         model = Paciente
-        fields = ['nome', 'cpf', 'data_nascimento', 'telefone', 'tipo_padrao', 'ativo']
+        fields = ['nome', 'cpf', 'data_nascimento', 'telefone', 'tipo_padrao', 'convenio', 'carteirinha', 'ativo']
         widgets = {
             'nome': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nome Completo'}),
             'cpf': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Apenas números'}),
             'data_nascimento': forms.DateInput(attrs={'class': 'form-control seletor-apenas-data'}),
             'telefone': forms.TextInput(attrs={'class': 'form-control'}),
             'tipo_padrao': forms.Select(attrs={'class': 'form-control'}),
+            'convenio': forms.Select(attrs={'class': 'form-control'}),
+            'carteirinha': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nº da Carteira'}),
         }
 
 class AgendamentoForm(forms.ModelForm):

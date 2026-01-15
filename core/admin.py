@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
-from .models import Paciente, Terapeuta, Agendamento, Consulta
+from .models import Paciente, Terapeuta, Agendamento, Consulta, Convenio
 
 # --- 1. Usuários: Mostrar o "Papel" na lista ---
 class UserAdmin(BaseUserAdmin):
@@ -52,13 +52,19 @@ class AgendamentoAdmin(admin.ModelAdmin):
     @admin.display(ordering='data', description='Data')
     def data_formatada(self, obj):
         return obj.data.strftime('%d/%m/%Y')
-    
+
+@admin.register(Convenio)
+class ConvenioAdmin(admin.ModelAdmin):
+    list_display = ('nome', 'ativo')
+    search_fields = ('nome',)
+    list_filter = ('ativo',)
+
 # --- 3. Outros Modelos ---
 @admin.register(Paciente)
 class PacienteAdmin(admin.ModelAdmin):
-    list_display = ('nome', 'cpf', 'telefone', 'tipo_padrao')
+    list_display = ('nome', 'cpf', 'telefone', 'tipo_padrao', 'convenio')
     search_fields = ('nome', 'cpf')
-    list_filter = ('tipo_padrao',)
+    list_filter = ('tipo_padrao', 'convenio')
 
 @admin.register(Terapeuta)
 class TerapeutaAdmin(admin.ModelAdmin):
