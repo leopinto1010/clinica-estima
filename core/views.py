@@ -9,8 +9,8 @@ from django import forms
 from django.contrib.auth.models import Group
 import calendar
 
-from .models import Paciente, Terapeuta, Agendamento, Consulta, TIPO_ATENDIMENTO_CHOICES, ESPECIALIDADES_CHOICES
-from .forms import PacienteForm, AgendamentoForm, ConsultaForm, CadastroEquipeForm
+from .models import Paciente, Terapeuta, Agendamento, Consulta, AnexoConsulta, TIPO_ATENDIMENTO_CHOICES, ESPECIALIDADES_CHOICES
+from .forms import PacienteForm, AgendamentoForm, ConsultaForm, CadastroEquipeForm, RegistrarFaltaForm
 from .decorators import admin_required, terapeuta_required, dono_required, is_admin, is_terapeuta, is_dono
 from .utils import setup_grupos, criar_agendamentos_em_lote
 
@@ -18,7 +18,7 @@ from .utils import setup_grupos, criar_agendamentos_em_lote
 @login_required
 def dashboard(request):
     hoje = timezone.localtime(timezone.now()).date()
-    
+    # Dashboard mostra apenas ativos (não mostra faltas repostas)
     qs = Agendamento.objects.ativos().filter(data=hoje).select_related('paciente', 'terapeuta').order_by('hora_inicio')
 
     if not is_admin(request.user):
@@ -46,21 +46,14 @@ def lista_pacientes(request):
 
     pacientes = Paciente.objects.all()
 
-    if filtro_status == 'todos':
-        pass 
-    elif filtro_status == 'inativos':
-        pacientes = pacientes.filter(ativo=False)
+    if filtro_status == 'todos': pass 
+    elif filtro_status == 'inativos': pacientes = pacientes.filter(ativo=False)
     else:
         pacientes = pacientes.filter(ativo=True)
         filtro_status = 'ativos'
 
-    if filtro_tipo:
-        pacientes = pacientes.filter(tipo_padrao=filtro_tipo)
-
-    if busca:
-        pacientes = pacientes.filter(
-            Q(nome__icontains=busca) | Q(cpf__icontains=busca)
-        )
+    if filtro_tipo: pacientes = pacientes.filter(tipo_padrao=filtro_tipo)
+    if busca: pacientes = pacientes.filter(Q(nome__icontains=busca) | Q(cpf__icontains=busca))
     
     pacientes = pacientes.order_by('nome')
 
@@ -95,18 +88,15 @@ def editar_paciente(request, paciente_id):
         form = PacienteForm(request.POST, instance=paciente)
         if form.is_valid():
             form.save()
-            messages.success(request, f"Dados de {paciente.nome} atualizados!")
+            messages.success(request, f"Dados atualizados!")
             url_destino = redirect('lista_pacientes').url
-            if filtros_post:
-                url_destino += f"?{filtros_post}"
+            if filtros_post: url_destino += f"?{filtros_post}"
             return redirect(url_destino)
     else:
         form = PacienteForm(instance=paciente)
         
     return render(request, 'cadastro_paciente.html', {
-        'form': form, 
-        'editando': True,
-        'filtros_persistentes': filtros
+        'form': form, 'editando': True, 'filtros_persistentes': filtros
     })
 
 @login_required
@@ -114,18 +104,13 @@ def detalhe_paciente(request, paciente_id):
     paciente = get_object_or_404(Paciente, id=paciente_id)
     tem_permissao = False
     
-    if is_admin(request.user):
-        tem_permissao = True
+    if is_admin(request.user): tem_permissao = True
     elif is_terapeuta(request.user):
-        vinculo = Agendamento.objects.ativos().filter(
-            paciente=paciente, 
-            terapeuta=request.user.terapeuta
-        ).exists()
-        if vinculo:
-            tem_permissao = True
+        vinculo = Agendamento.objects.ativos().filter(paciente=paciente, terapeuta=request.user.terapeuta).exists()
+        if vinculo: tem_permissao = True
             
     if not tem_permissao:
-        messages.error(request, "Sem permissão (sem vínculo terapêutico).")
+        messages.error(request, "Sem permissão.")
         return redirect('lista_pacientes')
 
     historico = Consulta.objects.filter(
@@ -136,7 +121,6 @@ def detalhe_paciente(request, paciente_id):
     terapeutas_ids = historico.values_list('agendamento__terapeuta', flat=True).distinct()
     terapeutas_filtros = Terapeuta.objects.filter(id__in=terapeutas_ids)
     
-    # Donos (is_dono) também podem ver a evolução agora
     ocultar_evolucao = is_admin(request.user) and not is_dono(request.user)
     
     return render(request, 'detalhe_paciente.html', {
@@ -174,37 +158,24 @@ def lista_agendamentos(request):
         prox_mes = data_inicio.replace(day=28) + timedelta(days=4)
         data_fim = prox_mes - timedelta(days=prox_mes.day)
 
-    # Base da query
+    # Apenas ATIVOS (Faltas repostas somem da lista)
     agendamentos = Agendamento.objects.ativos().select_related('paciente', 'terapeuta').filter(
         data__range=[data_inicio, data_fim]
     ).order_by('data', 'hora_inicio')
 
-    # --- LÓGICA DE PERMISSÃO E FILTRO OTIMIZADA ---
     if not is_admin(request.user):
         if is_terapeuta(request.user):
             agendamentos = agendamentos.filter(terapeuta=request.user.terapeuta)
         else:
             agendamentos = Agendamento.objects.none()
     else:
-        # Se for Admin
-        if filtro_terapeuta == 'todos':
-            # Se escolheu explicitamente "Todos", não filtra (mostra tudo)
-            pass 
-        elif filtro_terapeuta:
-            # Se escolheu um ID específico
-            agendamentos = agendamentos.filter(terapeuta_id=filtro_terapeuta)
-        else:
-            # PADRÃO (Sem filtro): Retorna vazio para otimizar carregamento
-            agendamentos = Agendamento.objects.none()
+        if filtro_terapeuta == 'todos': pass 
+        elif filtro_terapeuta: agendamentos = agendamentos.filter(terapeuta_id=filtro_terapeuta)
+        else: agendamentos = Agendamento.objects.none()
     
-    # Filtros adicionais (Nome, Tipo, Status) continuam funcionando se houver resultados
-    if busca_nome:
-        agendamentos = agendamentos.filter(paciente__nome__icontains=busca_nome)
-        
-    if filtro_tipo:
-        agendamentos = agendamentos.filter(tipo_atendimento=filtro_tipo)
-    if filtro_status:
-        agendamentos = agendamentos.filter(status=filtro_status)
+    if busca_nome: agendamentos = agendamentos.filter(paciente__nome__icontains=busca_nome)
+    if filtro_tipo: agendamentos = agendamentos.filter(tipo_atendimento=filtro_tipo)
+    if filtro_status: agendamentos = agendamentos.filter(status=filtro_status)
 
     return render(request, 'lista_agendamentos.html', {
         'agendamentos': agendamentos, 
@@ -240,22 +211,18 @@ def novo_agendamento(request):
     if request.method == 'POST' and form.is_valid():
         if not is_admin(request.user):
             form.cleaned_data['terapeuta'] = request.user.terapeuta
-        
         try:
             with transaction.atomic():
                 criados, conflitos = criar_agendamentos_em_lote(form.cleaned_data, request.user)
             
             if criados > 0:
                 msg = f"{criados} agendamentos criados."
-                if conflitos:
-                    msg += f" (Conflitos ignorados em: {', '.join(conflitos)})"
-                    messages.warning(request, msg)
-                else:
-                    messages.success(request, msg)
+                if conflitos: msg += f" (Conflitos ignorados: {', '.join(conflitos)})"
+                if conflitos: messages.warning(request, msg)
+                else: messages.success(request, msg)
                 return redirect('lista_agendamentos')
             else:
                 messages.error(request, f"Falha: Datas ocupadas ({', '.join(conflitos)}).")
-                
         except Exception as e:
             messages.error(request, f"Erro interno: {e}")
 
@@ -271,16 +238,33 @@ def reposicao_agendamento(request, agendamento_id):
              messages.error(request, "Acesso negado.")
              return redirect('dashboard')
 
-    dt_consulta = datetime.combine(agendamento_antigo.data, agendamento_antigo.hora_inicio)
-    if timezone.is_naive(dt_consulta):
-        dt_consulta = timezone.make_aware(dt_consulta, timezone.get_current_timezone())
+    precisa_justificar = (agendamento_antigo.status != 'FALTA')
 
     if request.method == 'POST':
         paciente_id = request.POST.get('paciente')
-        if paciente_id:
+        
+        form_falta = None
+        dados_falta_validos = True
+        
+        if precisa_justificar:
+            form_falta = RegistrarFaltaForm(request.POST, prefix='falta', instance=agendamento_antigo)
+            if not form_falta.is_valid():
+                dados_falta_validos = False
+        
+        if paciente_id and dados_falta_validos:
             try:
                 paciente_selecionado = Paciente.objects.get(id=paciente_id)
                 
+                # Salva a falta do antigo se necessário
+                if precisa_justificar:
+                    agendamento_antigo = form_falta.save(commit=False)
+                    agendamento_antigo.status = 'FALTA'
+                
+                # Marca como deletado (reposto)
+                agendamento_antigo.deletado = True
+                agendamento_antigo.save()
+
+                # Cria a reposição
                 Agendamento.objects.create(
                     paciente=paciente_selecionado,
                     terapeuta=agendamento_antigo.terapeuta,
@@ -291,11 +275,7 @@ def reposicao_agendamento(request, agendamento_id):
                     tipo_atendimento=paciente_selecionado.tipo_padrao
                 )
 
-                agendamento_antigo.status = 'FALTA'
-                agendamento_antigo.deletado = True
-                agendamento_antigo.save()
-
-                messages.success(request, "Vaga preenchida! O agendamento anterior foi removido da visualização.")
+                messages.success(request, "Reposição realizada! Vaga preenchida.")
                 url_retorno = redirect('lista_agendamentos').url
                 if filtros: url_retorno += f'?{filtros}'
                 return redirect(url_retorno)
@@ -303,15 +283,23 @@ def reposicao_agendamento(request, agendamento_id):
             except Paciente.DoesNotExist:
                 messages.error(request, "Paciente inválido.")
         else:
-            messages.error(request, "Por favor, selecione um paciente.")
-
-    form = AgendamentoForm()
-    del form.fields['terapeuta']
-    del form.fields['data']
-    del form.fields['hora_inicio']
-    del form.fields['hora_fim']
+            if not paciente_id: messages.error(request, "Selecione o novo paciente.")
+            if form_falta and not form_falta.is_valid(): messages.error(request, "Justifique a falta anterior.")
     
-    return render(request, 'form_reposicao.html', {'form': form, 'agendamento_antigo': agendamento_antigo})
+    else:
+        if precisa_justificar:
+            form_falta = RegistrarFaltaForm(prefix='falta', initial={'tipo_cancelamento': 'JUSTIFICADA'})
+        else:
+            form_falta = None
+
+    form_paciente = AgendamentoForm() 
+    
+    return render(request, 'form_reposicao.html', {
+        'form_falta': form_falta,
+        'form_paciente': form_paciente,
+        'agendamento_antigo': agendamento_antigo,
+        'precisa_justificar': precisa_justificar
+    })
 
 # --- AÇÕES GERAIS ---
 
@@ -338,12 +326,24 @@ def marcar_falta(request, agendamento_id):
     if not is_admin(request.user) and agendamento.terapeuta.usuario != request.user:
         return redirect('lista_agendamentos')
 
-    agendamento.status = 'FALTA'
-    agendamento.save()
+    if request.method == 'POST':
+        form = RegistrarFaltaForm(request.POST, instance=agendamento)
+        if form.is_valid():
+            agendamento = form.save(commit=False)
+            agendamento.status = 'FALTA'
+            # Não deleta aqui, pois é uma falta visível
+            agendamento.save()
+            messages.success(request, "Falta registrada.")
+            url_retorno = redirect('lista_agendamentos').url
+            if filtros: url_retorno += f'?{filtros}'
+            return redirect(url_retorno)
+    else:
+        form = RegistrarFaltaForm(instance=agendamento)
     
-    url_retorno = redirect('lista_agendamentos').url
-    if filtros: url_retorno += f'?{filtros}'
-    return redirect(url_retorno)
+    return render(request, 'form_falta.html', {
+        'form': form, 
+        'agendamento': agendamento
+    })
 
 @login_required
 def excluir_agendamento(request, agendamento_id):
@@ -354,51 +354,76 @@ def excluir_agendamento(request, agendamento_id):
         return redirect('lista_agendamentos')
 
     agendamento.delete()
-    messages.success(request, "Agendamento excluído permanentemente.")
+    messages.success(request, "Agendamento excluído.")
     
     url_retorno = redirect('lista_agendamentos').url
     if filtros: url_retorno += f'?{filtros}'
     return redirect(url_retorno)
 
+# --- REALIZAR CONSULTA (COM ANEXOS) ---
 @login_required
 def realizar_consulta(request, agendamento_id):
     agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
 
     if is_admin(request.user) and not is_dono(request.user):
-        messages.error(request, "Perfil Administrativo não tem acesso a prontuários médicos.")
+        messages.error(request, "Perfil Administrativo não tem acesso a prontuários.")
         return redirect('lista_agendamentos')
 
     if not is_dono(request.user):
         if is_terapeuta(request.user) and agendamento.terapeuta.usuario != request.user:
-             messages.error(request, "Acesso negado: Este paciente pertence a outro profissional.")
+             messages.error(request, "Acesso negado: Paciente de outro profissional.")
              return redirect('dashboard')
 
     consulta, _ = Consulta.objects.get_or_create(agendamento=agendamento)
+    anexos_existentes = consulta.anexos.all()
     
     params = request.GET.copy()
     origem = params.pop('origem', [''])[0]
     query_string = params.urlencode()
     
-    if origem == 'historico':
-        url_voltar = redirect('lista_consultas_geral').url
-    else:
-        url_voltar = redirect('lista_agendamentos').url
-        
-    if query_string:
-        url_voltar += f"?{query_string}"
+    url_voltar = redirect('lista_consultas_geral').url if origem == 'historico' else redirect('lista_agendamentos').url
+    if query_string: url_voltar += f"?{query_string}"
 
     if request.method == 'POST':
+        # Excluir anexo
+        anexo_para_excluir = request.POST.get('excluir_anexo_id')
+        if anexo_para_excluir:
+            anexo = get_object_or_404(AnexoConsulta, id=anexo_para_excluir, consulta=consulta)
+            anexo.arquivo.delete()
+            anexo.delete()
+            messages.success(request, "Anexo removido.")
+            return redirect(request.path + '?' + request.GET.urlencode())
+
         form = ConsultaForm(request.POST, instance=consulta)
         if form.is_valid():
             form.save()
-            agendamento.status = 'REALIZADO'
             
+            # Upload com Validação de 10MB
+            arquivos = request.FILES.getlist('arquivos_anexos')
+            count_anexos = 0
+            count_erro_tamanho = 0
+            LIMITE_MB = 10
+            
+            for f in arquivos:
+                if f.size > LIMITE_MB * 1024 * 1024:
+                    count_erro_tamanho += 1
+                    continue
+                AnexoConsulta.objects.create(consulta=consulta, arquivo=f)
+                count_anexos += 1
+            
+            agendamento.status = 'REALIZADO'
             if is_dono(request.user):
                 novo_tipo = request.POST.get('tipo_atendimento_select')
                 if novo_tipo: agendamento.tipo_atendimento = novo_tipo
-            
             agendamento.save()
-            messages.success(request, "Prontuário salvo com sucesso!")
+            
+            msg = "Prontuário salvo com sucesso!"
+            if count_anexos > 0: msg += f" (+{count_anexos} arquivos)."
+            
+            if count_erro_tamanho > 0:
+                messages.warning(request, f"{msg} Porém, {count_erro_tamanho} arquivo(s) foram ignorados por serem maiores que {LIMITE_MB}MB.")
+            else:
+                messages.success(request, msg)
             
             return redirect(url_voltar)
     else:
@@ -407,6 +432,7 @@ def realizar_consulta(request, agendamento_id):
     return render(request, 'realizar_consulta.html', {
         'form': form, 
         'agendamento': agendamento, 
+        'anexos': anexos_existentes,
         'url_voltar': url_voltar,
         'tipos_atendimento': TIPO_ATENDIMENTO_CHOICES 
     })
@@ -417,16 +443,11 @@ def limpar_dia(request):
         data = request.POST.get('data_para_limpar')
         if data: 
             qs = Agendamento.objects.ativos().filter(data=data).exclude(status='REALIZADO')
-            
             if not is_admin(request.user):
-                if is_terapeuta(request.user):
-                    qs = qs.filter(terapeuta=request.user.terapeuta)
-                else:
-                    qs = Agendamento.objects.none()
-            
+                if is_terapeuta(request.user): qs = qs.filter(terapeuta=request.user.terapeuta)
+                else: qs = Agendamento.objects.none()
             qs.update(deletado=True)
             messages.info(request, "Agenda limpa.")
-            
     return redirect('lista_agendamentos')
 
 @login_required
@@ -443,35 +464,33 @@ def lista_consultas_geral(request):
     agora = timezone.localtime(timezone.now())
     hoje = agora.date()
     
-    if filtro_hoje: 
-        data_inicio, data_fim = hoje, hoje
+    if filtro_hoje: data_inicio, data_fim = hoje, hoje
     elif filtro_semana:
         start = hoje - timedelta(days=hoje.weekday())
         data_inicio, data_fim = start, start + timedelta(days=6)
-    elif data_inicio_get and data_fim_get:
-        data_inicio, data_fim = data_inicio_get, data_fim_get
+    elif data_inicio_get and data_fim_get: data_inicio, data_fim = data_inicio_get, data_fim_get
     else:
         data_inicio = hoje.replace(day=1)
         prox_mes = (data_inicio + timedelta(days=32)).replace(day=1)
         data_fim = prox_mes - timedelta(days=1)
 
-    agendamentos = Agendamento.objects.ativos().select_related('paciente', 'terapeuta').order_by('-data', '-hora_inicio')
+    # Filtra Ativos e Reposições, remove Aguardando
+    agendamentos = Agendamento.objects.filter(
+        Q(deletado=False) | Q(status='FALTA')
+    ).exclude(status='AGUARDANDO').select_related('paciente', 'terapeuta').order_by('-data', '-hora_inicio')
     
     if not is_admin(request.user):
-        if is_terapeuta(request.user):
-            agendamentos = agendamentos.filter(terapeuta=request.user.terapeuta)
-        else:
-            agendamentos = Agendamento.objects.none()
+        if is_terapeuta(request.user): agendamentos = agendamentos.filter(terapeuta=request.user.terapeuta)
+        else: agendamentos = Agendamento.objects.none()
 
-    if data_inicio and data_fim:
-        agendamentos = agendamentos.filter(data__range=[data_inicio, data_fim])
+    if data_inicio and data_fim: agendamentos = agendamentos.filter(data__range=[data_inicio, data_fim])
+    if busca_nome: agendamentos = agendamentos.filter(paciente__nome__icontains=busca_nome)
+    if filtro_tipo: agendamentos = agendamentos.filter(tipo_atendimento=filtro_tipo)
+    
+    if filtro_status == 'FALTA_REPOSTA': agendamentos = agendamentos.filter(status='FALTA', deletado=True)
+    elif filtro_status == 'FALTA': agendamentos = agendamentos.filter(status='FALTA', deletado=False)
+    elif filtro_status: agendamentos = agendamentos.filter(status=filtro_status)
 
-    if busca_nome:
-        agendamentos = agendamentos.filter(paciente__nome__icontains=busca_nome)
-    if filtro_tipo:
-        agendamentos = agendamentos.filter(tipo_atendimento=filtro_tipo)
-    if filtro_status:
-        agendamentos = agendamentos.filter(status=filtro_status)
     if is_admin(request.user) and filtro_terapeuta:
         agendamentos = agendamentos.filter(terapeuta_id=filtro_terapeuta)
         
@@ -479,7 +498,6 @@ def lista_consultas_geral(request):
         'agendamentos': agendamentos, 
         'terapeutas': Terapeuta.objects.all() if is_admin(request.user) else None,
         'tipos_atendimento': TIPO_ATENDIMENTO_CHOICES,
-        'status_choices': Agendamento.STATUS_CHOICES, 
         'busca_nome': busca_nome or '',
         'filtro_tipo_selecionado': filtro_tipo,
         'filtro_status_selecionado': filtro_status, 
@@ -497,30 +515,21 @@ def cadastrar_equipe(request):
     if request.method == 'POST':
         form = CadastroEquipeForm(request.POST)
         papel = request.POST.get('papel_sistema') 
-        
         if form.is_valid():
             user = form.save(commit=False)
             user.is_staff = False 
             user.save()
-            
             grupo = None
-            if papel == 'admin':
-                grupo = Group.objects.get(name='Administrativo')
-                user.groups.add(grupo)
-            elif papel == 'financeiro':
-                grupo = Group.objects.get(name='Financeiro')
-                user.groups.add(grupo)
-            elif papel == 'dono':
-                grupo = Group.objects.get(name='Donos')
-                user.groups.add(grupo)
+            if papel == 'admin': grupo = Group.objects.get(name='Administrativo')
+            elif papel == 'financeiro': grupo = Group.objects.get(name='Financeiro')
+            elif papel == 'dono': grupo = Group.objects.get(name='Donos')
             else: 
                 grupo = Group.objects.get(name='Terapeutas')
-                user.groups.add(grupo)
                 Terapeuta.objects.create(
                     usuario=user, nome=form.cleaned_data['nome_completo'],
                     registro_profissional=form.cleaned_data['registro'], especialidade=form.cleaned_data['especialidade']
                 )
-
+            user.groups.add(grupo)
             messages.success(request, f"Usuário {user.username} criado como {grupo.name}!")
             return redirect('lista_pacientes') 
     else: 
@@ -532,16 +541,12 @@ def excluir_agendamentos_futuros(request, paciente_id):
     paciente = get_object_or_404(Paciente, id=paciente_id)
     hoje = timezone.now().date()
     agora_time = timezone.now().time()
-    
     filtro_tempo = Q(data__gt=hoje) | Q(data=hoje, hora_inicio__gt=agora_time)
-    
     qs = Agendamento.objects.ativos().filter(filtro_tempo, paciente=paciente).exclude(status='REALIZADO')
-
+    
     if not is_admin(request.user):
-         if is_terapeuta(request.user):
-            qs = qs.filter(terapeuta=request.user.terapeuta)
-         else:
-            return redirect('detalhe_paciente', paciente_id=paciente_id)
+         if is_terapeuta(request.user): qs = qs.filter(terapeuta=request.user.terapeuta)
+         else: return redirect('detalhe_paciente', paciente_id=paciente_id)
             
     if request.method == 'POST':
         total = qs.count()
@@ -555,84 +560,42 @@ def lista_terapeutas(request):
     if not is_admin(request.user):
         messages.error(request, "Acesso restrito.")
         return redirect('dashboard')
-
     busca = request.GET.get('q')
     filtro_esp = request.GET.get('especialidade')
-
     terapeutas = Terapeuta.objects.all().select_related('usuario').order_by('nome')
-
-    if busca:
-        terapeutas = terapeutas.filter(nome__icontains=busca)
-    
-    if filtro_esp:
-        terapeutas = terapeutas.filter(especialidade=filtro_esp)
-    
+    if busca: terapeutas = terapeutas.filter(nome__icontains=busca)
+    if filtro_esp: terapeutas = terapeutas.filter(especialidade=filtro_esp)
     return render(request, 'lista_terapeutas.html', {
-        'terapeutas': terapeutas,
-        'is_admin': is_admin(request.user),
-        'especialidades': ESPECIALIDADES_CHOICES,
-        'busca_atual': busca,
-        'filtro_esp_selecionado': filtro_esp
+        'terapeutas': terapeutas, 'is_admin': is_admin(request.user),
+        'especialidades': ESPECIALIDADES_CHOICES, 'busca_atual': busca, 'filtro_esp_selecionado': filtro_esp
     })
 
 # --- RELATÓRIOS ---
 @login_required
 def relatorio_mensal(request):
     hoje = timezone.now()
-    
-    # Tratamento para "Todos os Meses" (valor '0')
     mes_get = request.GET.get('mes')
-    if mes_get == '0':
-        mes_filtro = 0
-    elif mes_get:
-        mes_filtro = int(mes_get)
-    else:
-        mes_filtro = hoje.month
-        
+    mes_filtro = int(mes_get) if mes_get and mes_get != '0' else (hoje.month if mes_get != '0' else 0)
     ano_filtro = int(request.GET.get('ano', hoje.year))
     semana_filtro = request.GET.get('semana')
-
-    # --- LÓGICA DE SEMANAS ---
-    # Só calculamos as semanas se um mês específico estiver selecionado
+    
     semanas_opcoes = []
     if mes_filtro:
         cal = calendar.Calendar(firstweekday=0) 
         calendario_mes = cal.monthdatescalendar(ano_filtro, mes_filtro)
-        
         for i, semana in enumerate(calendario_mes):
-            inicio = semana[0]
-            fim = semana[-1]
-            label = f"Semana {i+1} ({inicio.strftime('%d/%m')} - {fim.strftime('%d/%m')})"
-            semanas_opcoes.append({
-                'id': str(i), 
-                'inicio': inicio,
-                'fim': fim,
-                'label': label
-            })
+            semanas_opcoes.append({'id': str(i), 'inicio': semana[0], 'fim': semana[-1], 'label': f"Semana {i+1} ({semana[0].strftime('%d/%m')} - {semana[-1].strftime('%d/%m')})"})
 
-    # QuerySet Base
-    filtros_base = {
-        'data__year': ano_filtro,
-        'deletado': False
-    }
-    # Só filtra por mês se mes_filtro for diferente de 0
-    if mes_filtro:
-        filtros_base['data__month'] = mes_filtro
-
+    filtros_base = {'data__year': ano_filtro, 'deletado': False}
+    if mes_filtro: filtros_base['data__month'] = mes_filtro
     qs_base = Agendamento.objects.filter(**filtros_base).exclude(status='AGUARDANDO')
 
-    # --- APLICA FILTRO DE SEMANA (Apenas se tiver mês selecionado) ---
     if mes_filtro and semana_filtro:
         try:
             idx = int(semana_filtro)
-            if 0 <= idx < len(semanas_opcoes):
-                data_ini = semanas_opcoes[idx]['inicio']
-                data_fim = semanas_opcoes[idx]['fim']
-                qs_base = qs_base.filter(data__range=[data_ini, data_fim])
-        except ValueError:
-            pass 
+            if 0 <= idx < len(semanas_opcoes): qs_base = qs_base.filter(data__range=[semanas_opcoes[idx]['inicio'], semanas_opcoes[idx]['fim']])
+        except ValueError: pass 
 
-    # --- LÓGICA DE PERMISSÃO ---
     terapeutas_para_analise = Terapeuta.objects.none()
     titulo_pagina = ""
 
@@ -640,156 +603,68 @@ def relatorio_mensal(request):
         terapeutas_para_analise = Terapeuta.objects.all()
         titulo_pagina = "Relatório Geral da Clínica"
     elif is_terapeuta(request.user):
-        try:
-            meu_perfil = request.user.terapeuta
-            terapeutas_para_analise = Terapeuta.objects.filter(id=meu_perfil.id)
-            qs_base = qs_base.filter(terapeuta=meu_perfil)
-            titulo_pagina = "Meu Desempenho Individual"
-        except Exception:
-            messages.error(request, "Perfil de terapeuta não encontrado.")
-            return redirect('dashboard')
-    else:
-        messages.error(request, "Acesso restrito.")
-        return redirect('dashboard')
+        try: meu_perfil = request.user.terapeuta; terapeutas_para_analise = Terapeuta.objects.filter(id=meu_perfil.id); qs_base = qs_base.filter(terapeuta=meu_perfil); titulo_pagina = "Meu Desempenho Individual"
+        except: messages.error(request, "Perfil de terapeuta não encontrado."); return redirect('dashboard')
+    else: messages.error(request, "Acesso restrito."); return redirect('dashboard')
 
-    # 1. Totais Gerais
     total_realizados = qs_base.filter(status='REALIZADO').count()
     total_faltas = qs_base.filter(status='FALTA').count()
-    
-    # --- CORREÇÃO DA TAXA DE ABSENTEÍSMO ---
-    # Somamos apenas (Realizados + Faltas) para o denominador
     total_efetivos = total_realizados + total_faltas
-    
-    taxa_faltas_geral = 0
-    if total_efetivos > 0:
-        taxa_faltas_geral = round((total_faltas / total_efetivos) * 100, 1)
+    taxa_faltas_geral = round((total_faltas / total_efetivos) * 100, 1) if total_efetivos > 0 else 0
 
-    # 2. Dados da Tabela
-    filtros_tabela = Q(
-        agendamento__data__year=ano_filtro,
-        agendamento__deletado=False 
-    )
-    
-    # Adiciona filtro de mês na tabela se não for "Todos"
-    if mes_filtro:
-        filtros_tabela &= Q(agendamento__data__month=mes_filtro)
-    
-    if mes_filtro and semana_filtro and 'data_ini' in locals():
-        filtros_tabela &= Q(agendamento__data__range=[data_ini, data_fim])
+    filtros_tabela = Q(agendamento__data__year=ano_filtro, agendamento__deletado=False)
+    if mes_filtro: filtros_tabela &= Q(agendamento__data__month=mes_filtro)
+    if mes_filtro and semana_filtro and 'data_ini' in locals(): filtros_tabela &= Q(agendamento__data__range=[semanas_opcoes[int(semana_filtro)]['inicio'], semanas_opcoes[int(semana_filtro)]['fim']])
 
     stats_terapeutas = terapeutas_para_analise.annotate(
         qtd_atendimentos=Count('agendamento', filter=filtros_tabela & Q(agendamento__status='REALIZADO')),
         qtd_faltas=Count('agendamento', filter=filtros_tabela & Q(agendamento__status='FALTA'))
     ).order_by('-qtd_atendimentos')
 
-    meses = [
-        (1, 'Janeiro'), (2, 'Fevereiro'), (3, 'Março'), (4, 'Abril'),
-        (5, 'Maio'), (6, 'Junho'), (7, 'Julho'), (8, 'Agosto'),
-        (9, 'Setembro'), (10, 'Outubro'), (11, 'Novembro'), (12, 'Dezembro')
-    ]
+    meses = [(1, 'Janeiro'), (2, 'Fevereiro'), (3, 'Março'), (4, 'Abril'), (5, 'Maio'), (6, 'Junho'), (7, 'Julho'), (8, 'Agosto'), (9, 'Setembro'), (10, 'Outubro'), (11, 'Novembro'), (12, 'Dezembro')]
 
     return render(request, 'relatorio_mensal.html', {
-        'titulo_pagina': titulo_pagina,
-        'stats_terapeutas': stats_terapeutas,
-        'total_realizados': total_realizados,
-        'total_faltas': total_faltas,
-        'taxa_faltas_geral': taxa_faltas_geral,
-        'mes_atual': mes_filtro,
-        'ano_atual': ano_filtro,
-        'meses': meses,
-        'anos_disponiveis': range(hoje.year - 2, hoje.year + 2),
-        'is_admin': is_admin(request.user),
-        'semanas_opcoes': semanas_opcoes,
-        'semana_atual': semana_filtro
+        'titulo_pagina': titulo_pagina, 'stats_terapeutas': stats_terapeutas, 'total_realizados': total_realizados, 'total_faltas': total_faltas,
+        'taxa_faltas_geral': taxa_faltas_geral, 'mes_atual': mes_filtro, 'ano_atual': ano_filtro, 'meses': meses,
+        'anos_disponiveis': range(hoje.year - 2, hoje.year + 2), 'is_admin': is_admin(request.user), 'semanas_opcoes': semanas_opcoes, 'semana_atual': semana_filtro
     })
 
 @login_required
 def relatorio_pacientes(request):
-    # Apenas Admin e Terapeutas podem ver dados de pacientes
-    if not (is_admin(request.user) or is_terapeuta(request.user)):
-        messages.error(request, "Acesso restrito.")
-        return redirect('dashboard')
-
-    hoje = timezone.now()
-    
-    # Tratamento para "Todos os Meses"
-    mes_get = request.GET.get('mes')
-    if mes_get == '0':
-        mes_filtro = 0
-    elif mes_get:
-        mes_filtro = int(mes_get)
-    else:
-        mes_filtro = hoje.month
-        
+    if not (is_admin(request.user) or is_terapeuta(request.user)): messages.error(request, "Acesso restrito."); return redirect('dashboard')
+    hoje = timezone.now(); mes_get = request.GET.get('mes')
+    mes_filtro = int(mes_get) if mes_get and mes_get != '0' else (hoje.month if mes_get != '0' else 0)
     ano_filtro = int(request.GET.get('ano', hoje.year))
     tipo_filtro = request.GET.get('tipo_atend')
     ordem_filtro = request.GET.get('ordem', 'taxa_desc') 
 
     pacientes_base = Paciente.objects.filter(ativo=True)
-    
-    # --- ALTERAÇÃO AQUI: Removemos 'agendamento__deletado=False' ---
-    # Isso permite que faltas de agendamentos repostos (soft deleted) sejam contadas.
-    filtros_agendamento = Q(
-        agendamento__data__year=ano_filtro,
-        # agendamento__deletado=False,  <-- LINHA REMOVIDA PARA CONTAR FALTAS DELETADAS
-        agendamento__status__in=['REALIZADO', 'FALTA'] 
-    )
-    
-    # Adiciona filtro de mês apenas se selecionado
-    if mes_filtro:
-        filtros_agendamento &= Q(agendamento__data__month=mes_filtro)
+    filtros_agendamento = Q(agendamento__data__year=ano_filtro)
+    condicao_status = ((Q(agendamento__deletado=False) & Q(agendamento__status__in=['REALIZADO', 'FALTA'])) | (Q(agendamento__deletado=True) & Q(agendamento__status='FALTA')))
+    filtros_agendamento &= condicao_status
 
+    if mes_filtro: filtros_agendamento &= Q(agendamento__data__month=mes_filtro)
     if is_terapeuta(request.user) and not is_admin(request.user):
-        try:
-            meu_perfil = request.user.terapeuta
-            filtros_agendamento &= Q(agendamento__terapeuta=meu_perfil)
-            pacientes_base = pacientes_base.filter(agendamento__terapeuta=meu_perfil).distinct()
-        except:
-            return redirect('dashboard')
+        try: meu_perfil = request.user.terapeuta; filtros_agendamento &= Q(agendamento__terapeuta=meu_perfil); pacientes_base = pacientes_base.filter(agendamento__terapeuta=meu_perfil).distinct()
+        except: return redirect('dashboard')
+    if tipo_filtro: pacientes_base = pacientes_base.filter(tipo_padrao=tipo_filtro)
 
-    if tipo_filtro:
-        pacientes_base = pacientes_base.filter(tipo_padrao=tipo_filtro)
-
-    # --- ANOTAÇÃO ---
     ranking_pacientes = pacientes_base.annotate(
         total_agendado=Count('agendamento', filter=filtros_agendamento),
-        total_faltas=Count('agendamento', filter=filtros_agendamento & Q(agendamento__status='FALTA')),
+        total_faltas=Count('agendamento', filter=filtros_agendamento & Q(agendamento__status='FALTA') & ~Q(agendamento__tipo_cancelamento='TERAPEUTA')),
         total_realizados=Count('agendamento', filter=filtros_agendamento & Q(agendamento__status='REALIZADO'))
     ).annotate(
-        taxa_falta=Case(
-            When(total_agendado=0, then=0.0),
-            default=100.0 * F('total_faltas') / F('total_agendado'),
-            output_field=FloatField()
-        )
-    ).filter(
-        total_agendado__gt=0 
-    )
+        taxa_falta=Case(When(total_agendado=0, then=0.0), default=100.0 * F('total_faltas') / F('total_agendado'), output_field=FloatField())
+    ).filter(total_agendado__gt=0)
 
-    if ordem_filtro == 'taxa_desc':
-        ranking_pacientes = ranking_pacientes.order_by('-taxa_falta', '-total_faltas')
-    elif ordem_filtro == 'taxa_asc':
-        ranking_pacientes = ranking_pacientes.order_by('taxa_falta', 'total_faltas')
-    elif ordem_filtro == 'faltas_desc':
-        ranking_pacientes = ranking_pacientes.order_by('-total_faltas')
-    elif ordem_filtro == 'atend_desc':
-        ranking_pacientes = ranking_pacientes.order_by('-total_realizados')
-    else:
-        ranking_pacientes = ranking_pacientes.order_by('-taxa_falta')
+    if ordem_filtro == 'taxa_desc': ranking_pacientes = ranking_pacientes.order_by('-taxa_falta', '-total_faltas')
+    elif ordem_filtro == 'taxa_asc': ranking_pacientes = ranking_pacientes.order_by('taxa_falta', 'total_faltas')
+    elif ordem_filtro == 'faltas_desc': ranking_pacientes = ranking_pacientes.order_by('-total_faltas')
+    elif ordem_filtro == 'atend_desc': ranking_pacientes = ranking_pacientes.order_by('-total_realizados')
+    else: ranking_pacientes = ranking_pacientes.order_by('-taxa_falta')
 
-    meses = [
-        (1, 'Janeiro'), (2, 'Fevereiro'), (3, 'Março'), (4, 'Abril'),
-        (5, 'Maio'), (6, 'Junho'), (7, 'Julho'), (8, 'Agosto'),
-        (9, 'Setembro'), (10, 'Outubro'), (11, 'Novembro'), (12, 'Dezembro')
-    ]
+    meses = [(1, 'Janeiro'), (2, 'Fevereiro'), (3, 'Março'), (4, 'Abril'), (5, 'Maio'), (6, 'Junho'), (7, 'Julho'), (8, 'Agosto'), (9, 'Setembro'), (10, 'Outubro'), (11, 'Novembro'), (12, 'Dezembro')]
 
     return render(request, 'relatorio_pacientes.html', {
-        'ranking_pacientes': ranking_pacientes,
-        'mes_atual': mes_filtro,
-        'ano_atual': ano_filtro,
-        'tipo_atual': tipo_filtro,
-        'ordem_atual': ordem_filtro,
-        'meses': meses,
-        'anos_disponiveis': range(hoje.year - 2, hoje.year + 2),
-        'tipos_atendimento': TIPO_ATENDIMENTO_CHOICES,
-        'is_admin': is_admin(request.user)
+        'ranking_pacientes': ranking_pacientes, 'mes_atual': mes_filtro, 'ano_atual': ano_filtro, 'tipo_atual': tipo_filtro, 'ordem_atual': ordem_filtro, 'meses': meses, 'anos_disponiveis': range(hoje.year - 2, hoje.year + 2), 'tipos_atendimento': TIPO_ATENDIMENTO_CHOICES, 'is_admin': is_admin(request.user)
     })

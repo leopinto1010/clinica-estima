@@ -1,9 +1,17 @@
 from django.db import models
 from django.core.validators import RegexValidator
+from django.core.exceptions import ValidationError
 from datetime import datetime, timedelta
 from django.utils import timezone
 
-# --- LISTA PADRÃO DE ESPECIALIDADES ---
+# --- VALIDATOR DE TAMANHO (AJUSTADO PARA 10MB) ---
+def validar_tamanho_arquivo(file):
+    limite_mb = 10  # Limite reduzido para vídeos curtos
+    if file.size > limite_mb * 1024 * 1024:
+        raise ValidationError(f"O arquivo não pode exceder {limite_mb}MB.")
+
+# ... (Mantenha as listas de choices e os modelos abaixo sem alterações) ...
+
 ESPECIALIDADES_CHOICES = [
     ('Fonoaudiólogo(a)', 'Fonoaudiólogo(a)'),
     ('Fisioterapeuta', 'Fisioterapeuta'),
@@ -25,13 +33,9 @@ TIPO_ATENDIMENTO_CHOICES = [
 ]
 
 class Paciente(models.Model):
-    # ... (código do Paciente mantém igual) ...
     nome = models.CharField(max_length=100)
     cpf = models.CharField(
-        max_length=11, 
-        unique=True,
-        null=True,   
-        blank=True,
+        max_length=11, unique=True, null=True, blank=True,
         validators=[RegexValidator(regex=r'^\d{11}$', message='CPF deve ter 11 dígitos.')]
     )
     data_nascimento = models.DateField(null=True, blank=True)
@@ -40,9 +44,7 @@ class Paciente(models.Model):
         validators=[RegexValidator(regex=r'^\d{10,11}$', message='Telefone inválido.')]
     )
     tipo_padrao = models.CharField(
-        max_length=20, 
-        choices=TIPO_ATENDIMENTO_CHOICES, 
-        default='PARTICULAR',
+        max_length=20, choices=TIPO_ATENDIMENTO_CHOICES, default='PARTICULAR',
         verbose_name="Tipo de Atendimento Padrão"
     )
     ativo = models.BooleanField(default=True, verbose_name="Cadastro Ativo")
@@ -59,14 +61,11 @@ class Terapeuta(models.Model):
     usuario = models.OneToOneField('auth.User', on_delete=models.CASCADE, null=True, blank=True)
     nome = models.CharField(max_length=100)
     registro_profissional = models.CharField(max_length=50, blank=True, null=True)
-    
-    # --- ALTERADO: Usando as escolhas padronizadas ---
     especialidade = models.CharField(max_length=50, choices=ESPECIALIDADES_CHOICES, blank=True, null=True)
     
     def __str__(self):
         return self.nome
 
-# ... (Agendamento e Consulta mantêm igual) ...
 class AgendamentoManager(models.Manager):
     def ativos(self):
         return self.filter(deletado=False)
@@ -77,6 +76,12 @@ class Agendamento(models.Model):
         ('REALIZADO', 'Realizado'),
         ('FALTA', 'Falta'),
     ]
+    TIPO_CANCELAMENTO_CHOICES = [
+        ('JUSTIFICADA', 'Falta Justificada'),
+        ('NAO_JUSTIFICADA', 'Falta Não Justificada'),
+        ('NAO_LIBERACAO', 'Não Liberação (Convênio)'),
+        ('TERAPEUTA', 'Falta do Terapeuta'),
+    ]
 
     paciente = models.ForeignKey(Paciente, on_delete=models.CASCADE)
     terapeuta = models.ForeignKey(Terapeuta, on_delete=models.PROTECT)
@@ -86,6 +91,9 @@ class Agendamento(models.Model):
     tipo_atendimento = models.CharField(max_length=20, choices=TIPO_ATENDIMENTO_CHOICES, default='PARTICULAR')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='AGUARDANDO')
     deletado = models.BooleanField(default=False)
+    
+    tipo_cancelamento = models.CharField(max_length=20, choices=TIPO_CANCELAMENTO_CHOICES, null=True, blank=True, verbose_name="Tipo de Falta")
+    motivo_cancelamento = models.TextField(null=True, blank=True, verbose_name="Observação da Falta")
     
     objects = AgendamentoManager()
 
@@ -110,3 +118,20 @@ class Consulta(models.Model):
     agendamento = models.OneToOneField(Agendamento, on_delete=models.CASCADE, primary_key=True)
     evolucao = models.TextField(verbose_name="Evolução do Paciente")
     data_registro = models.DateTimeField(auto_now_add=True)
+
+class AnexoConsulta(models.Model):
+    consulta = models.ForeignKey(Consulta, on_delete=models.CASCADE, related_name='anexos')
+    arquivo = models.FileField(
+        upload_to='prontuarios/%Y/%m/', 
+        verbose_name="Arquivo",
+        validators=[validar_tamanho_arquivo] # Usa o validador de 10MB
+    )
+    data_upload = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Anexo {self.id} - {self.consulta.agendamento.paciente.nome}"
+        
+    @property
+    def eh_imagem(self):
+        nome = self.arquivo.name.lower()
+        return nome.endswith('.jpg') or nome.endswith('.jpeg') or nome.endswith('.png') or nome.endswith('.webp')

@@ -4,11 +4,10 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h4 class="fw-bold text-dark mb-1">{{ titulo_pagina }}</h4>
-        <p class="text-muted small mb-0">Análise de atendimentos e absenteísmo.</p>
+        <p class="text-muted small mb-0">Análise de atendimentos e absenteísmo (financeiro).</p>
     </div>
     
     <form class="d-flex gap-2 align-items-center" method="GET">
-        
         <select name="semana" class="form-select form-select-sm" style="min-width: 220px;" onchange="this.form.submit()">
             <option value="">Todas as Semanas</option>
             {% for s in semanas_opcoes %}
@@ -17,16 +16,13 @@
                 </option>
             {% endfor %}
         </select>
-
         <div class="vr mx-1 text-secondary opacity-25"></div>
-
         <select name="mes" class="form-select form-select-sm" onchange="this.form.submit()">
             <option value="0" {% if mes_atual == 0 %}selected{% endif %}>Todos os Meses</option>
             {% for num, nome in meses %}
             <option value="{{ num }}" {% if num == mes_atual %}selected{% endif %}>{{ nome }}</option>
             {% endfor %}
         </select>
-        
         <select name="ano" class="form-select form-select-sm" onchange="this.form.submit()">
             {% for ano in anos_disponiveis %}
             <option value="{{ ano }}" {% if ano == ano_atual %}selected{% endif %}>{{ ano }}</option>
@@ -84,21 +80,34 @@
                     <td class="text-center fw-bold text-success">{{ t.qtd_atendimentos }}</td>
                     <td class="text-center fw-bold text-danger">{{ t.qtd_faltas }}</td>
                     <td class="pe-4" style="width: 40%;">
-                        {% widthratio t.qtd_faltas t.qtd_atendimentos|add:t.qtd_faltas 100 as pct_falta %}
                         
-                        <div class="d-flex align-items-center">
-                            <div class="progress flex-grow-1" style="height: 8px;">
-                                <div class="progress-bar bg-success" role="progressbar" style="width: 100%"></div>
-                                <div class="progress-bar bg-danger" role="progressbar" style="width: {{ pct_falta }}%"></div>
+                        {# 1. Calcula o total da linha para usar de base #}
+                        {% with total_linha=t.qtd_atendimentos|add:t.qtd_faltas %}
+                        
+                            {# 2. Se houver dados, calcula as porcentagens #}
+                            {% if total_linha > 0 %}
+                                {% widthratio t.qtd_atendimentos total_linha 100 as pct_sucesso %}
+                                {% widthratio t.qtd_faltas total_linha 100 as pct_falta %}
+                            {% else %}
+                                {% with pct_sucesso=0 pct_falta=0 %}{% endwith %}
+                            {% endif %}
+
+                            <div class="d-flex align-items-center">
+                                <div class="progress flex-grow-1" style="height: 8px;">
+                                    {# A barra verde ocupa a % de sucesso #}
+                                    <div class="progress-bar bg-success" role="progressbar" style="width: {{ pct_sucesso }}%"></div>
+                                    {# A barra vermelha ocupa o restante (pct_falta) #}
+                                    <div class="progress-bar bg-danger" role="progressbar" style="width: {{ pct_falta }}%"></div>
+                                </div>
+                                <span class="ms-2 small text-muted fw-bold" style="min-width: 80px; text-align: right;">
+                                    {% if total_linha > 0 %}
+                                        {{ pct_falta }}% faltas
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </span>
                             </div>
-                            <span class="ms-2 small text-muted fw-bold" style="min-width: 80px; text-align: right;">
-                                {% if t.qtd_atendimentos or t.qtd_faltas %}
-                                    {{ pct_falta }}% faltas
-                                {% else %}
-                                    -
-                                {% endif %}
-                            </span>
-                        </div>
+                        {% endwith %}
                     </td>
                 </tr>
                 {% empty %}

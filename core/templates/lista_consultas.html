@@ -4,7 +4,7 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h4 class="fw-bold text-dark mb-1">Histórico Geral</h4>
-        <p class="text-muted small mb-0">Registro completo de todos os atendimentos (inclusive cancelados).</p>
+        <p class="text-muted small mb-0">Registro histórico de atendimentos realizados e faltas.</p>
     </div>
 </div>
 
@@ -21,14 +21,12 @@
             </div>
 
             <div class="col-md-3">
-                <label class="form-label small fw-bold text-muted">Status</label>
+                <label class="form-label small fw-bold text-muted">Status / Situação</label>
                 <select name="filtro_status" class="form-select">
                     <option value="">Todos</option>
-                    {% for codigo, label in status_choices %}
-                        <option value="{{ codigo }}" {% if codigo == filtro_status_selecionado %}selected{% endif %}>
-                            {{ label }}
-                        </option>
-                    {% endfor %}
+                    <option value="REALIZADO" {% if filtro_status_selecionado == 'REALIZADO' %}selected{% endif %}>Realizado</option>
+                    <option value="FALTA" {% if filtro_status_selecionado == 'FALTA' %}selected{% endif %}>Falta sem reposição</option>
+                    <option value="FALTA_REPOSTA" {% if filtro_status_selecionado == 'FALTA_REPOSTA' %}selected{% endif %}>Falta reposta</option>
                 </select>
             </div>
 
@@ -44,9 +42,7 @@
                     {% endfor %}
                 </select>
             </div>
-            {% endif %}
-
-            {% if is_admin %}
+            
             <div class="col-md-3">
                 <label class="form-label small fw-bold text-muted">Terapeuta</label>
                 <select name="filtro_terapeuta" class="form-select">
@@ -99,76 +95,123 @@
         <table class="table table-hover align-middle mb-0">
             <thead class="bg-light">
                 <tr>
-                    <th class="ps-4 text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Data/Hora</th>
-                    <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Paciente</th>
-                    {% if is_admin %}
-                    <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Terapeuta</th>
-                    {% endif %}
-                    
-                    {% if is_admin %}
-                    <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Tipo</th>
-                    {% endif %}
-                    
-                    <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Status</th>
-                    <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7 text-end pe-4">Prontuário</th>
+                    <th class="ps-4">Data/Hora</th>
+                    <th>Paciente</th>
+                    {% if is_admin %}<th>Terapeuta</th>{% endif %}
+                    {% if is_admin %}<th>Tipo</th>{% endif %}
+                    <th>Status</th>
+                    <th class="text-end pe-4">Ações</th>
                 </tr>
             </thead>
             <tbody>
                 {% for agendamento in agendamentos %}
-                <tr>
+                <tr class="{% if agendamento.deletado %}bg-light text-muted{% endif %}">
                     <td class="ps-4">
                         <div class="d-flex flex-column">
-                            <span class="font-weight-bold text-dark">{{ agendamento.data|date:"d/m/Y" }}</span>
-                            <small class="text-muted">{{ agendamento.hora_inicio|date:"H:i" }} - {{ agendamento.hora_fim|date:"H:i"|default:"..." }}</small>
+                            <span class="fw-bold {% if not agendamento.deletado %}text-dark{% endif %}">
+                                {{ agendamento.data|date:"d/m/Y" }}
+                            </span>
+                            <small class="text-muted">{{ agendamento.hora_inicio|date:"H:i" }}</small>
                         </div>
                     </td>
-                    <td class="fw-bold text-dark">{{ agendamento.paciente.nome }}</td>
+                    <td>
+                        <div class="fw-bold">{{ agendamento.paciente.nome }}</div>
+                        {% if agendamento.deletado %}
+                            <span class="badge bg-secondary opacity-75" style="font-size: 0.6rem;">REPOSTO</span>
+                        {% endif %}
+                    </td>
                     
                     {% if is_admin %}
-                    <td class="text-secondary text-sm">{{ agendamento.terapeuta.nome }}</td>
+                    <td class="text-sm">{{ agendamento.terapeuta.nome }}</td>
                     {% endif %}
 
                     {% if is_admin %}
-                    <td>
-                        <span class="badge badge-soft badge-padrao">
-                            {{ agendamento.get_tipo_atendimento_display }}
-                        </span>
-                    </td>
+                    <td><span class="badge badge-soft badge-padrao">{{ agendamento.get_tipo_atendimento_display }}</span></td>
                     {% endif %}
                     
                     <td>
                         {% if agendamento.status == 'REALIZADO' %}
                             <span class="badge badge-soft badge-realizado">Realizado</span>
+                            
                         {% elif agendamento.status == 'FALTA' %} 
-                            <span class="badge badge-soft badge-falta">Falta</span> 
-                        {% else %}
-                            <span class="badge badge-soft badge-agendado">Aguardando</span>
+                            <button type="button" 
+                                    class="btn btn-sm p-0 text-decoration-none border-0 bg-transparent"
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#modalMotivo"
+                                    data-paciente="{{ agendamento.paciente.nome }}"
+                                    data-data="{{ agendamento.data|date:'d/m/Y' }}"
+                                    data-tipo="{{ agendamento.get_tipo_cancelamento_display|default:'Não especificado' }}"
+                                    data-motivo="{{ agendamento.motivo_cancelamento|default:'Sem observações registradas.' }}">
+                                
+                                <div class="badge badge-soft {% if agendamento.deletado %}bg-secondary text-white{% else %}badge-falta{% endif %} d-flex align-items-center gap-2 px-3 py-2">
+                                    <span>Falta</span>
+                                    <i class="bi bi-eye-fill opacity-50"></i>
+                                </div>
+                            </button>
                         {% endif %}
                     </td>
+                    
                     <td class="text-end pe-4">
                         {% if agendamento.status == 'REALIZADO' %}
-                            <a href="{% url 'realizar_consulta' agendamento.id %}?origem=historico&{{ request.GET.urlencode }}" class="btn btn-sm btn-success" title="Ver Prontuário">
-                                <i class="bi bi-file-earmark-medical"></i> Prontuário
+                            <a href="{% url 'realizar_consulta' agendamento.id %}?origem=historico" class="btn btn-sm btn-success btn-icon-only shadow-sm" title="Ver Prontuário">
+                                <i class="bi bi-file-earmark-text"></i>
                             </a>
-                        {% else %}
-                            <span class="text-muted small">-</span>
                         {% endif %}
                     </td>
                 </tr>
                 {% empty %}
-                <tr>
-                    <td colspan="{% if is_admin %}6{% else %}5{% endif %}" class="text-center py-5 text-muted">
-                        <i class="bi bi-inbox fs-1 d-block mb-3 opacity-50"></i>
-                        Nenhum registro encontrado com os filtros atuais.
-                    </td>
-                </tr>
+                <tr><td colspan="6" class="text-center py-5 text-muted">Nenhum registro encontrado.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </div>
 
+<div class="modal fade" id="modalMotivo" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-sm">
+    <div class="modal-content border-0 shadow-lg rounded-4">
+      
+      <div class="modal-header border-bottom-0 pb-0 pt-4 px-4 justify-content-center">
+         <div class="bg-danger-subtle text-danger rounded-circle p-3 mb-2 d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+            <i class="bi bi-calendar-x-fill fs-3"></i>
+         </div>
+      </div>
+
+      <div class="modal-body px-4 pb-4 text-center">
+        <h5 class="fw-bold text-dark mb-1">Detalhe da Falta</h5>
+        <p class="text-muted small mb-3" id="modalSubtitulo">Data / Paciente</p>
+        
+        <div class="text-start bg-light rounded-3 p-3 border border-light-subtle">
+            <label class="small text-uppercase fw-bold text-muted mb-1" style="font-size: 0.7rem;">Tipo de Cancelamento</label>
+            <div id="modalTipo" class="fw-bold text-dark mb-3"></div>
+
+            <label class="small text-uppercase fw-bold text-muted mb-1" style="font-size: 0.7rem;">Motivo / Observação</label>
+            <div id="modalMotivoTexto" class="text-secondary fst-italic" style="line-height: 1.4;"></div>
+        </div>
+      </div>
+
+      <div class="modal-footer border-top-0 pt-0 px-4 pb-4">
+        <button type="button" class="btn btn-dark w-100 rounded-pill py-2 fw-bold" data-bs-dismiss="modal">Fechar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
+    var modalMotivo = document.getElementById('modalMotivo')
+    modalMotivo.addEventListener('show.bs.modal', function (event) {
+      var button = event.relatedTarget
+      
+      var paciente = button.getAttribute('data-paciente')
+      var data = button.getAttribute('data-data')
+      var tipo = button.getAttribute('data-tipo')
+      var motivo = button.getAttribute('data-motivo')
+
+      document.getElementById('modalSubtitulo').textContent = data + " • " + paciente
+      document.getElementById('modalTipo').textContent = tipo
+      document.getElementById('modalMotivoTexto').textContent = motivo
+    })
+
     function aplicarAtalho(tipo) {
         document.getElementById('inputFiltroHoje').value = '';
         document.getElementById('inputFiltroSemana').value = '';

@@ -1,6 +1,9 @@
 from django.contrib import admin
 from django.urls import path
 from django.contrib.auth import views as auth_views
+from django.conf import settings
+from django.conf.urls.static import static
+
 from core.views import (
     dashboard,
     lista_pacientes, 
@@ -49,10 +52,14 @@ urlpatterns = [
     
     # --- Area da Equipe ---
     path('equipe/novo/', cadastrar_equipe, name='cadastrar_equipe'),
-    path('equipe/lista/', lista_terapeutas, name='lista_terapeutas'), # <--- Nova Rota
+    path('equipe/lista/', lista_terapeutas, name='lista_terapeutas'),
     
     path('paciente/<int:paciente_id>/limpar-agenda/', excluir_agendamentos_futuros, name='excluir_agendamentos_futuros'),
 
     path('relatorios/', relatorio_mensal, name='relatorio_mensal'),
     path('relatorios/pacientes/', relatorio_pacientes, name='relatorio_pacientes'),
 ]
+
+# --- ROTA PARA ARQUIVOS DE MÍDIA (DEBUG) ---
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

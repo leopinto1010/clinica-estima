@@ -1,60 +1,70 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<style>
-    /* Cor exata do botão da lista */
-    .btn-repor { 
-        background-color: #0d8a9e; 
-        border-color: #0d8a9e; 
-        color: white; 
-        transition: all 0.2s;
-    }
-    .btn-repor:hover { 
-        background-color: #0a6c7c; 
-        border-color: #0a6c7c; 
-        color: white; 
-    }
-</style>
-
 <div class="row justify-content-center">
     <div class="col-md-6 col-lg-5">
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-white py-3 border-bottom">
                 <h5 class="card-title mb-0 fw-bold text-primary">
-                    <i class="bi bi-arrow-repeat me-2"></i>Agendar Reposição
+                    <i class="bi bi-arrow-repeat me-2"></i>Reposição de Horário
                 </h5>
             </div>
             <div class="card-body p-4">
                 
-                <div class="alert alert-light border mb-4">
-                    <div class="d-flex mb-2">
-                        <span class="text-muted w-25 small fw-bold text-uppercase">Data/Hora</span>
-                        <span class="fw-bold text-dark">{{ agendamento_antigo.data|date:"d/m/Y" }} às {{ agendamento_antigo.hora_inicio|date:"H:i" }}</span>
-                    </div>
-                    <div class="d-flex">
-                        <span class="text-muted w-25 small fw-bold text-uppercase">Terapeuta</span>
-                        <span class="text-dark">{{ agendamento_antigo.terapeuta.nome }}</span>
-                    </div>
+                <div class="alert alert-warning border-warning bg-warning-subtle mb-4">
+                    <h6 class="fw-bold mb-1"><i class="bi bi-exclamation-triangle me-2"></i>Atenção</h6>
+                    <small class="d-block">
+                        O horário de <strong>{{ agendamento_antigo.data|date:"d/m/Y" }}</strong> às <strong>{{ agendamento_antigo.hora_inicio|date:"H:i" }}</strong>
+                        pertencia a <strong>{{ agendamento_antigo.paciente.nome }}</strong>.
+                    </small>
                 </div>
 
-                {# Adicionado novalidate para evitar bloqueios de validação do browser em campos Select2 #}
                 <form method="POST" novalidate>
                     {% csrf_token %}
                     
+                    {# SÓ EXIBE SE A FALTA AINDA NÃO FOI REGISTRADA #}
+                    {% if precisa_justificar and form_falta %}
+                        <h6 class="fw-bold text-danger border-bottom pb-2 mb-3">
+                            1. Justificar a Falta Anterior
+                        </h6>
+                        
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-muted">Classificação</label>
+                            {{ form_falta.tipo_cancelamento }}
+                            {% if form_falta.tipo_cancelamento.errors %}
+                                <div class="text-danger small">{{ form_falta.tipo_cancelamento.errors }}</div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label small fw-bold text-muted">Motivo / Observação</label>
+                            {{ form_falta.motivo_cancelamento }}
+                            {% if form_falta.motivo_cancelamento.errors %}
+                                <div class="text-danger small">{{ form_falta.motivo_cancelamento.errors }}</div>
+                            {% endif %}
+                        </div>
+                    {% else %}
+                         <div class="alert alert-info py-2 small mb-4">
+                            <i class="bi bi-info-circle me-1"></i> A falta anterior já estava registrada/justificada.
+                         </div>
+                    {% endif %}
+
+                    <h6 class="fw-bold text-primary border-bottom pb-2 mb-3 mt-4">
+                        2. Novo Paciente (Reposição)
+                    </h6>
+
                     <div class="mb-4">
-                        <label class="form-label fw-bold">Novo Paciente (Reposição):</label>
-                        {{ form.paciente }}
-                        {% if form.paciente.errors %}
-                            <div class="text-danger small mt-1">{{ form.paciente.errors }}</div>
-                        {% endif %}
-                        <div class="form-text">Selecione quem ocupará esta vaga.</div>
+                        <label class="form-label fw-bold">Selecione o Paciente:</label>
+                        <select name="paciente" class="form-control campo-busca" required>
+                            {% for choice in form_paciente.paciente.field.choices %}
+                                <option value="{{ choice.0 }}">{{ choice.1 }}</option>
+                            {% endfor %}
+                        </select>
                     </div>
 
-                    {# REMOVIDO: Campos ocultos de terapeuta/data que travavam o envio. #}
-
                     <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-repor fw-bold">
-                            <i class="bi bi-check-lg me-2"></i>Confirmar Reposição
+                        <button type="submit" class="btn btn-primary fw-bold py-2">
+                            Confirmar Reposição
                         </button>
                         <a href="{% url 'lista_agendamentos' %}" class="btn btn-light text-muted">Cancelar</a>
                     </div>
@@ -63,4 +73,13 @@
         </div>
     </div>
 </div>
+
+<script>
+    // Inicializa o Select2 se ele não carregar automaticamente
+    document.addEventListener("DOMContentLoaded", function() {
+        if (typeof $ !== 'undefined' && $.fn.select2) {
+            $('.campo-busca').select2({ theme: 'bootstrap-5', width: '100%' });
+        }
+    });
+</script>
 {% endblock %}

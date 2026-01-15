@@ -82,3 +82,8 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'
 LOGOUT_REDIRECT_URL = 'login'
+
+# --- CONFIGURAÇÃO DE ARQUIVOS DE MÍDIA (UPLOADS) ---
+# Adicionado para permitir salvar fotos e vídeos
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
