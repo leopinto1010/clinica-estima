@@ -12,9 +12,6 @@
     .fc-toolbar-title { font-size: 1.25rem !important; font-weight: 600; color: #344767; }
     .fc-button { text-transform: capitalize; }
     
-    .btn-outline-action { border: 1px solid #dee2e6; color: #6c757d; }
-    .btn-outline-action:hover { background: #f8f9fa; color: #344767; }
-    
     .btn-trash-icon { color: #adb5bd; border: none; background: transparent; padding: 6px 10px; transition: all 0.2s; }
     .btn-trash-icon:hover { color: #dc3545; background-color: #fff5f5; border-radius: 4px; }
     
@@ -24,16 +21,13 @@
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h4 class="fw-bold text-dark mb-1">Agenda</h4>
-        <p class="text-muted small mb-0">Gerencie os horários e atendimentos.</p>
+        <h4 class="fw-bold text-dark mb-1">Agenda Operacional</h4>
+        <p class="text-muted small mb-0">Gerencie presenças, faltas e evoluções.</p>
     </div>
     <div>
-        <button type="button" class="btn btn-outline-danger me-2" data-bs-toggle="modal" data-bs-target="#modalLimparDia">
-            <i class="bi bi-trash"></i> Limpar Dia
+        <button type="button" class="btn btn-outline-danger shadow-sm" data-bs-toggle="modal" data-bs-target="#modalLimparDia">
+            <i class="bi bi-trash me-1"></i> Limpar Dia
         </button>
-        <a href="{% url 'novo_agendamento' %}" class="btn btn-primary shadow-sm">
-            <i class="bi bi-plus-lg"></i> Novo Agendamento
-        </a>
     </div>
 </div>
 
@@ -129,16 +123,12 @@
                     {% endfor %}
                 </select>
             </div>
-            {% endif %}
-
-            {% if is_admin %}
+            
             <div class="col-md-3">
                 <label class="form-label small fw-bold text-muted">Terapeuta</label>
                 <select name="filtro_terapeuta" class="form-select">
                     <option value="">Selecione...</option>
-                    
                     <option value="todos" {% if filtro_terapeuta_selecionado == 'todos' %}selected{% endif %}>Ver Todos</option>
-                    
                     {% for t in terapeutas %}
                         <option value="{{ t.id }}" {% if t.id|stringformat:"s" == filtro_terapeuta_selecionado %}selected{% endif %}>{{ t.nome }}</option>
                     {% endfor %}
@@ -196,7 +186,12 @@
                     <td class="ps-4">
                         <div class="d-flex flex-column">
                             <span class="font-weight-bold text-dark">{{ agendamento.data|date:"d/m/Y" }}</span>
-                            <small class="text-muted">{{ agendamento.hora_inicio|date:"H:i" }} - {{ agendamento.hora_fim|date:"H:i" }}</small>
+                            <small class="text-muted">
+                                {{ agendamento.hora_inicio|date:"H:i" }} - {{ agendamento.hora_fim|date:"H:i" }}
+                                {% if agendamento.agenda_fixa %}
+                                    <i class="bi bi-arrow-repeat text-primary ms-1" title="Agenda Fixa"></i>
+                                {% endif %}
+                            </small>
                         </div>
                     </td>
                     <td class="fw-bold text-dark">{{ agendamento.paciente.nome }}</td>
@@ -217,22 +212,16 @@
                     <td class="text-end pe-4">
                         {% with params=request.GET.urlencode %}
                         <div class="d-flex justify-content-end align-items-center">
-                            
                             <div class="btn-group me-2">
                                 {% if agendamento.status == 'AGUARDANDO' %}
                                     <a href="{% url 'realizar_consulta' agendamento.id %}?{{ params }}" class="btn btn-sm btn-outline-primary" title="Atender"><i class="bi bi-play-fill"></i></a>
                                     <a href="{% url 'marcar_falta' agendamento.id %}?{{ params }}" class="btn btn-sm btn-outline-danger" title="Falta"><i class="bi bi-exclamation-lg"></i></a>
-                                
                                 {% elif agendamento.status == 'REALIZADO' %}
                                     <a href="{% url 'realizar_consulta' agendamento.id %}?{{ params }}" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-medical"></i> Prontuário</a>
-                                
                                 {% else %}
-                                    {# Permite Repor para qualquer FALTA (Passado ou Futuro) #}
                                     <a href="{% url 'reposicao_agendamento' agendamento.id %}?{{ params }}" class="btn btn-sm btn-repor"><i class="bi bi-arrow-repeat"></i> Repor</a>
                                 {% endif %}
                             </div>
-
-                            {# Permite Excluir se for Aguardando OU Falta #}
                             {% if agendamento.status == 'AGUARDANDO' or agendamento.status == 'FALTA' %}
                                 <div class="vr mx-1 text-secondary opacity-25"></div>
                                 <a href="{% url 'excluir_agendamento' agendamento.id %}?{{ params }}" class="btn-trash-icon ms-2" onclick="return confirm('ATENÇÃO: Isso apagará permanentemente o agendamento. Confirmar?')" title="Excluir Permanentemente">
@@ -244,7 +233,7 @@
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="7" class="text-center py-4 text-muted">Nenhum agendamento encontrado (Selecione um terapeuta ou 'Ver Todos').</td></tr>
+                <tr><td colspan="8" class="text-center py-4 text-muted">Nenhum agendamento encontrado (Selecione um terapeuta ou 'Ver Todos').</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -263,8 +252,7 @@
   document.addEventListener('DOMContentLoaded', function() {
     var meusEventos = [];
     var paramsUrl = "{{ request.GET.urlencode }}";
-    var agora = new Date();
-
+    
     {% for agendamento in agendamentos %}
         var corFundo = '#3788d8'; var corBorda = '#3788d8';
         {% if agendamento.status == 'REALIZADO' %} 
@@ -297,8 +285,6 @@
     var calendar = new FullCalendar.Calendar(calendarEl, {
       initialView: 'timeGridWeek', 
       locale: 'pt-br',
-      
-      // Tradução dos botões
       buttonText: {
         today: 'Hoje',
         month: 'Mês',
@@ -306,15 +292,12 @@
         day: 'Dia',
         list: 'Lista'
       },
-
       headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' },
       slotMinTime: '07:00:00', slotMaxTime: '21:00:00', allDaySlot: false, height: 'auto',
       events: meusEventos,
       eventClick: function(info) { 
         info.jsEvent.preventDefault();
         var props = info.event.extendedProps;
-        var startEvent = new Date(info.event.start);
-        var now = new Date();
         
         $('#detalhePaciente').text(props.paciente);
         $('#detalheTerapeuta').text(props.terapeuta);
@@ -325,7 +308,6 @@
         var htmlBotoes = '';
         var htmlLixeira = '';
 
-        // Excluir disponível se Aguardando ou Falta
         if (props.status_cod === 'AGUARDANDO' || props.status_cod === 'FALTA') {
              htmlLixeira = `<a href="${props.url_excluir}" class="btn-trash-icon" onclick="return confirm('ATENÇÃO: Apagar permanentemente?')" title="Excluir"><i class="bi bi-trash fs-5"></i></a>`;
         }
@@ -336,7 +318,6 @@
         } else if (props.status_cod === 'REALIZADO') {
             htmlBotoes += `<a href="${props.url_atender}" class="btn btn-success w-100">Ver Prontuário</a>`;
         } else {
-             // Se for FALTA, permite repor sempre (removemos a checagem startEvent > now)
              htmlBotoes += `<a href="${props.url_reposicao}" class="btn btn-repor w-100"><i class="bi bi-arrow-repeat"></i> Agendar Reposição</a>`;
         }
 

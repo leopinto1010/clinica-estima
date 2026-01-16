@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6">
+        <div class="card border-0 shadow">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle me-2"></i>Desativar Agenda Fixa</h5>
+            </div>
+            <div class="card-body p-4">
+                <p class="fs-5 text-center mb-4">
+                    Tem certeza que deseja desativar a agenda fixa de<br>
+                    <strong>{{ agenda.paciente.nome }}</strong> nas <strong>{{ agenda.get_dia_semana_display }}s</strong>?
+                </p>
+
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="alert alert-warning">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="limpar_futuros" id="checkLimpar" checked>
+                            <label class="form-check-label fw-bold" for="checkLimpar">
+                                Também excluir agendamentos futuros não realizados?
+                            </label>
+                            <div class="small text-muted mt-1">
+                                Se marcado, todos os agendamentos "Aguardando" gerados por essa grade a partir de hoje serão apagados do calendário.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-between mt-4">
+                        <a href="{% url 'lista_agendas_fixas' %}" class="btn btn-outline-secondary px-4">Cancelar</a>
+                        <button type="submit" class="btn btn-danger px-4">Confirmar Desativação</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

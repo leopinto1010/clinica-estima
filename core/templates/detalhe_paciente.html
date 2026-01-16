@@ -16,7 +16,7 @@
                 <ul class="list-group list-group-flush text-start mt-3 mb-4">
                     <li class="list-group-item px-0 d-flex justify-content-between">
                         <span class="text-muted small fw-bold">CPF</span>
-                        <span class="fw-medium">{{ paciente.cpf }}</span>
+                        <span class="fw-medium">{{ paciente.cpf|default:"-" }}</span>
                     </li>
                     <li class="list-group-item px-0 d-flex justify-content-between">
                         <span class="text-muted small fw-bold">Nascimento</span>
@@ -34,9 +34,6 @@
                 </a>
                 {% endif %}
                 
-                <button type="button" class="btn btn-outline-danger w-100" data-bs-toggle="modal" data-bs-target="#modalExcluirFuturos">
-                    <i class="bi bi-trash me-2"></i>Limpar Agenda Futura
-                </button>
             </div>
         </div>
     </div>
@@ -94,39 +91,6 @@
             {% endfor %}
         </div>
     </div>
-</div>
-
-<div id="modalExcluirFuturos" class="modal fade" tabindex="-1">
-  <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header bg-danger text-white border-0">
-        <h5 class="modal-title fs-6"><i class="bi bi-exclamation-triangle-fill me-2"></i>Exclusão em Massa</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-      </div>
-      <div class="modal-body p-4">
-        <p>Você está prestes a excluir <strong>TODOS</strong> os agendamentos futuros de <strong>{{ paciente.nome }}</strong>.</p>
-        
-        {% if not is_admin %}
-            <div class="alert alert-primary bg-primary-subtle border-primary-subtle text-primary-emphasis">
-                Apenas os agendamentos vinculados a você serão removidos.
-            </div>
-        {% else %}
-            <div class="alert alert-warning bg-warning-subtle border-warning-subtle text-warning-emphasis">
-                <i class="bi bi-cone-striped me-2"></i>Isso removerá agendamentos de <strong>TODOS</strong> os terapeutas.
-            </div>
-        {% endif %}
-
-        <p class="mb-0">Deseja continuar?</p>
-      </div>
-      <div class="modal-footer border-top-0 bg-light">
-        <form action="{% url 'excluir_agendamentos_futuros' paciente.id %}" method="POST" class="w-100 d-flex gap-2">
-            {% csrf_token %}
-            <button type="button" class="btn btn-light flex-grow-1" data-bs-dismiss="modal">Cancelar</button>
-            <button type="submit" class="btn btn-danger flex-grow-1">Sim, Excluir Tudo</button>
-        </form>
-      </div>
-    </div>
-  </div>
 </div>
 
 <script>

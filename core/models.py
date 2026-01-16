@@ -4,13 +4,11 @@ from django.core.exceptions import ValidationError
 from datetime import datetime, timedelta
 from django.utils import timezone
 
-# --- VALIDATOR DE TAMANHO (AJUSTADO PARA 10MB) ---
+# --- VALIDATOR DE TAMANHO ---
 def validar_tamanho_arquivo(file):
-    limite_mb = 10  # Limite reduzido para vídeos curtos
+    limite_mb = 10
     if file.size > limite_mb * 1024 * 1024:
         raise ValidationError(f"O arquivo não pode exceder {limite_mb}MB.")
-
-# ... (Mantenha as listas de choices e os modelos abaixo sem alterações) ...
 
 ESPECIALIDADES_CHOICES = [
     ('Fonoaudiólogo(a)', 'Fonoaudiólogo(a)'),
@@ -31,6 +29,12 @@ TIPO_ATENDIMENTO_CHOICES = [
     ('CONVENIO', 'Convênio'),
     ('SOCIAL', 'Social'),
 ]
+
+class Sala(models.Model):
+    nome = models.CharField(max_length=50, verbose_name="Nome da Sala")
+    
+    def __str__(self):
+        return self.nome
 
 class Convenio(models.Model):
     nome = models.CharField(max_length=100, unique=True, verbose_name="Nome do Convênio")
@@ -91,6 +95,38 @@ class Terapeuta(models.Model):
     def __str__(self):
         return self.nome
 
+class AgendaFixa(models.Model):
+    DIAS_DA_SEMANA = [
+        (0, 'Segunda-feira'),
+        (1, 'Terça-feira'),
+        (2, 'Quarta-feira'),
+        (3, 'Quinta-feira'),
+        (4, 'Sexta-feira'),
+        (5, 'Sábado'),
+        (6, 'Domingo'),
+    ]
+
+    paciente = models.ForeignKey(Paciente, on_delete=models.CASCADE)
+    terapeuta = models.ForeignKey(Terapeuta, on_delete=models.PROTECT)
+    
+    # ESTRATÉGIA DE SEGURANÇA: null=True no banco para não quebrar dados antigos
+    sala = models.ForeignKey(Sala, on_delete=models.PROTECT, null=True, blank=True, verbose_name="Sala Fixa")
+    
+    dia_semana = models.IntegerField(choices=DIAS_DA_SEMANA, verbose_name="Dia da Semana")
+    hora_inicio = models.TimeField(verbose_name="Início")
+    hora_fim = models.TimeField(verbose_name="Fim")
+    
+    ativo = models.BooleanField(default=True, verbose_name="Grade Ativa")
+    data_inicio = models.DateField(default=timezone.now, verbose_name="Vigência Início")
+    data_fim = models.DateField(null=True, blank=True, verbose_name="Vigência Fim (Opcional)")
+
+    class Meta:
+        verbose_name = "Horário Fixo (Grade)"
+        verbose_name_plural = "Agenda Fixa (Grade)"
+
+    def __str__(self):
+        return f"{self.get_dia_semana_display()} - {self.paciente.nome}"
+
 class AgendamentoManager(models.Manager):
     def ativos(self):
         return self.filter(deletado=False)
@@ -110,6 +146,11 @@ class Agendamento(models.Model):
 
     paciente = models.ForeignKey(Paciente, on_delete=models.CASCADE)
     terapeuta = models.ForeignKey(Terapeuta, on_delete=models.PROTECT)
+    
+    # Vínculos Opcionais no Banco
+    agenda_fixa = models.ForeignKey(AgendaFixa, on_delete=models.SET_NULL, null=True, blank=True, related_name='agendamentos_gerados')
+    sala = models.ForeignKey(Sala, on_delete=models.SET_NULL, null=True, blank=True)
+    
     data = models.DateField(verbose_name="Data da Consulta")
     hora_inicio = models.TimeField(verbose_name="Horário de Início")
     hora_fim = models.TimeField(verbose_name="Horário de Término", blank=True, null=True)
@@ -149,7 +190,7 @@ class AnexoConsulta(models.Model):
     arquivo = models.FileField(
         upload_to='prontuarios/%Y/%m/', 
         verbose_name="Arquivo",
-        validators=[validar_tamanho_arquivo] # Usa o validador de 10MB
+        validators=[validar_tamanho_arquivo]
     )
     data_upload = models.DateTimeField(auto_now_add=True)
 

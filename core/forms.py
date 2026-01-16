@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import UserCreationForm
-from .models import Paciente, Terapeuta, Agendamento, Consulta, ESPECIALIDADES_CHOICES, Convenio
+from .models import Paciente, Terapeuta, Agendamento, Consulta, ESPECIALIDADES_CHOICES, Convenio, AgendaFixa, Sala
 from datetime import datetime, timedelta
 from django.utils import timezone
 
@@ -39,14 +39,22 @@ class AgendamentoForm(forms.ModelForm):
     )
     class Meta:
         model = Agendamento
-        fields = ['paciente', 'terapeuta', 'data', 'hora_inicio', 'hora_fim']
+        fields = ['paciente', 'terapeuta', 'sala', 'data', 'hora_inicio', 'hora_fim']
         widgets = {
             'paciente': forms.Select(attrs={'class': 'form-control campo-busca'}),
             'terapeuta': forms.Select(attrs={'class': 'form-control campo-busca'}),
+            'sala': forms.Select(attrs={'class': 'form-select'}),
             'data': forms.DateInput(attrs={'class': 'form-control seletor-apenas-data'}),
             'hora_inicio': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
             'hora_fim': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
         }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # OBRIGATÓRIO NA TELA: O usuário não consegue salvar sem escolher
+        self.fields['sala'].required = True
+        self.fields['sala'].label = "Sala de Atendimento"
+
     def clean(self):
         cleaned_data = super().clean()
         terapeuta = cleaned_data.get('terapeuta')
@@ -89,3 +97,24 @@ class RegistrarFaltaForm(forms.ModelForm):
         tipo = self.cleaned_data.get('tipo_cancelamento')
         if not tipo: raise forms.ValidationError("Informe o tipo da falta.")
         return tipo
+
+class AgendaFixaForm(forms.ModelForm):
+    class Meta:
+        model = AgendaFixa
+        fields = ['paciente', 'terapeuta', 'sala', 'dia_semana', 'hora_inicio', 'hora_fim', 'data_inicio', 'data_fim', 'ativo']
+        widgets = {
+            'paciente': forms.Select(attrs={'class': 'form-control campo-busca'}),
+            'terapeuta': forms.Select(attrs={'class': 'form-control campo-busca'}),
+            'sala': forms.Select(attrs={'class': 'form-select'}),
+            'dia_semana': forms.Select(attrs={'class': 'form-select'}),
+            'hora_inicio': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
+            'hora_fim': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
+            'data_inicio': forms.DateInput(attrs={'class': 'form-control seletor-apenas-data'}),
+            'data_fim': forms.DateInput(attrs={'class': 'form-control seletor-apenas-data'}),
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # OBRIGATÓRIO NA TELA: Isso garante o rigor que você pediu, sem quebrar o banco
+        self.fields['sala'].required = True
+        self.fields['sala'].label = "Sala de Atendimento"

@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3">
+                <h5 class="mb-0 fw-bold text-primary">{{ titulo }}</h5>
+            </div>
+            <div class="card-body p-4">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    {% if form.non_field_errors %}
+                    <div class="alert alert-danger">
+                        {% for error in form.non_field_errors %}
+                            {{ error }}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Paciente</label>
+                        {{ form.paciente }}
+                        {{ form.paciente.errors }}
+                    </div>
+
+                    {% if form.terapeuta.field.widget.input_type != 'hidden' %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Terapeuta</label>
+                        {{ form.terapeuta }}
+                        {{ form.terapeuta.errors }}
+                    </div>
+                    {% else %}
+                        {{ form.terapeuta }}
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Sala</label>
+                        {{ form.sala }}
+                        <div class="form-text small">Define em qual sala o atendimento ocorrerá fixamente.</div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label fw-bold small text-muted">Dia da Semana</label>
+                            {{ form.dia_semana }}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold small text-muted">Hora Início</label>
+                            {{ form.hora_inicio }}
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold small text-muted">Hora Fim</label>
+                            {{ form.hora_fim }}
+                        </div>
+                    </div>
+
+                    <hr class="my-4">
+                    <h6 class="text-muted text-uppercase text-xs font-weight-bolder mb-3">Vigência do Contrato</h6>
+
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold small text-muted">Data de Início</label>
+                            {{ form.data_inicio }}
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold small text-muted">Data Fim (Opcional)</label>
+                            {{ form.data_fim }}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-4 form-check">
+                        {{ form.ativo }}
+                        <label class="form-check-label" for="{{ form.ativo.id_for_label }}">
+                            Grade Ativa (Gerar agendamentos automaticamente)
+                        </label>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">Salvar Grade Fixa</button>
+                        <a href="{% url 'lista_agendas_fixas' %}" class="btn btn-outline-secondary">Cancelar</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

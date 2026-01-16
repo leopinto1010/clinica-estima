@@ -3,51 +3,86 @@
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-md-8 col-lg-6">
-        <div class="card shadow-sm border-0">
-            <div class="card-header bg-white py-3 border-bottom-0">
-                <h5 class="card-title fw-bold text-primary mb-0">
-                    <i class="bi bi-calendar-plus me-2"></i>Agendar Consulta
-                </h5>
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold text-primary">Novo Agendamento Avulso</h5>
+                <a href="{% url 'lista_agendas_fixas' %}" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-arrow-repeat"></i> Configurar Recorrência Fixa
+                </a>
             </div>
             <div class="card-body p-4">
-                <form method="POST">
+                
+                {% if form.non_field_errors %}
+                <div class="alert alert-danger mb-3">
+                    {% for error in form.non_field_errors %}
+                        {{ error }}
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <form method="post">
                     {% csrf_token %}
                     
-                    {% if form.errors %}
-                        <div class="alert alert-danger d-flex align-items-center mb-4">
-                            <i class="bi bi-exclamation-octagon-fill me-3 fs-4"></i>
-                            <div>
-                                <strong>Erro ao agendar:</strong>
-                                <ul class="mb-0 ps-3 mt-1 small">
-                                {% for field, errors in form.errors.items %}
-                                    {% for error in errors %}
-                                        <li>{% if field != '__all__' %}<strong>{{ field }}:</strong> {% endif %}{{ error }}</li>
-                                    {% endfor %}
-                                {% endfor %}
-                                </ul>
-                            </div>
-                        </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Paciente</label>
+                        {{ form.paciente }}
+                        {{ form.paciente.errors }}
+                    </div>
+
+                    {% if form.terapeuta.field.widget.input_type != 'hidden' %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Terapeuta</label>
+                        {{ form.terapeuta }}
+                        {{ form.terapeuta.errors }}
+                    </div>
+                    {% else %}
+                        {{ form.terapeuta }}
                     {% endif %}
 
-                    {% for field in form %}
-                        {% if not field.is_hidden %}
-                            <div class="mb-3">
-                                <label class="form-label fw-bold small text-muted">{{ field.label }}</label>
-                                {{ field }}
-                                {% if field.help_text %}
-                                    <div class="form-text">{{ field.help_text }}</div>
-                                {% endif %}
-                            </div>
-                        {% else %}
-                            {{ field }}
-                        {% endif %}
-                    {% endfor %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Sala (Opcional)</label>
+                        {{ form.sala }}
+                        <div class="form-text small">Selecione se deseja reservar uma sala específica para este dia.</div>
+                    </div>
 
-                    <div class="d-grid gap-2 mt-4">
-                        <button type="submit" class="btn btn-success btn-lg">
-                            Confirmar Agendamento
-                        </button>
-                        <a href="{% url 'lista_agendamentos' %}" class="btn btn-light text-muted">Cancelar</a>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Data</label>
+                        {{ form.data }}
+                        {{ form.data.errors }}
+                    </div>
+
+                    <div class="row">
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold small text-muted">Início</label>
+                            {{ form.hora_inicio }}
+                            {{ form.hora_inicio.errors }}
+                        </div>
+                        <div class="col-6 mb-3">
+                            <label class="form-label fw-bold small text-muted">Fim (Calculado automático se vazio)</label>
+                            {{ form.hora_fim }}
+                            {{ form.hora_fim.errors }}
+                        </div>
+                    </div>
+
+                    <hr>
+                    
+                    <div class="mb-4 bg-light p-3 rounded">
+                        <label class="form-label fw-bold small text-muted mb-2">Repetição Simples (Cópia)</label>
+                        <div class="d-flex align-items-center">
+                            <div class="me-2">Repetir por</div>
+                            <div style="width: 80px;">
+                                {{ form.repeticoes }}
+                            </div>
+                            <div class="ms-2">semanas.</div>
+                        </div>
+                        <div class="form-text small mt-2">
+                            <i class="bi bi-info-circle"></i> Use isso apenas para cópias rápidas. Para agendamentos anuais, use a <strong><a href="{% url 'nova_agenda_fixa' %}">Agenda Fixa</a></strong>.
+                        </div>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">Agendar</button>
+                        <a href="{% url 'lista_agendamentos' %}" class="btn btn-outline-secondary">Cancelar</a>
                     </div>
                 </form>
             </div>

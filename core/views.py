@@ -9,17 +9,28 @@ from django import forms
 from django.contrib.auth.models import Group
 import calendar
 
-from .models import Paciente, Terapeuta, Agendamento, Consulta, AnexoConsulta, TIPO_ATENDIMENTO_CHOICES, ESPECIALIDADES_CHOICES
-from .forms import PacienteForm, AgendamentoForm, ConsultaForm, CadastroEquipeForm, RegistrarFaltaForm
+# IMPORTS DOS MODELOS
+from .models import (
+    Paciente, Terapeuta, Agendamento, Consulta, AnexoConsulta, 
+    TIPO_ATENDIMENTO_CHOICES, ESPECIALIDADES_CHOICES,
+    AgendaFixa, Sala
+)
+
+# IMPORTS DOS FORMS
+from .forms import (
+    PacienteForm, AgendamentoForm, ConsultaForm, 
+    CadastroEquipeForm, RegistrarFaltaForm, AgendaFixaForm
+)
+
 from .decorators import admin_required, terapeuta_required, dono_required, is_admin, is_terapeuta, is_dono
-from .utils import setup_grupos, criar_agendamentos_em_lote
+from .utils import setup_grupos, criar_agendamentos_em_lote, gerar_agenda_futura
 
 # --- DASHBOARD ---
 @login_required
 def dashboard(request):
     hoje = timezone.localtime(timezone.now()).date()
     # Dashboard mostra apenas ativos (não mostra faltas repostas)
-    qs = Agendamento.objects.ativos().filter(data=hoje).select_related('paciente', 'terapeuta').order_by('hora_inicio')
+    qs = Agendamento.objects.ativos().filter(data=hoje).select_related('paciente', 'terapeuta', 'sala').order_by('hora_inicio')
 
     if not is_admin(request.user):
         if is_terapeuta(request.user):
@@ -35,6 +46,7 @@ def dashboard(request):
         'total_pacientes': total_pacientes,
         'total_agendamentos_hoje': total_agendamentos_hoje,
         'is_admin': is_admin(request.user),
+        'agora': hoje
     })
 
 # --- PACIENTES ---
@@ -131,7 +143,7 @@ def detalhe_paciente(request, paciente_id):
         'is_admin': is_admin(request.user)
     })
 
-# --- AGENDAMENTOS ---
+# --- AGENDAMENTOS (OPERACIONAL) ---
 @login_required
 def lista_agendamentos(request):
     data_inicio_get = request.GET.get('data_inicio')
@@ -142,6 +154,7 @@ def lista_agendamentos(request):
     filtro_tipo = request.GET.get('filtro_tipo')
     filtro_terapeuta = request.GET.get('filtro_terapeuta')
     filtro_status = request.GET.get('filtro_status')
+    filtro_sala = request.GET.get('filtro_sala')
 
     agora = timezone.localtime(timezone.now())
     hoje = agora.date()
@@ -159,7 +172,7 @@ def lista_agendamentos(request):
         data_fim = prox_mes - timedelta(days=prox_mes.day)
 
     # Apenas ATIVOS (Faltas repostas somem da lista)
-    agendamentos = Agendamento.objects.ativos().select_related('paciente', 'terapeuta').filter(
+    agendamentos = Agendamento.objects.ativos().select_related('paciente', 'terapeuta', 'sala', 'agenda_fixa').filter(
         data__range=[data_inicio, data_fim]
     ).order_by('data', 'hora_inicio')
 
@@ -171,11 +184,12 @@ def lista_agendamentos(request):
     else:
         if filtro_terapeuta == 'todos': pass 
         elif filtro_terapeuta: agendamentos = agendamentos.filter(terapeuta_id=filtro_terapeuta)
-        else: agendamentos = Agendamento.objects.none()
+        # Se for admin sem filtro, vê todos
     
     if busca_nome: agendamentos = agendamentos.filter(paciente__nome__icontains=busca_nome)
     if filtro_tipo: agendamentos = agendamentos.filter(tipo_atendimento=filtro_tipo)
     if filtro_status: agendamentos = agendamentos.filter(status=filtro_status)
+    if filtro_sala: agendamentos = agendamentos.filter(sala_id=filtro_sala)
 
     return render(request, 'lista_agendamentos.html', {
         'agendamentos': agendamentos, 
@@ -184,9 +198,11 @@ def lista_agendamentos(request):
         'filtro_hoje': filtro_hoje, 'filtro_semana': filtro_semana,
         'tipos_atendimento': TIPO_ATENDIMENTO_CHOICES,
         'terapeutas': Terapeuta.objects.all() if is_admin(request.user) else None,
+        'salas': Sala.objects.all(),
         'busca_nome': busca_nome or '',
         'filtro_tipo_selecionado': filtro_tipo,
         'filtro_terapeuta_selecionado': filtro_terapeuta, 
+        'filtro_sala_selecionado': filtro_sala,
         'status_choices': Agendamento.STATUS_CHOICES,
         'filtro_status_selecionado': filtro_status,
         'is_admin': is_admin(request.user)
@@ -194,6 +210,9 @@ def lista_agendamentos(request):
 
 @login_required
 def novo_agendamento(request):
+    """
+    Cria agendamentos manuais/avulsos (sem vínculo com a grade fixa).
+    """
     if request.method == 'POST':
         form = AgendamentoForm(request.POST)
     else:
@@ -216,7 +235,7 @@ def novo_agendamento(request):
                 criados, conflitos = criar_agendamentos_em_lote(form.cleaned_data, request.user)
             
             if criados > 0:
-                msg = f"{criados} agendamentos criados."
+                msg = f"{criados} agendamentos avulsos criados."
                 if conflitos: msg += f" (Conflitos ignorados: {', '.join(conflitos)})"
                 if conflitos: messages.warning(request, msg)
                 else: messages.success(request, msg)
@@ -227,6 +246,149 @@ def novo_agendamento(request):
             messages.error(request, f"Erro interno: {e}")
 
     return render(request, 'novo_agendamento.html', {'form': form})
+
+# --- AGENDA FIXA (GERENCIAMENTO) ---
+
+@login_required
+def lista_agendas_fixas(request):
+    """
+    Exibe a lista de horários fixos em formato de GRADE/PLANILHA.
+    """
+    if not is_admin(request.user) and not is_terapeuta(request.user):
+        messages.error(request, "Acesso restrito.")
+        return redirect('dashboard')
+        
+    agendas = AgendaFixa.objects.filter(ativo=True).select_related('paciente', 'terapeuta', 'sala')
+    
+    # Filtros
+    terapeuta_id = request.GET.get('terapeuta')
+    if terapeuta_id:
+        agendas = agendas.filter(terapeuta_id=terapeuta_id)
+    
+    if not is_admin(request.user) and is_terapeuta(request.user):
+        agendas = agendas.filter(terapeuta=request.user.terapeuta)
+    
+    # --- MONTANDO A ESTRUTURA DA GRADE ---
+    # Horários das 07:00 às 20:00 (ajuste conforme necessidade da clínica)
+    range_horarios = range(7, 21) 
+    # Dias: 0=Segunda, 1=Terça, ... 5=Sábado
+    range_dias = range(6) 
+    
+    # Matriz vazia: agenda_map[hora][dia] = [lista de agendamentos]
+    agenda_map = {h: {d: [] for d in range_dias} for h in range_horarios}
+    
+    for item in agendas:
+        h = item.hora_inicio.hour
+        d = item.dia_semana
+        
+        # Proteção caso tenha algo fora do horário comercial mapeado
+        if h in agenda_map and d in range_dias:
+            agenda_map[h][d].append(item)
+            
+    # Nomes dos dias para o cabeçalho
+    nomes_dias = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
+
+    return render(request, 'lista_agendas_fixas.html', {
+        'agenda_map': agenda_map,
+        'range_horarios': range_horarios,
+        'nomes_dias': nomes_dias,
+        'terapeutas': Terapeuta.objects.all() if is_admin(request.user) else None,
+        'is_admin': is_admin(request.user),
+        'filtro_terapeuta': terapeuta_id
+    })
+
+@login_required
+def nova_agenda_fixa(request):
+    """
+    Cria uma nova regra e GERA AUTOMATICAMENTE os agendamentos no calendário.
+    """
+    if not is_admin(request.user) and not is_terapeuta(request.user):
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        form = AgendaFixaForm(request.POST)
+        if form.is_valid():
+            if not is_admin(request.user) and is_terapeuta(request.user):
+                agenda = form.save(commit=False)
+                agenda.terapeuta = request.user.terapeuta
+                agenda.save()
+            else:
+                form.save()
+            
+            # Automação: Gera os agendamentos reais até o fim do ano
+            qtd = gerar_agenda_futura() 
+            
+            messages.success(request, f"Regra criada! {qtd} agendamentos foram lançados no calendário.")
+            return redirect('lista_agendas_fixas')
+    else:
+        form = AgendaFixaForm()
+        if not is_admin(request.user) and is_terapeuta(request.user):
+            form.fields['terapeuta'].initial = request.user.terapeuta
+            form.fields['terapeuta'].widget = forms.HiddenInput()
+
+    return render(request, 'form_agenda_fixa.html', {'form': form, 'titulo': 'Nova Agenda Fixa'})
+
+@login_required
+def editar_agenda_fixa(request, id):
+    """
+    Edita a regra e sincroniza o calendário futuro.
+    """
+    agenda = get_object_or_404(AgendaFixa, id=id)
+    
+    if not is_admin(request.user):
+        if agenda.terapeuta.usuario != request.user:
+            messages.error(request, "Permissão negada.")
+            return redirect('lista_agendas_fixas')
+
+    if request.method == 'POST':
+        form = AgendaFixaForm(request.POST, instance=agenda)
+        if form.is_valid():
+            form.save()
+            
+            # Automação: Sincroniza o calendário
+            qtd = gerar_agenda_futura()
+            
+            messages.success(request, f"Agenda atualizada. Calendário sincronizado.")
+            return redirect('lista_agendas_fixas')
+    else:
+        form = AgendaFixaForm(instance=agenda)
+        if not is_admin(request.user):
+             form.fields['terapeuta'].widget = forms.HiddenInput()
+
+    return render(request, 'form_agenda_fixa.html', {'form': form, 'titulo': 'Editar Agenda Fixa'})
+
+@login_required
+def excluir_agenda_fixa(request, id):
+    """
+    Desativa a regra e opcionalmente limpa os agendamentos futuros.
+    """
+    agenda = get_object_or_404(AgendaFixa, id=id)
+    
+    if not is_admin(request.user):
+        if agenda.terapeuta.usuario != request.user:
+            return redirect('lista_agendas_fixas')
+
+    if request.method == 'POST':
+        # 1. Desativa a regra
+        agenda.ativo = False
+        agenda.save()
+        
+        # 2. Limpa agendamentos futuros se o usuário marcou o checkbox
+        limpar = request.POST.get('limpar_futuros')
+        msg_extra = ""
+        
+        if limpar:
+            hoje = timezone.now().date()
+            # Apaga apenas o que é "Aguardando" e está no futuro
+            qtd = Agendamento.objects.filter(agenda_fixa=agenda, data__gte=hoje, status='AGUARDANDO').update(deletado=True)
+            msg_extra = f" {qtd} agendamentos futuros foram removidos."
+            
+        messages.success(request, f"Agenda fixa desativada.{msg_extra}")
+        return redirect('lista_agendas_fixas')
+    
+    return render(request, 'confirmar_exclusao_fixa.html', {'agenda': agenda})
+
+# --- AÇÕES E FLUXOS DE AGENDAMENTO ---
 
 @login_required
 def reposicao_agendamento(request, agendamento_id):
@@ -260,14 +422,15 @@ def reposicao_agendamento(request, agendamento_id):
                     agendamento_antigo = form_falta.save(commit=False)
                     agendamento_antigo.status = 'FALTA'
                 
-                # Marca como deletado (reposto)
+                # Marca como deletado (reposto) - mas mantém o registro da falta histórica
                 agendamento_antigo.deletado = True
                 agendamento_antigo.save()
 
-                # Cria a reposição
+                # Cria a reposição (AVULSA)
                 Agendamento.objects.create(
                     paciente=paciente_selecionado,
                     terapeuta=agendamento_antigo.terapeuta,
+                    sala=agendamento_antigo.sala,
                     data=agendamento_antigo.data,
                     hora_inicio=agendamento_antigo.hora_inicio,
                     hora_fim=agendamento_antigo.hora_fim,
@@ -301,8 +464,6 @@ def reposicao_agendamento(request, agendamento_id):
         'precisa_justificar': precisa_justificar
     })
 
-# --- AÇÕES GERAIS ---
-
 @login_required
 def confirmar_agendamento(request, agendamento_id):
     agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
@@ -331,7 +492,6 @@ def marcar_falta(request, agendamento_id):
         if form.is_valid():
             agendamento = form.save(commit=False)
             agendamento.status = 'FALTA'
-            # Não deleta aqui, pois é uma falta visível
             agendamento.save()
             messages.success(request, "Falta registrada.")
             url_retorno = redirect('lista_agendamentos').url
@@ -360,7 +520,6 @@ def excluir_agendamento(request, agendamento_id):
     if filtros: url_retorno += f'?{filtros}'
     return redirect(url_retorno)
 
-# --- REALIZAR CONSULTA (COM ANEXOS) ---
 @login_required
 def realizar_consulta(request, agendamento_id):
     agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
@@ -385,7 +544,6 @@ def realizar_consulta(request, agendamento_id):
     if query_string: url_voltar += f"?{query_string}"
 
     if request.method == 'POST':
-        # Excluir anexo
         anexo_para_excluir = request.POST.get('excluir_anexo_id')
         if anexo_para_excluir:
             anexo = get_object_or_404(AnexoConsulta, id=anexo_para_excluir, consulta=consulta)
@@ -398,7 +556,7 @@ def realizar_consulta(request, agendamento_id):
         if form.is_valid():
             form.save()
             
-            # Upload com Validação de 10MB
+            # Upload com Validação
             arquivos = request.FILES.getlist('arquivos_anexos')
             count_anexos = 0
             count_erro_tamanho = 0
@@ -474,7 +632,6 @@ def lista_consultas_geral(request):
         prox_mes = (data_inicio + timedelta(days=32)).replace(day=1)
         data_fim = prox_mes - timedelta(days=1)
 
-    # Filtra Ativos e Reposições, remove Aguardando
     agendamentos = Agendamento.objects.filter(
         Q(deletado=False) | Q(status='FALTA')
     ).exclude(status='AGUARDANDO').select_related('paciente', 'terapeuta').order_by('-data', '-hora_inicio')
@@ -537,25 +694,6 @@ def cadastrar_equipe(request):
     return render(request, 'cadastrar_equipe.html', {'form': form})
 
 @login_required
-def excluir_agendamentos_futuros(request, paciente_id):
-    paciente = get_object_or_404(Paciente, id=paciente_id)
-    hoje = timezone.now().date()
-    agora_time = timezone.now().time()
-    filtro_tempo = Q(data__gt=hoje) | Q(data=hoje, hora_inicio__gt=agora_time)
-    qs = Agendamento.objects.ativos().filter(filtro_tempo, paciente=paciente).exclude(status='REALIZADO')
-    
-    if not is_admin(request.user):
-         if is_terapeuta(request.user): qs = qs.filter(terapeuta=request.user.terapeuta)
-         else: return redirect('detalhe_paciente', paciente_id=paciente_id)
-            
-    if request.method == 'POST':
-        total = qs.count()
-        if total > 0:
-            qs.update(deletado=True)
-            messages.success(request, f"{total} agendamentos removidos.")
-    return redirect('detalhe_paciente', paciente_id=paciente_id)
-
-@login_required
 def lista_terapeutas(request):
     if not is_admin(request.user):
         messages.error(request, "Acesso restrito.")
@@ -570,7 +708,6 @@ def lista_terapeutas(request):
         'especialidades': ESPECIALIDADES_CHOICES, 'busca_atual': busca, 'filtro_esp_selecionado': filtro_esp
     })
 
-# --- RELATÓRIOS ---
 @login_required
 def relatorio_mensal(request):
     hoje = timezone.now()

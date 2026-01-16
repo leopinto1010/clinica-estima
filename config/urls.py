@@ -20,10 +20,12 @@ from core.views import (
     limpar_dia,
     lista_consultas_geral,
     cadastrar_equipe,
-    excluir_agendamentos_futuros,
     lista_terapeutas,
     relatorio_mensal,
-    relatorio_pacientes
+    relatorio_pacientes,
+    
+    # NOVAS VIEWS
+    lista_agendas_fixas, nova_agenda_fixa, editar_agenda_fixa, excluir_agenda_fixa
 )
 
 urlpatterns = [
@@ -50,12 +52,16 @@ urlpatterns = [
     path('agendamentos/excluir/<int:agendamento_id>/', excluir_agendamento, name='excluir_agendamento'),
     path('agendamentos/limpar-dia/', limpar_dia, name='limpar_dia'),
     
+    # --- AGENDA FIXA ---
+    path('agenda-fixa/', lista_agendas_fixas, name='lista_agendas_fixas'),
+    path('agenda-fixa/nova/', nova_agenda_fixa, name='nova_agenda_fixa'),
+    path('agenda-fixa/editar/<int:id>/', editar_agenda_fixa, name='editar_agenda_fixa'),
+    path('agenda-fixa/excluir/<int:id>/', excluir_agenda_fixa, name='excluir_agenda_fixa'),
+
     # --- Area da Equipe ---
     path('equipe/novo/', cadastrar_equipe, name='cadastrar_equipe'),
     path('equipe/lista/', lista_terapeutas, name='lista_terapeutas'),
     
-    path('paciente/<int:paciente_id>/limpar-agenda/', excluir_agendamentos_futuros, name='excluir_agendamentos_futuros'),
-
     path('relatorios/', relatorio_mensal, name='relatorio_mensal'),
     path('relatorios/pacientes/', relatorio_pacientes, name='relatorio_pacientes'),
 ]
