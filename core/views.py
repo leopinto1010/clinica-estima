@@ -171,7 +171,6 @@ def lista_agendamentos(request):
         prox_mes = data_inicio.replace(day=28) + timedelta(days=4)
         data_fim = prox_mes - timedelta(days=prox_mes.day)
 
-    # Apenas ATIVOS (Faltas repostas somem da lista)
     agendamentos = Agendamento.objects.ativos().select_related('paciente', 'terapeuta', 'sala', 'agenda_fixa').filter(
         data__range=[data_inicio, data_fim]
     ).order_by('data', 'hora_inicio')
@@ -182,9 +181,12 @@ def lista_agendamentos(request):
         else:
             agendamentos = Agendamento.objects.none()
     else:
-        if filtro_terapeuta == 'todos': pass 
-        elif filtro_terapeuta: agendamentos = agendamentos.filter(terapeuta_id=filtro_terapeuta)
-        # Se for admin sem filtro, vê todos
+        if filtro_terapeuta == 'todos': 
+            pass 
+        elif filtro_terapeuta: 
+            agendamentos = agendamentos.filter(terapeuta_id=filtro_terapeuta)
+        else:
+            agendamentos = Agendamento.objects.none()
     
     if busca_nome: agendamentos = agendamentos.filter(paciente__nome__icontains=busca_nome)
     if filtro_tipo: agendamentos = agendamentos.filter(tipo_atendimento=filtro_tipo)
