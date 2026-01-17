@@ -8,15 +8,14 @@ from django.db import transaction
 from django import forms
 from django.contrib.auth.models import Group
 import calendar
+from collections import defaultdict
 
-# IMPORTS DOS MODELOS
 from .models import (
     Paciente, Terapeuta, Agendamento, Consulta, AnexoConsulta, 
     TIPO_ATENDIMENTO_CHOICES, ESPECIALIDADES_CHOICES,
     AgendaFixa, Sala
 )
 
-# IMPORTS DOS FORMS
 from .forms import (
     PacienteForm, AgendamentoForm, ConsultaForm, 
     CadastroEquipeForm, RegistrarFaltaForm, AgendaFixaForm
@@ -25,11 +24,9 @@ from .forms import (
 from .decorators import admin_required, terapeuta_required, dono_required, is_admin, is_terapeuta, is_dono
 from .utils import setup_grupos, criar_agendamentos_em_lote, gerar_agenda_futura
 
-# --- DASHBOARD ---
 @login_required
 def dashboard(request):
     hoje = timezone.localtime(timezone.now()).date()
-    # Dashboard mostra apenas ativos (não mostra faltas repostas)
     qs = Agendamento.objects.ativos().filter(data=hoje).select_related('paciente', 'terapeuta', 'sala').order_by('hora_inicio')
 
     if not is_admin(request.user):
@@ -49,7 +46,6 @@ def dashboard(request):
         'agora': hoje
     })
 
-# --- PACIENTES ---
 @login_required
 def lista_pacientes(request):
     busca = request.GET.get('q')
@@ -57,35 +53,28 @@ def lista_pacientes(request):
     filtro_tipo = request.GET.get('tipo')
 
     if is_admin(request.user):
-        # ADMIN: Começa com todos
         pacientes = Paciente.objects.all()
         
-        # Filtro de Status (Apenas Admin usa)
         if filtro_status == 'ativos':
             pacientes = pacientes.filter(ativo=True)
         elif filtro_status == 'inativos':
             pacientes = pacientes.filter(ativo=False)
-        # se for 'todos' ou vazio, não filtra (mostra ambos)
     else:
-        # TERAPEUTA: Vê apenas pacientes ativos que ele atende/atendeu
-        # Ignora totalmente o parâmetro 'status' da URL para garantir segurança/regra de negócio
         pacientes = Paciente.objects.filter(
             ativo=True, 
             agendamento__terapeuta=request.user.terapeuta
         ).distinct()
 
-    # Filtros Comuns (Nome/CPF e Tipo)
     if busca:
         pacientes = pacientes.filter(Q(nome__icontains=busca) | Q(cpf__icontains=busca))
     
     if filtro_tipo:
         pacientes = pacientes.filter(tipo_padrao=filtro_tipo)
     
-    # Ordenação
     pacientes = pacientes.order_by('nome')
 
     return render(request, 'lista_pacientes.html', {
-        'pacientes': pacientes,  # Variável correta para o template antigo
+        'pacientes': pacientes,
         'is_admin': is_admin(request.user),
         'tipos_atendimento': TIPO_ATENDIMENTO_CHOICES,
         'filtro_status_selecionado': filtro_status,
@@ -133,7 +122,6 @@ def detalhe_paciente(request, paciente_id):
     
     if is_admin(request.user): tem_permissao = True
     elif is_terapeuta(request.user):
-        # Verifica se existe algum vínculo histórico ou futuro
         vinculo = Agendamento.objects.ativos().filter(paciente=paciente, terapeuta=request.user.terapeuta).exists()
         if vinculo: tem_permissao = True
             
@@ -159,7 +147,6 @@ def detalhe_paciente(request, paciente_id):
         'is_admin': is_admin(request.user)
     })
 
-# --- AGENDAMENTOS (OPERACIONAL) ---
 @login_required
 def lista_agendamentos(request):
     data_inicio_get = request.GET.get('data_inicio')
@@ -187,7 +174,6 @@ def lista_agendamentos(request):
         prox_mes = data_inicio.replace(day=28) + timedelta(days=4)
         data_fim = prox_mes - timedelta(days=prox_mes.day)
 
-    # Apenas ATIVOS (Faltas repostas somem da lista)
     agendamentos = Agendamento.objects.ativos().select_related('paciente', 'terapeuta', 'sala', 'agenda_fixa').filter(
         data__range=[data_inicio, data_fim]
     ).order_by('data', 'hora_inicio')
@@ -203,7 +189,6 @@ def lista_agendamentos(request):
         elif filtro_terapeuta: 
             agendamentos = agendamentos.filter(terapeuta_id=filtro_terapeuta)
         else:
-            # Se for Admin e não escolheu filtro, não mostra nada (para não poluir a tela)
             agendamentos = Agendamento.objects.none()
     
     if busca_nome: agendamentos = agendamentos.filter(paciente__nome__icontains=busca_nome)
@@ -257,23 +242,18 @@ def novo_agendamento(request):
 
     return render(request, 'novo_agendamento.html', {'form': form})
 
-# --- AGENDA FIXA (GERENCIAMENTO) ---
-
 @login_required
 def lista_agendas_fixas(request):
-    # 1. Bloqueio de Segurança
     if not is_admin(request.user):
         messages.error(request, "Acesso restrito. Apenas a administração gerencia a Agenda Fixa.")
         return redirect('dashboard')
         
     agendas = AgendaFixa.objects.filter(ativo=True).select_related('paciente', 'terapeuta', 'sala')
     
-    # Filtros da UI
     terapeuta_id = request.GET.get('terapeuta')
     if terapeuta_id:
         agendas = agendas.filter(terapeuta_id=terapeuta_id)
     
-    # --- MONTANDO A ESTRUTURA DA GRADE ---
     range_horarios = range(7, 21) 
     range_dias = range(6) 
     
@@ -383,14 +363,11 @@ def excluir_agenda_fixa(request, id):
     
     return render(request, 'confirmar_exclusao_fixa.html', {'agenda': agenda})
 
-# --- AÇÕES E FLUXOS DE AGENDAMENTO ---
-
 @login_required
 def reposicao_agendamento(request, agendamento_id):
     agendamento_antigo = get_object_or_404(Agendamento, id=agendamento_id)
     filtros = request.GET.urlencode()
 
-    # Admin faz tudo. Terapeuta NÃO faz reposição mais.
     if not is_admin(request.user):
          messages.error(request, "Acesso negado. Contate a administração.")
          return redirect('dashboard')
@@ -502,12 +479,10 @@ def excluir_agendamento(request, agendamento_id):
     agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
     filtros = request.GET.urlencode()
 
-    # 1. Permissão de Admin
     if not is_admin(request.user):
         messages.error(request, "Apenas a administração pode excluir agendamentos.")
         return redirect('lista_agendamentos')
 
-    # 2. Bloqueio de Agendamentos Fixos
     if agendamento.agenda_fixa:
         messages.error(request, "Este é um horário de Agenda Fixa. Não é possível excluí-lo individualmente.")
         return redirect('lista_agendamentos')
@@ -706,45 +681,42 @@ def lista_terapeutas(request):
         'especialidades': ESPECIALIDADES_CHOICES, 'busca_atual': busca, 'filtro_esp_selecionado': filtro_esp
     })
 
-# --- VISUALIZAÇÃO DE SALAS (ADICIONADA) ---
 @login_required
 def ocupacao_salas(request):
+    if not is_admin(request.user):
+        messages.error(request, "Acesso restrito à administração.")
+        return redirect('dashboard')
+
     sala_id = request.GET.get('sala')
     data_get = request.GET.get('data_inicio')
     
-    # 1. Definição da Data Base (Semana)
     if data_get:
         data_base = datetime.strptime(data_get, '%Y-%m-%d').date()
     else:
         data_base = timezone.now().date()
     
-    # Ajusta para segunda-feira da semana escolhida
     start_week = data_base - timedelta(days=data_base.weekday())
-    end_week = start_week + timedelta(days=5) # Até Sábado
+    end_week = start_week + timedelta(days=5) 
     
-    # Datas para navegação
     data_anterior = (start_week - timedelta(days=7)).strftime('%Y-%m-%d')
     data_proxima = (start_week + timedelta(days=7)).strftime('%Y-%m-%d')
     
-    # 3. Montagem da Grade (Hora x Dia) - INICIALIZA VAZIO
-    range_horarios = range(7, 21) # 07:00 as 20:00
+    range_horarios = range(7, 21) 
     agenda_map = {h: {d: [] for d in range(6)} for h in range_horarios}
 
-    # SÓ BUSCA NO BANCO SE TIVER UMA SALA SELECIONADA
     if sala_id:
         agendamentos = Agendamento.objects.ativos().filter(
             data__range=[start_week, end_week],
-            sala_id=sala_id  # Filtro obrigatório de sala
+            sala_id=sala_id
         ).select_related('paciente', 'terapeuta', 'sala', 'agenda_fixa')
 
         for item in agendamentos:
             h = item.hora_inicio.hour
-            d = item.data.weekday() # 0=Seg, 5=Sab
+            d = item.data.weekday() 
             
             if h in agenda_map and 0 <= d <= 5:
                 agenda_map[h][d].append(item)
 
-    # 4. Contexto
     salas = Sala.objects.all()
     datas_cabecalho = [start_week + timedelta(days=i) for i in range(6)]
 
@@ -754,14 +726,11 @@ def ocupacao_salas(request):
         'datas_cabecalho': datas_cabecalho,
         'salas': salas,
         'sala_selecionada': int(sala_id) if sala_id else None,
-        
-        # Variáveis de navegação
         'data_atual_input': start_week.strftime('%Y-%m-%d'),
         'start_week': start_week,
         'end_week': end_week,
         'data_anterior': data_anterior,
         'data_proxima': data_proxima,
-        
         'is_admin': is_admin(request.user)
     })
 
@@ -861,4 +830,78 @@ def relatorio_pacientes(request):
 
     return render(request, 'relatorio_pacientes.html', {
         'ranking_pacientes': ranking_pacientes, 'mes_atual': mes_filtro, 'ano_atual': ano_filtro, 'tipo_atual': tipo_filtro, 'ordem_atual': ordem_filtro, 'meses': meses, 'anos_disponiveis': range(hoje.year - 2, hoje.year + 2), 'tipos_atendimento': TIPO_ATENDIMENTO_CHOICES, 'is_admin': is_admin(request.user)
+    })
+
+@login_required
+def relatorio_grade_pacientes(request):
+    # Apenas Admin/Donos podem ver
+    if not is_admin(request.user):
+        messages.error(request, "Acesso restrito.")
+        return redirect('dashboard')
+
+    # 1. Pegar todos os pacientes que têm pelo menos uma agenda fixa ativa
+    pacientes_ids = AgendaFixa.objects.filter(ativo=True).values_list('paciente_id', flat=True).distinct()
+    pacientes = Paciente.objects.filter(id__in=pacientes_ids).order_by('nome')
+    
+    relatorio = []
+
+    for paciente in pacientes:
+        # Pega todas as agendas fixas desse paciente
+        agendas = AgendaFixa.objects.filter(paciente=paciente, ativo=True).select_related('terapeuta')
+        
+        # Dicionário para mapear: Horário -> Dia da Semana -> Lista de Strings (Especialidade + Nome)
+        # Ex: grades[13:30][0 (segunda)] = ["Psico (Ana)", "Fono (Bia)"]
+        grade_map = defaultdict(lambda: defaultdict(list))
+        
+        # Set para guardar todos os horários únicos que esse paciente possui
+        horarios_unicos = set()
+
+        for item in agendas:
+            # Filtra apenas Segunda(0) a Sexta(4) conforme sua imagem, ou (0-6) para todos
+            if 0 <= item.dia_semana <= 4: 
+                dia = item.dia_semana
+                hora = item.hora_inicio
+                horarios_unicos.add(hora)
+                
+                # Formata a string: Especialidade (Primeiro Nome)
+                # Ex: "Psicologia (Thaíse)"
+                especialidade = item.terapeuta.especialidade if item.terapeuta.especialidade else "Terapeuta"
+                # Abrevia especialidades longas se quiser
+                if especialidade == 'Terapeuta Ocupacional': especialidade = 'TO'
+                
+                primeiro_nome = item.terapeuta.nome.split()[0]
+                texto = f"{especialidade} ({primeiro_nome})"
+                
+                grade_map[hora][dia].append(texto)
+
+        # Ordena os horários cronologicamente
+        horarios_ordenados = sorted(list(horarios_unicos))
+        
+        # Monta a estrutura final para o template
+        linhas_tabela = []
+        for hora in horarios_ordenados:
+            colunas = []
+            for dia in range(5): # 0 a 4 (Seg a Sex)
+                lista_atendimentos = grade_map[hora][dia]
+                if lista_atendimentos:
+                    # AQUI A MÁGICA: Se tiver mais de um, junta com " + "
+                    conteudo = " + ".join(lista_atendimentos)
+                else:
+                    conteudo = ""
+                colunas.append(conteudo)
+            
+            linhas_tabela.append({
+                'hora': hora,
+                'colunas': colunas
+            })
+
+        if linhas_tabela:
+            relatorio.append({
+                'paciente': paciente,
+                'linhas': linhas_tabela
+            })
+
+    return render(request, 'relatorio_grade_pacientes.html', {
+        'relatorio': relatorio,
+        'dias_semana': ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira']
     })

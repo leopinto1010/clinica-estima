@@ -22,7 +22,6 @@
             color: #344767;
         }
 
-        /* --- NAVBAR --- */
         .navbar-estima {
             background: linear-gradient(135deg, #8e74a5 0%, #765d8d 100%);
             box-shadow: 0 4px 12px rgba(0,0,0,0.05);
@@ -46,7 +45,6 @@
             font-weight: 600;
         }
 
-        /* --- CARDS --- */
         .card { 
             border: none; 
             border-radius: 12px; 
@@ -73,7 +71,6 @@
         .badge-falta { background-color: #ffebee; color: #b71c1c; } 
         .badge-padrao { background-color: #f3e5f5; color: #7b1fa2; }
 
-        /* --- TOASTS --- */
         #toast-container { position: fixed; top: 90px; right: 20px; z-index: 9999; width: 320px; display: flex; flex-direction: column; gap: 10px; }
         .custom-toast { background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 8px 16px rgba(0,0,0,0.08); border-left: 4px solid #ccc; display: flex; align-items: center; justify-content: space-between; font-size: 0.9rem; animation: slideInRight 0.4s forwards; }
         .custom-toast.error { border-left-color: #dc3545; }
@@ -92,17 +89,39 @@
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
           <span class="navbar-toggler-icon"></span>
         </button>
+        
         <div class="collapse navbar-collapse" id="navbarContent">
           <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-3">
+            
             <li class="nav-item"><a class="nav-link" href="{% url 'lista_agendamentos' %}">Agenda</a></li>
-            
-            {# Apenas Admin vê Agenda Fixa #}
-            {% if is_admin %}
-            <li class="nav-item"><a class="nav-link" href="{% url 'lista_agendas_fixas' %}">Agenda Fixa</a></li>
-            {% endif %}
-            
             <li class="nav-item"><a class="nav-link" href="{% url 'lista_pacientes' %}">Pacientes</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'lista_consultas_geral' %}">Histórico</a></li>
+            
+            {% if is_admin %}
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle" href="#" id="menuPlanilhas" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-table me-1"></i> Planilhas
+                </a>
+                <ul class="dropdown-menu dropdown-menu-start shadow border-0" aria-labelledby="menuPlanilhas">
+                    <li>
+                        <a class="dropdown-item" href="{% url 'lista_agendas_fixas' %}">
+                            <i class="bi bi-calendar-week me-2 text-primary"></i>Agenda Fixa
+                        </a>
+                    </li>
+                    <li>
+                        <a class="dropdown-item" href="{% url 'ocupacao_salas' %}">
+                            <i class="bi bi-building me-2 text-primary"></i>Ocupação de Salas
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <a class="dropdown-item" href="{% url 'relatorio_grade_pacientes' %}">
+                            <i class="bi bi-grid-1x2 me-2 text-primary"></i>Grade Pacientes
+                        </a>
+                    </li>
+                </ul>
+            </li>
+            {% endif %}
             
             {% if is_admin or user.terapeuta %}
             <li class="nav-item dropdown">
@@ -112,22 +131,13 @@
                 <ul class="dropdown-menu dropdown-menu-start shadow border-0" aria-labelledby="menuRelatorios">
                     <li>
                         <a class="dropdown-item" href="{% url 'relatorio_mensal' %}">
-                            {% if is_admin %}
-                                Relatório de Terapeutas
-                            {% else %}
-                                Relatório de Terapeuta
-                            {% endif %}
+                            <i class="bi bi-graph-up-arrow me-2 text-muted"></i>
+                            {% if is_admin %}Financeiro & Equipe{% else %}Meu Desempenho{% endif %}
                         </a>
                     </li>
                     <li>
                         <a class="dropdown-item" href="{% url 'relatorio_pacientes' %}">
-                            Relatório de Pacientes
-                        </a>
-                    </li>
-                    <li><hr class="dropdown-divider"></li>
-                    <li>
-                        <a class="dropdown-item" href="{% url 'ocupacao_salas' %}">
-                            <i class="bi bi-building-fill me-2"></i>Ocupação de Salas
+                            <i class="bi bi-people me-2 text-muted"></i>Frequência de Pacientes
                         </a>
                     </li>
                 </ul>
@@ -135,13 +145,30 @@
             {% endif %}
 
             {% if is_admin %}
-                <li class="nav-item"><a class="nav-link" href="{% url 'lista_terapeutas' %}">Terapeutas</a></li>
+            <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle text-warning" href="#" id="menuGestao" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="bi bi-gear-fill me-1"></i> Gestão
+                </a>
+                <ul class="dropdown-menu dropdown-menu-start shadow border-0" aria-labelledby="menuGestao">
+                    <li><h6 class="dropdown-header text-uppercase small fw-bold">Pessoas</h6></li>
+                    <li>
+                        <a class="dropdown-item" href="{% url 'lista_terapeutas' %}">
+                            <i class="bi bi-person-badge me-2 text-success"></i>Lista de Terapeutas
+                        </a>
+                    </li>
+                    {% if is_dono %}
+                    <li>
+                        <a class="dropdown-item" href="{% url 'cadastrar_equipe' %}">
+                            <i class="bi bi-person-plus me-2 text-success"></i>Cadastrar Membro
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </li>
             {% endif %}
 
-            {% if is_dono %}
-                <li class="nav-item ms-3 ps-3 border-start border-white-50"><a class="nav-link" href="{% url 'cadastrar_equipe' %}">Equipe</a></li>
-            {% endif %}
           </ul>
+          
           <ul class="navbar-nav ms-auto">
             <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
@@ -150,7 +177,9 @@
                 <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0">
                     <li>
                         <form id="logout-form" action="{% url 'logout' %}" method="POST" style="display: none;">{% csrf_token %}</form>
-                        <a class="dropdown-item text-danger" href="#" onclick="document.getElementById('logout-form').submit();">Sair</a>
+                        <a class="dropdown-item text-danger" href="#" onclick="document.getElementById('logout-form').submit();">
+                            <i class="bi bi-box-arrow-right me-2"></i>Sair
+                        </a>
                     </li>
                 </ul>
             </li>
@@ -186,7 +215,6 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
         $(document).ready(function() {
-            // Configuração para campos de Data e Hora conjugados
             flatpickr(".seletor-data", { 
                 enableTime: true, 
                 dateFormat: "Y-m-d H:i", 
@@ -196,20 +224,17 @@
                 altFormat: "d/m/Y H:i"
             });
 
-            // Configuração APRIMORADA para campos apenas de Data (Agendamento Avulso, etc)
             flatpickr(".seletor-apenas-data", { 
                 enableTime: false, 
-                dateFormat: "Y-m-d", // Formato que o Django espera (ISO)
+                dateFormat: "Y-m-d", 
                 locale: "pt",
-                altInput: true,      // Cria um campo visual extra
-                altFormat: "d/m/Y",  // Formato que o usuário vê (Brasileiro)
-                allowInput: true     // Permite digitar a data manualmente se preferir
+                altInput: true,      
+                altFormat: "d/m/Y",  
+                allowInput: true     
             });
 
-            // Inicialização do Select2 (Busca nos selects)
             $('.campo-busca').select2({ theme: 'bootstrap-5', placeholder: "Buscar...", width: '100%' });
             
-            // Auto-hide dos Toasts (Mensagens de sucesso/erro)
             setTimeout(() => { $('.custom-toast').css('animation', 'fadeOut 0.5s forwards'); setTimeout(() => $('.custom-toast').remove(), 500); }, 5000);
         });
     </script>

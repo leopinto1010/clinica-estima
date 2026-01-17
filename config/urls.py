@@ -28,6 +28,7 @@ from core.views import (
     editar_agenda_fixa, 
     excluir_agenda_fixa,
     ocupacao_salas,
+    relatorio_grade_pacientes, 
 )
 
 urlpatterns = [
@@ -68,6 +69,7 @@ urlpatterns = [
     path('relatorios/pacientes/', relatorio_pacientes, name='relatorio_pacientes'),
 
     path('relatorios/salas/', ocupacao_salas, name='ocupacao_salas'),
+    path('relatorios/grade-pacientes/', relatorio_grade_pacientes, name='relatorio_grade_pacientes'),
 ]
 
 # --- ROTA PARA ARQUIVOS DE MÍDIA (DEBUG) ---
