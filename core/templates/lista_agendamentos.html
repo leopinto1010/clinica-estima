@@ -150,7 +150,10 @@
             <div class="col-6"><label class="small text-muted fw-bold text-uppercase d-block mb-1">Data/Hora</label><div id="detalheData" class="fw-medium text-dark bg-white border rounded p-2 text-center small"></div></div>
             <div class="col-6"><label class="small text-muted fw-bold text-uppercase d-block mb-1">Status</label><div id="detalheStatus" class="fw-medium text-dark bg-white border rounded p-2 text-center small"></div></div>
             <div class="col-12"><label class="small text-muted fw-bold text-uppercase d-block mb-1">Terapeuta</label><div id="detalheTerapeuta" class="fw-medium text-dark bg-white border rounded p-2"></div></div>
+            
+            {% if is_admin %}
             <div class="col-12"><label class="small text-muted fw-bold text-uppercase d-block mb-1">Tipo de Atendimento</label><div id="detalheTipo" class="fw-medium text-secondary"></div></div>
+            {% endif %}
         </div>
       </div>
       <div class="modal-footer border-top-0 bg-light rounded-bottom justify-content-between px-4 pb-4">
@@ -329,7 +332,7 @@
                 sala_nome: "{{ agendamento.sala.nome|default:''|escapejs }}",
                 sala: "{{ agendamento.sala.nome|default:'Sem Sala Definida'|escapejs }}",
                 terapeuta: "{{ agendamento.terapeuta.nome|escapejs }}",
-                tipo_atendimento: "{{ agendamento.get_tipo_atendimento_display|escapejs }}",
+                tipo_atendimento: "{% if is_admin %}{{ agendamento.get_tipo_atendimento_display|escapejs }}{% endif %}",
                 status: "{{ agendamento.get_status_display }}",
                 status_cod: "{{ agendamento.status }}",
                 

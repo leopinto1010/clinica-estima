@@ -96,7 +96,7 @@
           <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-3">
             <li class="nav-item"><a class="nav-link" href="{% url 'lista_agendamentos' %}">Agenda</a></li>
             
-            {# [CORREÇÃO] Apenas Admin vê Agenda Fixa #}
+            {# Apenas Admin vê Agenda Fixa #}
             {% if is_admin %}
             <li class="nav-item"><a class="nav-link" href="{% url 'lista_agendas_fixas' %}">Agenda Fixa</a></li>
             {% endif %}
@@ -122,6 +122,12 @@
                     <li>
                         <a class="dropdown-item" href="{% url 'relatorio_pacientes' %}">
                             Relatório de Pacientes
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li>
+                        <a class="dropdown-item" href="{% url 'ocupacao_salas' %}">
+                            <i class="bi bi-building-fill me-2"></i>Ocupação de Salas
                         </a>
                     </li>
                 </ul>
@@ -180,9 +186,30 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
         $(document).ready(function() {
-            flatpickr(".seletor-data", { enableTime: true, dateFormat: "Y-m-d H:i", time_24hr: true, locale: "pt" });
-            flatpickr(".seletor-apenas-data", { enableTime: false, dateFormat: "Y-m-d", locale: "pt" });
+            // Configuração para campos de Data e Hora conjugados
+            flatpickr(".seletor-data", { 
+                enableTime: true, 
+                dateFormat: "Y-m-d H:i", 
+                time_24hr: true, 
+                locale: "pt",
+                altInput: true,
+                altFormat: "d/m/Y H:i"
+            });
+
+            // Configuração APRIMORADA para campos apenas de Data (Agendamento Avulso, etc)
+            flatpickr(".seletor-apenas-data", { 
+                enableTime: false, 
+                dateFormat: "Y-m-d", // Formato que o Django espera (ISO)
+                locale: "pt",
+                altInput: true,      // Cria um campo visual extra
+                altFormat: "d/m/Y",  // Formato que o usuário vê (Brasileiro)
+                allowInput: true     // Permite digitar a data manualmente se preferir
+            });
+
+            // Inicialização do Select2 (Busca nos selects)
             $('.campo-busca').select2({ theme: 'bootstrap-5', placeholder: "Buscar...", width: '100%' });
+            
+            // Auto-hide dos Toasts (Mensagens de sucesso/erro)
             setTimeout(() => { $('.custom-toast').css('animation', 'fadeOut 0.5s forwards'); setTimeout(() => $('.custom-toast').remove(), 500); }, 5000);
         });
     </script>

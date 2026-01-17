@@ -722,28 +722,30 @@ def ocupacao_salas(request):
     start_week = data_base - timedelta(days=data_base.weekday())
     end_week = start_week + timedelta(days=5) # Até Sábado
     
-    # 2. Busca Agendamentos (Apenas ATIVOS)
-    agendamentos = Agendamento.objects.ativos().filter(
-        data__range=[start_week, end_week]
-    ).select_related('paciente', 'terapeuta', 'sala', 'agenda_fixa')
-
-    if sala_id:
-        agendamentos = agendamentos.filter(sala_id=sala_id)
-
-    # 3. Montagem da Grade (Hora x Dia)
+    # Datas para navegação
+    data_anterior = (start_week - timedelta(days=7)).strftime('%Y-%m-%d')
+    data_proxima = (start_week + timedelta(days=7)).strftime('%Y-%m-%d')
+    
+    # 3. Montagem da Grade (Hora x Dia) - INICIALIZA VAZIO
     range_horarios = range(7, 21) # 07:00 as 20:00
     agenda_map = {h: {d: [] for d in range(6)} for h in range_horarios}
 
-    for item in agendamentos:
-        h = item.hora_inicio.hour
-        d = item.data.weekday() # 0=Seg, 5=Sab
-        
-        if h in agenda_map and 0 <= d <= 5:
-            agenda_map[h][d].append(item)
+    # SÓ BUSCA NO BANCO SE TIVER UMA SALA SELECIONADA
+    if sala_id:
+        agendamentos = Agendamento.objects.ativos().filter(
+            data__range=[start_week, end_week],
+            sala_id=sala_id  # Filtro obrigatório de sala
+        ).select_related('paciente', 'terapeuta', 'sala', 'agenda_fixa')
+
+        for item in agendamentos:
+            h = item.hora_inicio.hour
+            d = item.data.weekday() # 0=Seg, 5=Sab
+            
+            if h in agenda_map and 0 <= d <= 5:
+                agenda_map[h][d].append(item)
 
     # 4. Contexto
     salas = Sala.objects.all()
-    # Datas para o cabeçalho
     datas_cabecalho = [start_week + timedelta(days=i) for i in range(6)]
 
     return render(request, 'ocupacao_salas.html', {
@@ -752,7 +754,14 @@ def ocupacao_salas(request):
         'datas_cabecalho': datas_cabecalho,
         'salas': salas,
         'sala_selecionada': int(sala_id) if sala_id else None,
-        'data_atual': start_week.strftime('%Y-%m-%d'),
+        
+        # Variáveis de navegação
+        'data_atual_input': start_week.strftime('%Y-%m-%d'),
+        'start_week': start_week,
+        'end_week': end_week,
+        'data_anterior': data_anterior,
+        'data_proxima': data_proxima,
+        
         'is_admin': is_admin(request.user)
     })
 

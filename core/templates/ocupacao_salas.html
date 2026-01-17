@@ -6,34 +6,54 @@
     /* Estilo base do card do agendamento na grade */
     .evento-sala {
         font-size: 0.75rem;
-        padding: 5px;
+        padding: 6px;
         margin-bottom: 3px;
-        border-radius: 4px;
+        border-radius: 6px;
         border-left: 4px solid;
         box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        background: white;
+        transition: transform 0.1s;
+    }
+    .evento-sala:hover {
+        transform: scale(1.02);
+        z-index: 10;
+        position: relative;
     }
 
-    /* FIXO: Azul (Padrão) */
+    /* FIXO: Azul (Atualizado) */
     .tipo-fixo {
-        border-left-color: #0d6efd; /* Azul Bootstrap */
-        background-color: #f8f9fa;
+        border-left-color: #0d6efd; 
+        background-color: #e7f1ff;  
+        color: #004085;             
+    }
+    .tipo-fixo .text-muted {
+        color: #6c8dbb !important;
     }
     
-    /* AVULSO: Laranja (Destaque solicitado) */
+    /* AVULSO: Laranja */
     .tipo-avulso {
-        border-left-color: #fd7e14; /* Laranja Bootstrap */
-        background-color: #fff3cd; /* Amarelo claro */
+        border-left-color: #fd7e14;
+        background-color: #fff3cd;
+        color: #664d03;
     }
 
-    .badge-sala {
-        font-size: 0.65rem;
-        float: right;
-        background: #e9ecef;
-        padding: 1px 4px;
-        border-radius: 3px;
-        color: #495057;
+    /* Estilo para a navegação de datas */
+    .nav-date-container {
+        background: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        padding: 4px;
     }
+    .btn-nav-date {
+        border: none;
+        background: transparent;
+        color: #6c757d;
+        padding: 5px 10px;
+        border-radius: 4px;
+        transition: all 0.2s;
+    }
+    .btn-nav-date:hover { background: #f8f9fa; color: #0d6efd; }
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -45,34 +65,63 @@
 
 <div class="card mb-4 border-0 shadow-sm">
     <div class="card-body bg-light py-3">
-        <form method="GET" class="row align-items-end g-2">
+        <form method="GET" id="formFiltroSalas" class="row align-items-center justify-content-between">
             
-            <div class="col-md-3">
-                <label class="small fw-bold text-muted">Filtrar Sala</label>
-                <select name="sala" class="form-select" onchange="this.form.submit()">
-                    <option value="">Todas as Salas</option>
-                    {% for s in salas %}
-                        <option value="{{ s.id }}" {% if s.id == sala_selecionada %}selected{% endif %}>
-                            {{ s.nome }}
-                        </option>
-                    {% endfor %}
-                </select>
+            <input type="hidden" name="data_inicio" id="inputDataInicio" value="{{ data_atual_input }}">
+
+            <div class="col-md-4">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-door-open-fill"></i></span>
+                    <select name="sala" class="form-select border-start-0" onchange="this.form.submit()">
+                        <option value="" disabled {% if not sala_selecionada %}selected{% endif %}>Selecione uma Sala...</option>
+                        {% for s in salas %}
+                            <option value="{{ s.id }}" {% if s.id == sala_selecionada %}selected{% endif %}>
+                                {{ s.nome }}
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
             </div>
 
-            <div class="col-md-3">
-                <label class="small fw-bold text-muted">Semana de:</label>
-                <input type="date" name="data_inicio" class="form-control" value="{{ data_atual }}" onchange="this.form.submit()">
+            <div class="col-md-5 d-flex justify-content-center">
+                <div class="nav-date-container shadow-sm">
+                    <button type="button" class="btn-nav-date" onclick="navegarSemana('{{ data_anterior }}')" title="Semana Anterior">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                    
+                    <div class="px-3 text-center" style="cursor: pointer;" onclick="document.getElementById('pickerData').showPicker()">
+                        <small class="d-block text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px;">Intervalo</small>
+                        <span class="fw-bold text-dark">
+                            {{ start_week|date:"d/m" }} <span class="text-muted mx-1">até</span> {{ end_week|date:"d/m" }}
+                        </span>
+                        <input type="date" id="pickerData" 
+                               style="position: absolute; opacity: 0; width: 1px; height: 1px;" 
+                               onchange="navegarSemana(this.value)">
+                    </div>
+
+                    <button type="button" class="btn-nav-date" onclick="navegarSemana('{{ data_proxima }}')" title="Próxima Semana">
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
             </div>
             
-            <div class="col-md-6 text-end pb-1">
-                <small class="text-muted fw-bold me-2">Legenda:</small>
-                <span class="badge bg-light text-dark border border-start-0 border-top-0 border-bottom-0 border-primary border-4 rounded-0">Paciente Fixo</span>
-                <span class="badge bg-warning text-dark bg-opacity-25 border border-start-0 border-top-0 border-bottom-0 border-warning border-4 rounded-0">Avulso / Reposição</span>
+            <div class="col-md-3 text-end">
+                <div class="d-inline-flex align-items-center bg-white px-3 py-2 rounded border shadow-sm">
+                    <div class="d-flex align-items-center me-3">
+                        <div style="width: 12px; height: 12px; background: #e7f1ff; border-left: 3px solid #0d6efd; margin-right: 5px;"></div>
+                        <span class="small fw-bold text-muted">Fixo</span>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <div style="width: 12px; height: 12px; background: #fff3cd; border-left: 3px solid #fd7e14; margin-right: 5px;"></div>
+                        <span class="small fw-bold text-muted">Avulso</span>
+                    </div>
+                </div>
             </div>
         </form>
     </div>
 </div>
 
+{% if sala_selecionada %}
 <div class="card border-0 shadow-sm">
     <div class="table-responsive">
         <table class="table table-bordered text-center mb-0 align-middle" style="table-layout: fixed; min-width: 1000px;">
@@ -80,7 +129,7 @@
                 <tr>
                     <th style="width: 70px;" class="text-secondary small text-uppercase">Horário</th>
                     {% for dia in datas_cabecalho %}
-                        <th class="text-secondary small text-uppercase">
+                        <th class="text-secondary small text-uppercase {% if dia == hoje_date %}bg-primary bg-opacity-10{% endif %}">
                             {{ dia|date:"l" }} <br>
                             <span class="text-dark fw-bold">{{ dia|date:"d/m" }}</span>
                         </th>
@@ -93,27 +142,28 @@
                     <td class="fw-bold text-muted small bg-light">{{ hora }}:00</td>
                     
                     {% for dia_idx in "012345"|make_list %}
-                        <td class="p-1 align-top text-start" style="height: 60px; background-color: #fff;">
+                        <td class="p-1 align-top text-start position-relative" style="height: 60px; background-color: #fff;">
                             
                             {% with lista=agenda_map|dict_get:hora|dict_get:dia_idx %}
                                 {% for item in lista %}
                                     <div class="evento-sala {% if item.agenda_fixa %}tipo-fixo{% else %}tipo-avulso{% endif %}" 
                                          title="Terapeuta: {{ item.terapeuta.nome }}">
                                         
-                                        <div class="fw-bold text-dark text-truncate">
+                                        <div class="fw-bold text-truncate" style="font-size: 0.8rem;">
                                             {{ item.paciente.nome }}
-                                            {% if not sala_selecionada and item.sala %}
-                                                <span class="badge-sala" title="Sala">{{ item.sala.nome }}</span>
-                                            {% endif %}
+                                        </div>
+
+                                        <div class="d-block small fw-bold opacity-75 my-1" style="font-size: 0.7rem;">
+                                            {{ item.hora_inicio|date:"H:i" }} - {{ item.hora_fim|date:"H:i" }}
                                         </div>
                                         
-                                        <div class="d-flex justify-content-between mt-1 text-secondary">
-                                            <span style="font-size: 0.7rem;">{{ item.terapeuta.nome|slice:":12" }}...</span>
+                                        <div class="d-flex justify-content-between text-muted border-top border-secondary border-opacity-10 pt-1 mt-1">
+                                            <span style="font-size: 0.65rem;">{{ item.terapeuta.nome|slice:":12" }}...</span>
                                             
                                             {% if item.agenda_fixa %}
-                                                <i class="bi bi-arrow-repeat" title="Horário Fixo"></i>
+                                                <i class="bi bi-arrow-repeat opacity-50" style="font-size: 0.7rem;" title="Horário Fixo"></i>
                                             {% else %}
-                                                <i class="bi bi-star-fill text-warning" title="Avulso"></i>
+                                                <i class="bi bi-star-fill text-warning opacity-50" style="font-size: 0.7rem;" title="Avulso"></i>
                                             {% endif %}
                                         </div>
                                     </div>
@@ -128,4 +178,20 @@
         </table>
     </div>
 </div>
+{% else %}
+<div class="text-center py-5">
+    <div class="mb-3 text-muted opacity-50">
+        <i class="bi bi-door-open" style="font-size: 4rem;"></i>
+    </div>
+    <h5 class="fw-bold text-muted">Selecione uma sala acima</h5>
+    <p class="text-muted small">Escolha uma sala para visualizar a grade de ocupação e horários.</p>
+</div>
+{% endif %}
+
+<script>
+    function navegarSemana(dataDestino) {
+        document.getElementById('inputDataInicio').value = dataDestino;
+        document.getElementById('formFiltroSalas').submit();
+    }
+</script>
 {% endblock %}
