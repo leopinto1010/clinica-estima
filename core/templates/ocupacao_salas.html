@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% load custom_tags %}
+
+{% block content %}
+<style>
+    /* Estilo base do card do agendamento na grade */
+    .evento-sala {
+        font-size: 0.75rem;
+        padding: 5px;
+        margin-bottom: 3px;
+        border-radius: 4px;
+        border-left: 4px solid;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        background: white;
+    }
+
+    /* FIXO: Azul (Padrão) */
+    .tipo-fixo {
+        border-left-color: #0d6efd; /* Azul Bootstrap */
+        background-color: #f8f9fa;
+    }
+    
+    /* AVULSO: Laranja (Destaque solicitado) */
+    .tipo-avulso {
+        border-left-color: #fd7e14; /* Laranja Bootstrap */
+        background-color: #fff3cd; /* Amarelo claro */
+    }
+
+    .badge-sala {
+        font-size: 0.65rem;
+        float: right;
+        background: #e9ecef;
+        padding: 1px 4px;
+        border-radius: 3px;
+        color: #495057;
+    }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold text-dark mb-1"><i class="bi bi-building-fill me-2 text-primary"></i>Gestão de Salas</h4>
+        <p class="text-muted small mb-0">Visualização dinâmica de ocupação semanal.</p>
+    </div>
+</div>
+
+<div class="card mb-4 border-0 shadow-sm">
+    <div class="card-body bg-light py-3">
+        <form method="GET" class="row align-items-end g-2">
+            
+            <div class="col-md-3">
+                <label class="small fw-bold text-muted">Filtrar Sala</label>
+                <select name="sala" class="form-select" onchange="this.form.submit()">
+                    <option value="">Todas as Salas</option>
+                    {% for s in salas %}
+                        <option value="{{ s.id }}" {% if s.id == sala_selecionada %}selected{% endif %}>
+                            {{ s.nome }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label class="small fw-bold text-muted">Semana de:</label>
+                <input type="date" name="data_inicio" class="form-control" value="{{ data_atual }}" onchange="this.form.submit()">
+            </div>
+            
+            <div class="col-md-6 text-end pb-1">
+                <small class="text-muted fw-bold me-2">Legenda:</small>
+                <span class="badge bg-light text-dark border border-start-0 border-top-0 border-bottom-0 border-primary border-4 rounded-0">Paciente Fixo</span>
+                <span class="badge bg-warning text-dark bg-opacity-25 border border-start-0 border-top-0 border-bottom-0 border-warning border-4 rounded-0">Avulso / Reposição</span>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-bordered text-center mb-0 align-middle" style="table-layout: fixed; min-width: 1000px;">
+            <thead class="bg-light">
+                <tr>
+                    <th style="width: 70px;" class="text-secondary small text-uppercase">Horário</th>
+                    {% for dia in datas_cabecalho %}
+                        <th class="text-secondary small text-uppercase">
+                            {{ dia|date:"l" }} <br>
+                            <span class="text-dark fw-bold">{{ dia|date:"d/m" }}</span>
+                        </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for hora in range_horarios %}
+                <tr>
+                    <td class="fw-bold text-muted small bg-light">{{ hora }}:00</td>
+                    
+                    {% for dia_idx in "012345"|make_list %}
+                        <td class="p-1 align-top text-start" style="height: 60px; background-color: #fff;">
+                            
+                            {% with lista=agenda_map|dict_get:hora|dict_get:dia_idx %}
+                                {% for item in lista %}
+                                    <div class="evento-sala {% if item.agenda_fixa %}tipo-fixo{% else %}tipo-avulso{% endif %}" 
+                                         title="Terapeuta: {{ item.terapeuta.nome }}">
+                                        
+                                        <div class="fw-bold text-dark text-truncate">
+                                            {{ item.paciente.nome }}
+                                            {% if not sala_selecionada and item.sala %}
+                                                <span class="badge-sala" title="Sala">{{ item.sala.nome }}</span>
+                                            {% endif %}
+                                        </div>
+                                        
+                                        <div class="d-flex justify-content-between mt-1 text-secondary">
+                                            <span style="font-size: 0.7rem;">{{ item.terapeuta.nome|slice:":12" }}...</span>
+                                            
+                                            {% if item.agenda_fixa %}
+                                                <i class="bi bi-arrow-repeat" title="Horário Fixo"></i>
+                                            {% else %}
+                                                <i class="bi bi-star-fill text-warning" title="Avulso"></i>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            {% endwith %}
+
+                        </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

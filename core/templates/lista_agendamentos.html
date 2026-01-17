@@ -4,19 +4,92 @@
 <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
 
 <style>
+    /* --- CONFIGURAÇÃO GERAL DO CALENDÁRIO --- */
     #calendar-container { 
-        background: white; padding: 20px; border-radius: 12px; 
-        box-shadow: 0 4px 6px rgba(0,0,0,0.02); margin-bottom: 30px; min-height: 600px; 
+        background: #ffffff; 
+        padding: 20px; 
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        margin-bottom: 30px; 
+        min-height: 650px;
+        border: 1px solid #dee2e6;
     }
-    .fc-event { cursor: pointer; border: none; }
-    .fc-toolbar-title { font-size: 1.25rem !important; font-weight: 600; color: #344767; }
-    .fc-button { text-transform: capitalize; }
+
+    .fc-toolbar-title { font-size: 1.3rem !important; font-weight: 700; color: #212529; letter-spacing: -0.5px; }
+    .fc-button-primary {
+        background-color: #fff !important; border: 1px solid #ced4da !important; color: #495057 !important;
+        font-weight: 600 !important; box-shadow: none !important; border-radius: 4px !important;
+        text-transform: capitalize; padding: 6px 14px !important;
+    }
+    .fc-button-primary:hover, .fc-button-primary.fc-button-active { 
+        background-color: #f8f9fa !important; border-color: #adb5bd !important; color: #212529 !important; 
+    }
     
-    .btn-trash-icon { color: #adb5bd; border: none; background: transparent; padding: 6px 10px; transition: all 0.2s; }
+    .fc-theme-standard td, .fc-theme-standard th { border-color: #e9ecef; }
+    .fc-col-header-cell-cushion { color: #495057; font-weight: 700; text-transform: uppercase; font-size: 0.75rem; padding: 10px 0 !important; }
+    .fc-timegrid-slot-label-cushion { font-size: 0.8rem; color: #6c757d; }
+
+    /* --- ESTILO PROFISSIONAL DOS EVENTOS --- */
+    .fc-v-event { 
+        border: none !important;
+        border-radius: 3px !important;
+        box-shadow: none !important;
+        margin: 1px !important;
+        transition: opacity 0.2s ease;
+    }
+    .fc-v-event:hover { opacity: 0.9; z-index: 50 !important; }
+
+    /* CONTEÚDO INTERNO */
+    .fc-event-main {
+        width: 100%; height: 100%;
+        color: #fff;
+        padding: 2px 4px !important;
+        display: flex;
+        flex-direction: column; /* Padrão (Vertical) */
+        justify-content: center; 
+        line-height: 1.1; 
+    }
+
+    /* --- MODO VERTICAL (NORMAL > 45min) --- */
+    .layout-col .event-time-room {
+        font-size: 0.68rem; opacity: 0.9; margin-bottom: 2px;
+        display: flex; align-items: center; white-space: nowrap; font-weight: 500;
+    }
+    .layout-col .fc-event-title {
+        font-weight: 600; font-size: 0.8rem; white-space: nowrap;
+        overflow: hidden; text-overflow: ellipsis;
+    }
+
+    /* --- MODO HORIZONTAL (COMPACTO <= 45min) --- */
+    .layout-row {
+        flex-direction: row !important; /* Força linha */
+        align-items: center !important;
+        justify-content: flex-start !important;
+        gap: 6px; /* Espaço entre Hora e Nome */
+    }
+    .layout-row .event-time-compact {
+        font-size: 0.7rem; font-weight: 400; opacity: 0.95; white-space: nowrap;
+    }
+    .layout-row .fc-event-title {
+        font-weight: 700; font-size: 0.75rem; white-space: nowrap; 
+        overflow: hidden; text-overflow: ellipsis;
+    }
+
+    /* Badge da Sala */
+    .badge-sala-event {
+        background-color: rgba(0, 0, 0, 0.2);
+        color: #fff; padding: 1px 4px; border-radius: 2px;
+        font-size: 0.65rem; margin-left: 5px; font-weight: 700;
+    }
+
+    /* CORES CORPORATIVAS */
+    .bg-aguardando { background-color: #0288d1 !important; border-left: 4px solid #01579b !important; }
+    .bg-realizado { background-color: #2e7d32 !important; border-left: 4px solid #1b5e20 !important; }
+    .bg-falta { background-color: #c62828 !important; border-left: 4px solid #b71c1c !important; }
+
     .btn-trash-icon:hover { color: #dc3545; background-color: #fff5f5; border-radius: 4px; }
-    
-    .btn-repor { background-color: #0d8a9e; border-color: #0d8a9e; color: white; transition: all 0.2s; }
-    .btn-repor:hover { background-color: #0a6c7c; border-color: #0a6c7c; color: white; }
+    .btn-repor { background-color: #546e7a; border-color: #546e7a; color: white; }
+    .btn-repor:hover { background-color: #455a64; border-color: #455a64; color: white; }
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -24,16 +97,19 @@
         <h4 class="fw-bold text-dark mb-1">Agenda Operacional</h4>
         <p class="text-muted small mb-0">Gerencie presenças, faltas e evoluções.</p>
     </div>
+    
+    {% if is_admin %}
     <div>
-        <button type="button" class="btn btn-outline-danger shadow-sm" data-bs-toggle="modal" data-bs-target="#modalLimparDia">
+        <button type="button" class="btn btn-outline-danger shadow-sm border-0 bg-white" data-bs-toggle="modal" data-bs-target="#modalLimparDia">
             <i class="bi bi-trash me-1"></i> Limpar Dia
         </button>
     </div>
+    {% endif %}
 </div>
 
 <div id="modalLimparDia" class="modal fade" tabindex="-1">
   <div class="modal-dialog modal-sm modal-dialog-centered">
-    <div class="modal-content">
+    <div class="modal-content border-0 shadow-lg">
       <div class="modal-header bg-danger text-white border-0">
         <h5 class="modal-title fs-6"><i class="bi bi-exclamation-triangle-fill me-2"></i>Limpar Agenda</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
@@ -46,7 +122,7 @@
                 <label class="form-label small fw-bold">Selecione o dia:</label>
                 <input type="date" name="data_para_limpar" class="form-control" required min="{{ agora|date:'Y-m-d' }}">
             </div>
-            <button type="submit" class="btn btn-danger w-100" onclick="return confirm('Confirmar exclusão em massa?')">Apagar Tudo</button>
+            <button type="submit" class="btn btn-danger w-100 rounded-pill" onclick="return confirm('Confirmar exclusão em massa?')">Apagar Tudo</button>
         </form>
       </div>
     </div>
@@ -55,30 +131,31 @@
 
 <div id="modalDetalhes" class="modal fade" tabindex="-1">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content border-0 shadow">
+    <div class="modal-content border-0 shadow-lg rounded-3">
       <div class="modal-header border-bottom-0 pb-0">
-        <h5 class="modal-title fw-bold text-primary">Detalhes do Agendamento</h5>
+        <h5 class="modal-title fw-bold text-dark">Detalhes do Agendamento</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
-      <div class="modal-body pt-2">
-        <div class="d-flex align-items-center mb-4 mt-2">
-            <div class="bg-light rounded-circle p-3 me-3 text-primary">
+      <div class="modal-body pt-2 px-4">
+        <div class="d-flex align-items-center mb-4 mt-2 p-3 bg-light rounded-3">
+            <div class="bg-white rounded-circle p-3 me-3 text-secondary shadow-sm">
                 <i class="bi bi-person-fill fs-3"></i>
             </div>
             <div>
-                <h5 class="mb-0 fw-bold" id="detalhePaciente">Nome do Paciente</h5>
-                <small class="text-muted" id="detalheTipo">Tipo</small>
+                <h5 class="mb-0 fw-bold text-dark" id="detalhePaciente">Nome do Paciente</h5>
+                <span class="badge bg-secondary-subtle text-secondary mt-1 border" id="detalheSalaBadge">Sem Sala</span>
             </div>
         </div>
         <div class="row g-3 mb-3">
-            <div class="col-6"><label class="small text-muted fw-bold text-uppercase">Data</label><div id="detalheData" class="fw-medium text-dark"></div></div>
-            <div class="col-6"><label class="small text-muted fw-bold text-uppercase">Status</label><div id="detalheStatus" class="fw-medium"></div></div>
-            <div class="col-12"><label class="small text-muted fw-bold text-uppercase">Terapeuta</label><div id="detalheTerapeuta" class="fw-medium text-dark"></div></div>
+            <div class="col-6"><label class="small text-muted fw-bold text-uppercase d-block mb-1">Data/Hora</label><div id="detalheData" class="fw-medium text-dark bg-white border rounded p-2 text-center small"></div></div>
+            <div class="col-6"><label class="small text-muted fw-bold text-uppercase d-block mb-1">Status</label><div id="detalheStatus" class="fw-medium text-dark bg-white border rounded p-2 text-center small"></div></div>
+            <div class="col-12"><label class="small text-muted fw-bold text-uppercase d-block mb-1">Terapeuta</label><div id="detalheTerapeuta" class="fw-medium text-dark bg-white border rounded p-2"></div></div>
+            <div class="col-12"><label class="small text-muted fw-bold text-uppercase d-block mb-1">Tipo de Atendimento</label><div id="detalheTipo" class="fw-medium text-secondary"></div></div>
         </div>
       </div>
-      <div class="modal-footer border-top-0 bg-light rounded-bottom justify-content-between">
+      <div class="modal-footer border-top-0 bg-light rounded-bottom justify-content-between px-4 pb-4">
           <div id="detalheAcoesPrincipais" class="d-flex gap-2 w-100"></div>
-          <div id="detalheAcaoExcluir" class="border-start ps-3 ms-2"></div>
+          <div id="detalheAcaoExcluir" class="ps-2"></div>
       </div>
     </div>
   </div>
@@ -92,9 +169,9 @@
     </div>
 </div>
 
-<div class="card mb-4">
-    <div class="card-header bg-white py-3">
-        <h6 class="mb-0 fw-bold"><i class="bi bi-funnel me-2"></i>Filtros e Lista Detalhada</h6>
+<div class="card mb-4 border-0 shadow-sm">
+    <div class="card-header bg-white py-3 border-bottom">
+        <h6 class="mb-0 fw-bold text-dark"><i class="bi bi-funnel-fill me-2"></i>Lista Detalhada e Filtros</h6>
     </div>
     <div class="card-body bg-light">
         <form method="GET" id="formFiltro" class="row g-3">
@@ -102,7 +179,6 @@
                 <label class="form-label small fw-bold text-muted">Paciente</label>
                 <input type="text" name="busca_nome" class="form-control" placeholder="Nome..." value="{{ busca_nome }}">
             </div>
-            
             <div class="col-md-2">
                 <label class="form-label small fw-bold text-muted">Status</label>
                 <select name="filtro_status" class="form-select">
@@ -112,7 +188,6 @@
                     {% endfor %}
                 </select>
             </div>
-
             {% if is_admin %}
             <div class="col-md-3">
                 <label class="form-label small fw-bold text-muted">Tipo</label>
@@ -123,7 +198,6 @@
                     {% endfor %}
                 </select>
             </div>
-            
             <div class="col-md-3">
                 <label class="form-label small fw-bold text-muted">Terapeuta</label>
                 <select name="filtro_terapeuta" class="form-select">
@@ -135,18 +209,10 @@
                 </select>
             </div>
             {% endif %}
-            
             <div class="col-12 border-top pt-3 mt-3">
                 <div class="row align-items-end">
-                    <div class="col-md-2">
-                         <label class="form-label small fw-bold text-muted">De</label>
-                         <input type="date" name="data_inicio" class="form-control" value="{{ data_inicio }}">
-                    </div>
-                    <div class="col-md-2">
-                         <label class="form-label small fw-bold text-muted">Até</label>
-                         <input type="date" name="data_fim" class="form-control" value="{{ data_fim }}">
-                    </div>
-                    
+                    <div class="col-md-2"><label class="form-label small fw-bold text-muted">De</label><input type="date" name="data_inicio" class="form-control" value="{{ data_inicio }}"></div>
+                    <div class="col-md-2"><label class="form-label small fw-bold text-muted">Até</label><input type="date" name="data_fim" class="form-control" value="{{ data_fim }}"></div>
                     <div class="col-md-4 pt-4">
                         <div class="btn-group w-100" role="group">
                             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="aplicarAtalho('hoje')">Hoje</button>
@@ -156,13 +222,8 @@
                         <input type="hidden" name="filtro_hoje" id="inputFiltroHoje" value="{% if filtro_hoje %}1{% endif %}">
                         <input type="hidden" name="filtro_semana" id="inputFiltroSemana" value="{% if filtro_semana %}1{% endif %}">
                     </div>
-
-                    <div class="col-md-2 d-grid">
-                        <button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i> Filtrar</button>
-                    </div>
-                    <div class="col-md-2 d-grid">
-                         <a href="{% url 'lista_agendamentos' %}" class="btn btn-outline-secondary">Limpar</a>
-                    </div>
+                    <div class="col-md-2 d-grid"><button type="submit" class="btn btn-primary"><i class="bi bi-search me-1"></i> Filtrar</button></div>
+                    <div class="col-md-2 d-grid"><a href="{% url 'lista_agendamentos' %}" class="btn btn-light text-muted">Limpar</a></div>
                 </div>
             </div>
         </form>
@@ -194,16 +255,9 @@
                             </small>
                         </div>
                     </td>
-                    <td class="fw-bold text-dark">{{ agendamento.paciente.nome }}</td>
-                    
-                    {% if is_admin %}
-                    <td><span class="badge badge-soft badge-padrao">{{ agendamento.get_tipo_atendimento_display }}</span></td>
-                    {% endif %}
-
-                    {% if is_admin %}
-                    <td class="text-secondary text-sm">{{ agendamento.terapeuta.nome }}</td>
-                    {% endif %}
-
+                    <td class="fw-bold text-dark">{{ agendamento.paciente.nome }} {% if agendamento.sala %}<span class="badge bg-light text-secondary border ms-1">{{ agendamento.sala.nome }}</span>{% endif %}</td>
+                    {% if is_admin %}<td><span class="badge badge-soft badge-padrao">{{ agendamento.get_tipo_atendimento_display }}</span></td>{% endif %}
+                    {% if is_admin %}<td class="text-secondary text-sm">{{ agendamento.terapeuta.nome }}</td>{% endif %}
                     <td>
                         {% if agendamento.status == 'REALIZADO' %}<span class="badge badge-soft badge-realizado">Realizado</span>
                         {% elif agendamento.status == 'FALTA' %}<span class="badge badge-soft badge-falta">Falta</span>
@@ -217,17 +271,20 @@
                                     <a href="{% url 'realizar_consulta' agendamento.id %}?{{ params }}" class="btn btn-sm btn-outline-primary" title="Atender"><i class="bi bi-play-fill"></i></a>
                                     <a href="{% url 'marcar_falta' agendamento.id %}?{{ params }}" class="btn btn-sm btn-outline-danger" title="Falta"><i class="bi bi-exclamation-lg"></i></a>
                                 {% elif agendamento.status == 'REALIZADO' %}
-                                    <a href="{% url 'realizar_consulta' agendamento.id %}?{{ params }}" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-medical"></i> Prontuário</a>
+                                    <a href="{% url 'realizar_consulta' agendamento.id %}?{{ params }}" class="btn btn-sm btn-success"><i class="bi bi-file-earmark-medical"></i></a>
                                 {% else %}
-                                    <a href="{% url 'reposicao_agendamento' agendamento.id %}?{{ params }}" class="btn btn-sm btn-repor"><i class="bi bi-arrow-repeat"></i> Repor</a>
+                                    <a href="{% url 'reposicao_agendamento' agendamento.id %}?{{ params }}" class="btn btn-sm btn-repor"><i class="bi bi-arrow-repeat"></i></a>
                                 {% endif %}
                             </div>
-                            {% if agendamento.status == 'AGUARDANDO' or agendamento.status == 'FALTA' %}
-                                <div class="vr mx-1 text-secondary opacity-25"></div>
-                                <a href="{% url 'excluir_agendamento' agendamento.id %}?{{ params }}" class="btn-trash-icon ms-2" onclick="return confirm('ATENÇÃO: Isso apagará permanentemente o agendamento. Confirmar?')" title="Excluir Permanentemente">
-                                    <i class="bi bi-trash fs-6"></i>
-                                </a>
+                            
+                            {# LIXEIRA NA TABELA: Apenas Admin E Apenas Avulso #}
+                            {% if is_admin and not agendamento.agenda_fixa %}
+                                {% if agendamento.status == 'AGUARDANDO' or agendamento.status == 'FALTA' %}
+                                    <div class="vr mx-1 text-secondary opacity-25"></div>
+                                    <a href="{% url 'excluir_agendamento' agendamento.id %}?{{ params }}" class="btn-trash-icon ms-2" onclick="return confirm('ATENÇÃO: Isso apagará permanentemente o agendamento. Confirmar?')" title="Excluir Permanentemente"><i class="bi bi-trash fs-6"></i></a>
+                                {% endif %}
                             {% endif %}
+                            
                         </div>
                         {% endwith %}
                     </td>
@@ -253,26 +310,33 @@
     var meusEventos = [];
     var paramsUrl = "{{ request.GET.urlencode }}";
     
+    // VARIÁVEL DE SEGURANÇA PARA O JS
+    var IS_ADMIN = {{ is_admin|yesno:"true,false" }};
+    
     {% for agendamento in agendamentos %}
-        var corFundo = '#3788d8'; var corBorda = '#3788d8';
-        {% if agendamento.status == 'REALIZADO' %} 
-            corFundo = '#198754'; corBorda = '#198754'; 
-        {% elif agendamento.status == 'FALTA' %} 
-            corFundo = '#dc3545'; corBorda = '#dc3545';
-        {% endif %}
+        var classNames = [];
+        {% if agendamento.status == 'REALIZADO' %} classNames.push('bg-realizado');
+        {% elif agendamento.status == 'FALTA' %} classNames.push('bg-falta');
+        {% else %} classNames.push('bg-aguardando'); {% endif %}
 
         meusEventos.push({
             title: "{{ agendamento.paciente.nome|escapejs }}",
             start: "{{ agendamento.data|date:'Y-m-d' }}T{{ agendamento.hora_inicio|date:'H:i:s' }}",
             {% if agendamento.hora_fim %}end: "{{ agendamento.data|date:'Y-m-d' }}T{{ agendamento.hora_fim|date:'H:i:s' }}",{% endif %}
-            backgroundColor: corFundo, borderColor: corBorda,
+            classNames: classNames,
             extendedProps: {
                 paciente: "{{ agendamento.paciente.nome|escapejs }}",
+                sala_nome: "{{ agendamento.sala.nome|default:''|escapejs }}",
+                sala: "{{ agendamento.sala.nome|default:'Sem Sala Definida'|escapejs }}",
                 terapeuta: "{{ agendamento.terapeuta.nome|escapejs }}",
                 tipo_atendimento: "{{ agendamento.get_tipo_atendimento_display|escapejs }}",
                 status: "{{ agendamento.get_status_display }}",
                 status_cod: "{{ agendamento.status }}",
-                horario_fmt: "{{ agendamento.data|date:'d/m/Y' }} - {{ agendamento.hora_inicio|date:'H:i' }} às {{ agendamento.hora_fim|date:'H:i' }}",
+                
+                // DADO CRUCIAL: Se é fixo ou não
+                is_fixo: {% if agendamento.agenda_fixa %}true{% else %}false{% endif %},
+                
+                horario_fmt: "{{ agendamento.data|date:'d/m/Y' }} • {{ agendamento.hora_inicio|date:'H:i' }} - {{ agendamento.hora_fim|date:'H:i' }}",
                 url_atender: "{% url 'realizar_consulta' agendamento.id %}?" + paramsUrl,
                 url_falta: "{% url 'marcar_falta' agendamento.id %}?" + paramsUrl,
                 url_reposicao: "{% url 'reposicao_agendamento' agendamento.id %}?" + paramsUrl,
@@ -285,47 +349,65 @@
     var calendar = new FullCalendar.Calendar(calendarEl, {
       initialView: 'timeGridWeek', 
       locale: 'pt-br',
-      buttonText: {
-        today: 'Hoje',
-        month: 'Mês',
-        week: 'Semana',
-        day: 'Dia',
-        list: 'Lista'
-      },
+      allDaySlot: false, slotMinTime: '07:00:00', slotMaxTime: '21:00:00',
+      height: 'auto', contentHeight: 600, expandRows: true,
       headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' },
-      slotMinTime: '07:00:00', slotMaxTime: '21:00:00', allDaySlot: false, height: 'auto',
+      buttonText: { today: 'Hoje', month: 'Mês', week: 'Semana', day: 'Dia', list: 'Lista' },
       events: meusEventos,
+
+      // --- RENDERIZAÇÃO INTELIGENTE (Layout Híbrido) ---
+      eventContent: function(arg) {
+          var props = arg.event.extendedProps;
+          var timeText = arg.timeText; 
+          
+          var salaBadgeHtml = '';
+          if (props.sala_nome && props.sala_nome.trim() !== '') {
+              salaBadgeHtml = '<span class="badge-sala-event">' + props.sala_nome + '</span>';
+          }
+
+          var start = arg.event.start;
+          var end = arg.event.end || start; 
+          var diffMinutes = (end - start) / 60000;
+
+          if (diffMinutes <= 45) {
+              var shortTime = start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+              var htmlContent = '<div class="fc-event-main layout-row">' +
+                                '  <span class="event-time-compact">' + shortTime + '</span>' +
+                                '  <span class="fc-event-title">' + arg.event.title + '</span>' +
+                                   salaBadgeHtml +
+                                '</div>';
+              return { html: htmlContent };
+          } else {
+              var htmlContent = '<div class="fc-event-main layout-col">' +
+                                '  <div class="event-time-room">' +
+                                '    <span>' + timeText + '</span>' +
+                                     salaBadgeHtml +
+                                '  </div>' +
+                                '  <div class="fc-event-title">' + arg.event.title + '</div>' +
+                                '</div>';
+              return { html: htmlContent };
+          }
+      },
+      
       eventClick: function(info) { 
         info.jsEvent.preventDefault();
         var props = info.event.extendedProps;
+        $('#detalhePaciente').text(props.paciente); $('#detalheSalaBadge').text(props.sala); $('#detalheTerapeuta').text(props.terapeuta); $('#detalheTipo').text(props.tipo_atendimento); $('#detalheData').text(props.horario_fmt); $('#detalheStatus').text(props.status);
+
+        var htmlBotoes = ''; var htmlLixeira = '';
         
-        $('#detalhePaciente').text(props.paciente);
-        $('#detalheTerapeuta').text(props.terapeuta);
-        $('#detalheTipo').text(props.tipo_atendimento);
-        $('#detalheData').text(props.horario_fmt);
-        $('#detalheStatus').text(props.status);
-
-        var htmlBotoes = '';
-        var htmlLixeira = '';
-
-        if (props.status_cod === 'AGUARDANDO' || props.status_cod === 'FALTA') {
-             htmlLixeira = `<a href="${props.url_excluir}" class="btn-trash-icon" onclick="return confirm('ATENÇÃO: Apagar permanentemente?')" title="Excluir"><i class="bi bi-trash fs-5"></i></a>`;
+        // --- LOGICA DE EXCLUSÃO NO MODAL ---
+        // Se Admin E (Aguardando ou Falta) E NÃO É FIXO
+        if (IS_ADMIN && (props.status_cod === 'AGUARDANDO' || props.status_cod === 'FALTA') && !props.is_fixo) { 
+             htmlLixeira = `<a href="${props.url_excluir}" class="btn btn-outline-danger border-0 p-2" onclick="return confirm('ATENÇÃO: Apagar permanentemente?')" title="Excluir"><i class="bi bi-trash fs-5"></i></a>`; 
         }
 
-        if (props.status_cod === 'AGUARDANDO') {
-            htmlBotoes += `<a href="${props.url_atender}" class="btn btn-primary flex-grow-1">Atender</a>`;
-            htmlBotoes += `<a href="${props.url_falta}" class="btn btn-outline-danger">Falta</a>`;
-        } else if (props.status_cod === 'REALIZADO') {
-            htmlBotoes += `<a href="${props.url_atender}" class="btn btn-success w-100">Ver Prontuário</a>`;
-        } else {
-             htmlBotoes += `<a href="${props.url_reposicao}" class="btn btn-repor w-100"><i class="bi bi-arrow-repeat"></i> Agendar Reposição</a>`;
-        }
+        if (props.status_cod === 'AGUARDANDO') { htmlBotoes += `<a href="${props.url_atender}" class="btn btn-primary flex-grow-1 fw-bold rounded-pill">Atender Paciente</a>`; htmlBotoes += `<a href="${props.url_falta}" class="btn btn-outline-danger rounded-pill px-4">Falta</a>`; } 
+        else if (props.status_cod === 'REALIZADO') { htmlBotoes += `<a href="${props.url_atender}" class="btn btn-success w-100 rounded-pill fw-bold">Ver Prontuário</a>`; } 
+        else { htmlBotoes += `<a href="${props.url_reposicao}" class="btn btn-repor w-100 rounded-pill fw-bold"><i class="bi bi-arrow-repeat"></i> Agendar Reposição</a>`; }
 
-        $('#detalheAcoesPrincipais').html(htmlBotoes);
-        $('#detalheAcaoExcluir').html(htmlLixeira);
-        
-        var modal = new bootstrap.Modal(document.getElementById('modalDetalhes'));
-        modal.show();
+        $('#detalheAcoesPrincipais').html(htmlBotoes); $('#detalheAcaoExcluir').html(htmlLixeira);
+        var modal = new bootstrap.Modal(document.getElementById('modalDetalhes')); modal.show();
       }
     });
     calendar.render();

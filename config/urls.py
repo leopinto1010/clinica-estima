@@ -23,9 +23,11 @@ from core.views import (
     lista_terapeutas,
     relatorio_mensal,
     relatorio_pacientes,
-    
-    # NOVAS VIEWS
-    lista_agendas_fixas, nova_agenda_fixa, editar_agenda_fixa, excluir_agenda_fixa
+    lista_agendas_fixas, 
+    nova_agenda_fixa, 
+    editar_agenda_fixa, 
+    excluir_agenda_fixa,
+    ocupacao_salas,
 )
 
 urlpatterns = [
@@ -64,6 +66,8 @@ urlpatterns = [
     
     path('relatorios/', relatorio_mensal, name='relatorio_mensal'),
     path('relatorios/pacientes/', relatorio_pacientes, name='relatorio_pacientes'),
+
+    path('relatorios/salas/', ocupacao_salas, name='ocupacao_salas'),
 ]
 
 # --- ROTA PARA ARQUIVOS DE MÍDIA (DEBUG) ---

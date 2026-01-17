@@ -28,6 +28,8 @@
                 </div>
             </div>
 
+            {# --- ALTERAÇÃO AQUI: Filtro de Status apenas para Admin --- #}
+            {% if is_admin %}
             <div class="col-md-3">
                 <label class="form-label small fw-bold text-muted">Status</label>
                 <select name="status" class="form-select">
@@ -36,6 +38,8 @@
                     <option value="todos" {% if filtro_status_selecionado == 'todos' %}selected{% endif %}>Todos</option>
                 </select>
             </div>
+            {% endif %}
+            {# --------------------------------------------------------- #}
 
             {% if is_admin %}
             <div class="col-md-3">
@@ -55,7 +59,8 @@
                 <div class="d-grid gap-2">
                     <button type="submit" class="btn btn-primary">Filtrar</button>
                     {% if busca_atual or filtro_tipo_selecionado or filtro_status_selecionado != 'ativos' %}
-                        {% endif %}
+                        {# Espaço reservado para botão limpar se necessário #}
+                    {% endif %}
                 </div>
             </div>
         </form>
