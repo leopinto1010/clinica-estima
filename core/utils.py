@@ -37,10 +37,14 @@ def gerar_agenda_futura(dias_a_frente=None, agenda_especifica=None):
         while data_atual <= limite_grade:
             if data_atual.weekday() == grade.dia_semana:
                 
+                # --- CORREÇÃO AQUI ---
+                # Adicionado deletado=False para que agendamentos antigos/cancelados
+                # não impeçam a criação de novos agendamentos no mesmo horário.
                 ja_existe = Agendamento.objects.filter(
                     terapeuta=grade.terapeuta,
                     data=data_atual,
-                    hora_inicio=grade.hora_inicio
+                    hora_inicio=grade.hora_inicio,
+                    deletado=False 
                 ).exists()
                 
                 if not ja_existe:
@@ -80,6 +84,7 @@ def criar_agendamentos_em_lote(form_data, user_request):
     for i in range(0, repeticoes + 1):
         nova_data = data_base + timedelta(weeks=i)
         
+        # Verifica conflito apenas com agendamentos ativos
         tem_conflito = Agendamento.verificar_conflito(
             terapeuta=terapeuta,
             data=nova_data,
@@ -90,6 +95,7 @@ def criar_agendamentos_em_lote(form_data, user_request):
         if tem_conflito:
             conflitos.append(nova_data.strftime('%d/%m'))
         else:
+            # Remove "sobras" de faltas deletadas ou agendamentos deletados que possam estar atrapalhando
             Agendamento.objects.ativos().filter(
                 terapeuta=terapeuta,
                 data=nova_data,
