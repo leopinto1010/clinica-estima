@@ -40,7 +40,7 @@
                     
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-danger fw-bold">Confirmar</button>
-                        <a href="{% url 'lista_agendamentos' %}" class="btn btn-light">Voltar</a>
+                        <a href="{% url 'lista_agendamentos' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}" class="btn btn-light">Voltar</a>
                     </div>
                 </form>
             </div>

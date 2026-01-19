@@ -153,7 +153,7 @@
                     
                     <td class="text-end pe-4">
                         {% if agendamento.status == 'REALIZADO' %}
-                            <a href="{% url 'realizar_consulta' agendamento.id %}?origem=historico" class="btn btn-sm btn-success btn-icon-only shadow-sm" title="Ver Prontuário">
+                            <a href="{% url 'realizar_consulta' agendamento.id %}?origem=historico{% if request.GET.urlencode %}&{{ request.GET.urlencode }}{% endif %}" class="btn btn-sm btn-success btn-icon-only shadow-sm" title="Ver Prontuário">
                                 <i class="bi bi-file-earmark-text"></i>
                             </a>
                         {% endif %}

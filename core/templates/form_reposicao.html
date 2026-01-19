@@ -22,7 +22,6 @@
                 <form method="POST" novalidate>
                     {% csrf_token %}
                     
-                    {# SÓ EXIBE SE A FALTA AINDA NÃO FOI REGISTRADA #}
                     {% if precisa_justificar and form_falta %}
                         <h6 class="fw-bold text-danger border-bottom pb-2 mb-3">
                             1. Justificar a Falta Anterior
@@ -66,7 +65,7 @@
                         <button type="submit" class="btn btn-primary fw-bold py-2">
                             Confirmar Reposição
                         </button>
-                        <a href="{% url 'lista_agendamentos' %}" class="btn btn-light text-muted">Cancelar</a>
+                        <a href="{% url 'lista_agendamentos' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}" class="btn btn-light text-muted">Cancelar</a>
                     </div>
                 </form>
             </div>
@@ -75,7 +74,6 @@
 </div>
 
 <script>
-    // Inicializa o Select2 se ele não carregar automaticamente
     document.addEventListener("DOMContentLoaded", function() {
         if (typeof $ !== 'undefined' && $.fn.select2) {
             $('.campo-busca').select2({ theme: 'bootstrap-5', width: '100%' });

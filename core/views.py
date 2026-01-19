@@ -9,6 +9,7 @@ from django import forms
 from django.contrib.auth.models import Group
 import calendar
 from collections import defaultdict
+import unicodedata
 
 from .models import (
     Paciente, Terapeuta, Agendamento, Consulta, AnexoConsulta, 
@@ -23,6 +24,10 @@ from .forms import (
 
 from .decorators import admin_required, terapeuta_required, dono_required, is_admin, is_terapeuta, is_dono
 from .utils import setup_grupos, criar_agendamentos_em_lote, gerar_agenda_futura
+
+def remover_acentos(texto):
+    if not texto: return ""
+    return ''.join(c for c in unicodedata.normalize('NFD', texto) if unicodedata.category(c) != 'Mn')
 
 @login_required
 def dashboard(request):
@@ -54,7 +59,6 @@ def lista_pacientes(request):
 
     if is_admin(request.user):
         pacientes = Paciente.objects.all()
-        
         if filtro_status == 'ativos':
             pacientes = pacientes.filter(ativo=True)
         elif filtro_status == 'inativos':
@@ -66,7 +70,9 @@ def lista_pacientes(request):
         ).distinct()
 
     if busca:
-        pacientes = pacientes.filter(Q(nome__icontains=busca) | Q(cpf__icontains=busca))
+        busca_limpa = remover_acentos(busca).lower()
+        # CORREÇÃO: Busca no campo normalizado nome_search
+        pacientes = pacientes.filter(Q(nome_search__icontains=busca_limpa) | Q(cpf__icontains=busca))
     
     if filtro_tipo:
         pacientes = pacientes.filter(tipo_padrao=filtro_tipo)
@@ -191,7 +197,11 @@ def lista_agendamentos(request):
         else:
             agendamentos = Agendamento.objects.none()
     
-    if busca_nome: agendamentos = agendamentos.filter(paciente__nome__icontains=busca_nome)
+    if busca_nome:
+        # CORREÇÃO: Normaliza a busca e usa nome_search
+        busca_limpa = remover_acentos(busca_nome).lower()
+        agendamentos = agendamentos.filter(paciente__nome_search__icontains=busca_limpa)
+
     if filtro_tipo: agendamentos = agendamentos.filter(tipo_atendimento=filtro_tipo)
     if filtro_status: agendamentos = agendamentos.filter(status=filtro_status)
     if filtro_sala: agendamentos = agendamentos.filter(sala_id=filtro_sala)
@@ -614,7 +624,12 @@ def lista_consultas_geral(request):
         else: agendamentos = Agendamento.objects.none()
 
     if data_inicio and data_fim: agendamentos = agendamentos.filter(data__range=[data_inicio, data_fim])
-    if busca_nome: agendamentos = agendamentos.filter(paciente__nome__icontains=busca_nome)
+    
+    if busca_nome:
+        # CORREÇÃO: Normaliza a busca e usa nome_search
+        busca_limpa = remover_acentos(busca_nome).lower()
+        agendamentos = agendamentos.filter(paciente__nome_search__icontains=busca_limpa)
+
     if filtro_tipo: agendamentos = agendamentos.filter(tipo_atendimento=filtro_tipo)
     
     if filtro_status == 'FALTA_REPOSTA': agendamentos = agendamentos.filter(status='FALTA', deletado=True)

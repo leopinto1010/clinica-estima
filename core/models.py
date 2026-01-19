@@ -3,8 +3,12 @@ from django.core.validators import RegexValidator
 from django.core.exceptions import ValidationError
 from datetime import datetime, timedelta
 from django.utils import timezone
+import unicodedata
 
-# --- VALIDATOR DE TAMANHO ---
+def remover_acentos(texto):
+    if not texto: return ""
+    return ''.join(c for c in unicodedata.normalize('NFD', texto) if unicodedata.category(c) != 'Mn')
+
 def validar_tamanho_arquivo(file):
     limite_mb = 10
     if file.size > limite_mb * 1024 * 1024:
@@ -50,6 +54,7 @@ class Convenio(models.Model):
     
 class Paciente(models.Model):
     nome = models.CharField(max_length=100)
+    nome_search = models.CharField(max_length=100, blank=True, null=True, db_index=True)
     cpf = models.CharField(
         max_length=11, unique=True, null=True, blank=True,
         validators=[RegexValidator(regex=r'^\d{11}$', message='CPF deve ter 11 dígitos.')]
@@ -86,6 +91,10 @@ class Paciente(models.Model):
     def __str__(self):
         return self.nome
 
+    def save(self, *args, **kwargs):
+        self.nome_search = remover_acentos(self.nome).lower()
+        super().save(*args, **kwargs)
+
 class Terapeuta(models.Model):
     usuario = models.OneToOneField('auth.User', on_delete=models.CASCADE, null=True, blank=True)
     nome = models.CharField(max_length=100)
@@ -108,14 +117,10 @@ class AgendaFixa(models.Model):
 
     paciente = models.ForeignKey(Paciente, on_delete=models.CASCADE)
     terapeuta = models.ForeignKey(Terapeuta, on_delete=models.PROTECT)
-    
-    # ESTRATÉGIA DE SEGURANÇA: null=True no banco para não quebrar dados antigos
     sala = models.ForeignKey(Sala, on_delete=models.PROTECT, null=True, blank=True, verbose_name="Sala Fixa")
-    
     dia_semana = models.IntegerField(choices=DIAS_DA_SEMANA, verbose_name="Dia da Semana")
     hora_inicio = models.TimeField(verbose_name="Início")
     hora_fim = models.TimeField(verbose_name="Fim")
-    
     ativo = models.BooleanField(default=True, verbose_name="Grade Ativa")
     data_inicio = models.DateField(default=timezone.now, verbose_name="Vigência Início")
     data_fim = models.DateField(null=True, blank=True, verbose_name="Vigência Fim (Opcional)")
@@ -146,18 +151,14 @@ class Agendamento(models.Model):
 
     paciente = models.ForeignKey(Paciente, on_delete=models.CASCADE)
     terapeuta = models.ForeignKey(Terapeuta, on_delete=models.PROTECT)
-    
-    # Vínculos Opcionais no Banco
     agenda_fixa = models.ForeignKey(AgendaFixa, on_delete=models.SET_NULL, null=True, blank=True, related_name='agendamentos_gerados')
     sala = models.ForeignKey(Sala, on_delete=models.SET_NULL, null=True, blank=True)
-    
     data = models.DateField(verbose_name="Data da Consulta")
     hora_inicio = models.TimeField(verbose_name="Horário de Início")
     hora_fim = models.TimeField(verbose_name="Horário de Término", blank=True, null=True)
     tipo_atendimento = models.CharField(max_length=20, choices=TIPO_ATENDIMENTO_CHOICES, default='PARTICULAR')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='AGUARDANDO')
     deletado = models.BooleanField(default=False)
-    
     tipo_cancelamento = models.CharField(max_length=20, choices=TIPO_CANCELAMENTO_CHOICES, null=True, blank=True, verbose_name="Tipo de Falta")
     motivo_cancelamento = models.TextField(null=True, blank=True, verbose_name="Observação da Falta")
     

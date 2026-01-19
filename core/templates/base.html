@@ -237,6 +237,21 @@
             
             setTimeout(() => { $('.custom-toast').css('animation', 'fadeOut 0.5s forwards'); setTimeout(() => $('.custom-toast').remove(), 500); }, 5000);
         });
+
+        // --- LÓGICA DE PRESERVAÇÃO DE SCROLL ---
+        document.addEventListener("DOMContentLoaded", function(event) {
+            var pageKey = 'scrollpos_' + window.location.pathname;
+            var savedPos = sessionStorage.getItem(pageKey);
+            
+            if (savedPos) {
+                window.scrollTo(0, savedPos);
+                sessionStorage.removeItem(pageKey);
+            }
+
+            window.addEventListener("beforeunload", function() {
+                sessionStorage.setItem(pageKey, window.scrollY);
+            });
+        });
     </script>
 </body>
 </html>
