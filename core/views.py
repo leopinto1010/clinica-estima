@@ -285,8 +285,8 @@ def nova_agenda_fixa(request):
     if request.method == 'POST':
         form = AgendaFixaForm(request.POST)
         if form.is_valid():
-            form.save()
-            qtd = gerar_agenda_futura() 
+            nova_grade = form.save()
+            qtd = gerar_agenda_futura(agenda_especifica=nova_grade) 
             messages.success(request, f"Regra criada! {qtd} agendamentos foram lançados no calendário.")
             return redirect('lista_agendas_fixas')
     else:
@@ -331,7 +331,7 @@ def editar_agenda_fixa(request, id):
                 if total_atualizados > 0:
                     msg_extra = f" ({total_atualizados} agendamentos futuros atualizados)."
 
-            gerar_agenda_futura()
+            gerar_agenda_futura(agenda_especifica=nova_agenda)
             messages.success(request, f"Agenda Fixa salva e sincronizada.{msg_extra}")
             return redirect('lista_agendas_fixas')
     else:
@@ -834,39 +834,29 @@ def relatorio_pacientes(request):
 
 @login_required
 def relatorio_grade_pacientes(request):
-    # Apenas Admin/Donos podem ver
     if not is_admin(request.user):
         messages.error(request, "Acesso restrito.")
         return redirect('dashboard')
 
-    # 1. Pegar todos os pacientes que têm pelo menos uma agenda fixa ativa
     pacientes_ids = AgendaFixa.objects.filter(ativo=True).values_list('paciente_id', flat=True).distinct()
     pacientes = Paciente.objects.filter(id__in=pacientes_ids).order_by('nome')
     
     relatorio = []
 
     for paciente in pacientes:
-        # Pega todas as agendas fixas desse paciente
         agendas = AgendaFixa.objects.filter(paciente=paciente, ativo=True).select_related('terapeuta')
         
-        # Dicionário para mapear: Horário -> Dia da Semana -> Lista de Strings (Especialidade + Nome)
-        # Ex: grades[13:30][0 (segunda)] = ["Psico (Ana)", "Fono (Bia)"]
         grade_map = defaultdict(lambda: defaultdict(list))
         
-        # Set para guardar todos os horários únicos que esse paciente possui
         horarios_unicos = set()
 
         for item in agendas:
-            # Filtra apenas Segunda(0) a Sexta(4) conforme sua imagem, ou (0-6) para todos
             if 0 <= item.dia_semana <= 4: 
                 dia = item.dia_semana
                 hora = item.hora_inicio
                 horarios_unicos.add(hora)
                 
-                # Formata a string: Especialidade (Primeiro Nome)
-                # Ex: "Psicologia (Thaíse)"
                 especialidade = item.terapeuta.especialidade if item.terapeuta.especialidade else "Terapeuta"
-                # Abrevia especialidades longas se quiser
                 if especialidade == 'Terapeuta Ocupacional': especialidade = 'TO'
                 
                 primeiro_nome = item.terapeuta.nome.split()[0]
@@ -874,17 +864,14 @@ def relatorio_grade_pacientes(request):
                 
                 grade_map[hora][dia].append(texto)
 
-        # Ordena os horários cronologicamente
         horarios_ordenados = sorted(list(horarios_unicos))
         
-        # Monta a estrutura final para o template
         linhas_tabela = []
         for hora in horarios_ordenados:
             colunas = []
-            for dia in range(5): # 0 a 4 (Seg a Sex)
+            for dia in range(5): 
                 lista_atendimentos = grade_map[hora][dia]
                 if lista_atendimentos:
-                    # AQUI A MÁGICA: Se tiver mais de um, junta com " + "
                     conteudo = " + ".join(lista_atendimentos)
                 else:
                     conteudo = ""
