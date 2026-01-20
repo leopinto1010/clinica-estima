@@ -132,6 +132,14 @@ class AgendaFixa(models.Model):
     def __str__(self):
         return f"{self.get_dia_semana_display()} - {self.paciente.nome}"
 
+    def save(self, *args, **kwargs):
+        # LÓGICA DE 45 MINUTOS PADRÃO AQUI TAMBÉM
+        if not self.hora_fim and self.hora_inicio:
+            dummy_date = datetime.now().date()
+            dt_inicio = datetime.combine(dummy_date, self.hora_inicio)
+            self.hora_fim = (dt_inicio + timedelta(minutes=45)).time()
+        super().save(*args, **kwargs)
+
 class AgendamentoManager(models.Manager):
     def ativos(self):
         return self.filter(deletado=False)
@@ -171,7 +179,7 @@ class Agendamento(models.Model):
         if not self.hora_fim and self.hora_inicio:
             dummy_date = datetime.now().date()
             dt_inicio = datetime.combine(dummy_date, self.hora_inicio)
-            self.hora_fim = (dt_inicio + timedelta(hours=1)).time()
+            self.hora_fim = (dt_inicio + timedelta(minutes=45)).time()
         super().save(*args, **kwargs)
 
     @classmethod

@@ -24,6 +24,7 @@ from .forms import (
 
 from .decorators import admin_required, terapeuta_required, dono_required, is_admin, is_terapeuta, is_dono
 from .utils import setup_grupos, criar_agendamentos_em_lote, gerar_agenda_futura
+from django.urls import reverse
 
 def remover_acentos(texto):
     if not texto: return ""
@@ -298,7 +299,10 @@ def nova_agenda_fixa(request):
             nova_grade = form.save()
             qtd = gerar_agenda_futura(agenda_especifica=nova_grade) 
             messages.success(request, f"Regra criada! {qtd} agendamentos foram lançados no calendário.")
-            return redirect('lista_agendas_fixas')
+            
+            # ALTERAÇÃO AQUI: Redirecionar mantendo o filtro do terapeuta criado
+            return redirect(f"{reverse('lista_agendas_fixas')}?terapeuta={nova_grade.terapeuta.id}")
+            
     else:
         form = AgendaFixaForm()
 

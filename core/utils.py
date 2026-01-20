@@ -12,7 +12,6 @@ def gerar_agenda_futura(dias_a_frente=None, agenda_especifica=None):
     
     hoje = timezone.now().date()
     ano_atual = hoje.year
-    
     fim_do_ano = date(ano_atual, 12, 31)
     
     if dias_a_frente:
@@ -29,7 +28,6 @@ def gerar_agenda_futura(dias_a_frente=None, agenda_especifica=None):
     
     for grade in grades:
         data_atual = max(grade.data_inicio, hoje)
-        
         limite_grade = limite
         if grade.data_fim:
             limite_grade = min(limite, grade.data_fim)
@@ -37,17 +35,14 @@ def gerar_agenda_futura(dias_a_frente=None, agenda_especifica=None):
         while data_atual <= limite_grade:
             if data_atual.weekday() == grade.dia_semana:
                 
-                # --- CORREÇÃO AQUI ---
-                # Adicionado deletado=False para que agendamentos antigos/cancelados
-                # não impeçam a criação de novos agendamentos no mesmo horário.
-                ja_existe = Agendamento.objects.filter(
+                tem_conflito = Agendamento.verificar_conflito(
                     terapeuta=grade.terapeuta,
                     data=data_atual,
                     hora_inicio=grade.hora_inicio,
-                    deletado=False 
-                ).exists()
+                    hora_fim=grade.hora_fim
+                )
                 
-                if not ja_existe:
+                if not tem_conflito:
                     Agendamento.objects.create(
                         agenda_fixa=grade,
                         paciente=grade.paciente,

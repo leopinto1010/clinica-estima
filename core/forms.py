@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import UserCreationForm
-from .models import Paciente, Terapeuta, Agendamento, Consulta, ESPECIALIDADES_CHOICES, Convenio, AgendaFixa, Sala
+from .models import Paciente, Terapeuta, Agendamento, Consulta, ESPECIALIDADES_CHOICES, AgendaFixa, Sala
 from datetime import datetime, timedelta
 from django.utils import timezone
 
@@ -51,9 +51,10 @@ class AgendamentoForm(forms.ModelForm):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # OBRIGATÓRIO NA TELA: O usuário não consegue salvar sem escolher
         self.fields['sala'].required = True
         self.fields['sala'].label = "Sala de Atendimento"
+        # Filtra apenas pacientes ativos
+        self.fields['paciente'].queryset = Paciente.objects.filter(ativo=True).order_by('nome')
 
     def clean(self):
         cleaned_data = super().clean()
@@ -61,20 +62,27 @@ class AgendamentoForm(forms.ModelForm):
         data = cleaned_data.get('data')
         hora_inicio = cleaned_data.get('hora_inicio')
         hora_fim = cleaned_data.get('hora_fim')
-        if not (terapeuta and data and hora_inicio): return cleaned_data
+        
+        if not (terapeuta and data and hora_inicio):
+            return cleaned_data
+        
+        # Define 45 minutos padrão se estiver vazio
         if not hora_fim:
             dt_inicio_naive = datetime.combine(data, hora_inicio)
             dt_inicio_aware = timezone.make_aware(dt_inicio_naive, timezone.get_current_timezone())
-            dt_fim = dt_inicio_aware + timedelta(hours=1)
+            dt_fim = dt_inicio_aware + timedelta(minutes=45)
             hora_fim = dt_fim.time()
             cleaned_data['hora_fim'] = hora_fim 
         
+        # Verifica conflitos
         tem_conflito = Agendamento.verificar_conflito(
             terapeuta=terapeuta, data=data, hora_inicio=hora_inicio, hora_fim=hora_fim,
             ignorar_id=self.instance.pk if self.instance.pk else None
         )
+        
         if tem_conflito:
-            raise forms.ValidationError(f"Conflito! Dr(a) {terapeuta.nome} já possui atendimento válido neste horário.")
+            raise forms.ValidationError(f"Conflito! Dr(a) {terapeuta.nome} já possui atendimento neste horário.")
+            
         return cleaned_data
 
 class ConsultaForm(forms.ModelForm):
@@ -115,6 +123,26 @@ class AgendaFixaForm(forms.ModelForm):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # OBRIGATÓRIO NA TELA: Isso garante o rigor que você pediu, sem quebrar o banco
         self.fields['sala'].required = True
         self.fields['sala'].label = "Sala de Atendimento"
+        
+        # ALTERAÇÃO CRÍTICA: Permite deixar vazio no formulário para cálculo automático
+        self.fields['hora_fim'].required = False 
+        
+        # Filtra apenas pacientes ativos
+        self.fields['paciente'].queryset = Paciente.objects.filter(ativo=True).order_by('nome')
+
+    def clean(self):
+        cleaned_data = super().clean()
+        hora_inicio = cleaned_data.get('hora_inicio')
+        hora_fim = cleaned_data.get('hora_fim')
+        
+        # Se hora_inicio foi informada, mas hora_fim não, define 45min
+        if hora_inicio and not hora_fim:
+            dummy_date = datetime.now().date()
+            dt_inicio_naive = datetime.combine(dummy_date, hora_inicio)
+            dt_inicio_aware = timezone.make_aware(dt_inicio_naive, timezone.get_current_timezone())
+            dt_fim = dt_inicio_aware + timedelta(minutes=45)
+            cleaned_data['hora_fim'] = dt_fim.time()
+            
+        return cleaned_data
