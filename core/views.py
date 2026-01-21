@@ -951,3 +951,43 @@ def relatorio_grade_pacientes(request):
         'relatorio': relatorio,
         'dias_semana': ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira']
     })
+
+@login_required
+def relatorio_atrasos(request):
+    if not is_admin(request.user):
+        messages.error(request, "Acesso restrito à gestão.")
+        return redirect('dashboard')
+
+    agora = timezone.localtime(timezone.now())
+    limite_corte = agora - timedelta(hours=24)
+
+    # 1. Busca todos os agendamentos que estão "AGUARDANDO" e são anteriores ao corte
+    # Filtramos primeiro por data para otimizar o banco
+    possiveis_atrasos = Agendamento.objects.ativos().filter(
+        status='AGUARDANDO',
+        data__lte=limite_corte.date()
+    ).select_related('paciente', 'terapeuta', 'sala').order_by('terapeuta__nome', 'data', 'hora_inicio')
+
+    atrasados_por_terapeuta = defaultdict(list)
+    total_atrasos = 0
+    
+    # 2. Refinamento preciso (Data + Hora)
+    for item in possiveis_atrasos:
+        # Cria um datetime consciente do timezone com a data e hora fim do agendamento
+        # Usamos hora_fim para dar o benefício da dúvida (24h após o TÉRMINO)
+        dt_termino_naive = datetime.combine(item.data, item.hora_fim if item.hora_fim else item.hora_inicio)
+        dt_termino_aware = timezone.make_aware(dt_termino_naive, timezone.get_current_timezone())
+        
+        if dt_termino_aware <= limite_corte:
+            atrasados_por_terapeuta[item.terapeuta].append(item)
+            total_atrasos += 1
+
+    # Converte para dict normal para o template iterar facilmente
+    resultado = dict(atrasados_por_terapeuta)
+
+    return render(request, 'relatorio_atrasos.html', {
+        'atrasados_por_terapeuta': resultado,
+        'total_atrasos': total_atrasos,
+        'limite_corte': limite_corte,
+        'agora': agora
+    })

@@ -150,6 +150,13 @@
                     <i class="bi bi-gear-fill me-1"></i> Gestão
                 </a>
                 <ul class="dropdown-menu dropdown-menu-start shadow border-0" aria-labelledby="menuGestao">
+                    <li>
+                        <a class="dropdown-item d-flex align-items-center justify-content-between" href="{% url 'relatorio_atrasos' %}">
+                            <span><i class="bi bi-hourglass-bottom me-2 text-danger"></i>Atraso de Evoluções</span>
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+
                     <li><h6 class="dropdown-header text-uppercase small fw-bold">Pessoas</h6></li>
                     <li>
                         <a class="dropdown-item" href="{% url 'lista_terapeutas' %}">
@@ -233,7 +240,6 @@
                 allowInput: true     
             });
 
-            // ATUALIZADO: Habilitado allowClear para permitir "limpar" a busca
             $('.campo-busca').select2({ 
                 theme: 'bootstrap-5', 
                 placeholder: "Selecione...", 
@@ -244,7 +250,6 @@
             setTimeout(() => { $('.custom-toast').css('animation', 'fadeOut 0.5s forwards'); setTimeout(() => $('.custom-toast').remove(), 500); }, 5000);
         });
 
-        // --- LÓGICA DE PRESERVAÇÃO DE SCROLL ---
         document.addEventListener("DOMContentLoaded", function(event) {
             var pageKey = 'scrollpos_' + window.location.pathname;
             var savedPos = sessionStorage.getItem(pageKey);

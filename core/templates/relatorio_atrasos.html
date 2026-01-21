@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold text-dark mb-1"><i class="bi bi-hourglass-bottom text-danger me-2"></i>Atraso de Evoluções</h4>
+        <p class="text-muted small mb-0">Monitoramento de atendimentos sem evolução há mais de 24 horas.</p>
+    </div>
+    
+    <div class="text-end">
+        <span class="badge bg-light text-dark border px-3 py-2">
+            Referência: {{ limite_corte|date:"d/m/Y H:i" }} (24h atrás)
+        </span>
+    </div>
+</div>
+
+{% if total_atrasos > 0 %}
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="alert alert-danger d-flex align-items-center border-danger shadow-sm bg-danger-subtle text-danger" role="alert">
+                <i class="bi bi-exclamation-triangle-fill fs-3 me-3"></i>
+                <div>
+                    <strong>Atenção!</strong> Existem <strong>{{ total_atrasos }}</strong> atendimentos pendentes de evolução fora do prazo legal.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row" data-masonry='{"percentPosition": true }'>
+        {% for terapeuta, agendamentos in atrasados_por_terapeuta.items %}
+        <div class="col-md-6 col-xl-4 mb-4">
+            <div class="card border-0 shadow-sm h-100 border-top border-4 border-danger">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <div class="bg-danger-subtle text-danger rounded-circle p-2 me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                            <span class="fw-bold">{{ agendamentos|length }}</span>
+                        </div>
+                        <h6 class="mb-0 fw-bold text-dark">{{ terapeuta.nome }}</h6>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for item in agendamentos %}
+                        <div class="list-group-item p-3 border-light">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h6 class="fw-bold mb-0 text-primary">{{ item.paciente.nome }}</h6>
+                                    <small class="text-muted">
+                                        <i class="bi bi-calendar-event me-1"></i>{{ item.data|date:"d/m/Y" }}
+                                        <i class="bi bi-clock ms-1 me-1"></i>{{ item.hora_inicio|date:"H:i" }}
+                                    </small>
+                                </div>
+                                <span class="badge bg-secondary opacity-50">{{ item.sala.nome|default:"-" }}</span>
+                            </div>
+                            
+                            <div class="d-flex gap-2 mt-2">
+                                <a href="{% url 'realizar_consulta' item.id %}?origem=atrasos" class="btn btn-sm btn-outline-success flex-grow-1" title="Realizar Evolução Agora">
+                                    <i class="bi bi-pencil-square me-1"></i>Evoluir
+                                </a>
+                                <a href="{% url 'marcar_falta' item.id %}?origem=atrasos" class="btn btn-sm btn-outline-danger" title="Registrar Falta">
+                                    <i class="bi bi-x-circle me-1"></i>Falta
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="card-footer bg-light text-center py-2">
+                    <small class="text-muted">Usuário: {{ terapeuta.usuario.username|default:"Sem acesso" }}</small>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/masonry-layout@4.2.2/dist/masonry.pkgd.min.js" async></script>
+
+{% else %}
+    <div class="text-center py-5">
+        <div class="mb-4">
+            <i class="bi bi-check-circle-fill text-success" style="font-size: 5rem;"></i>
+        </div>
+        <h3 class="fw-bold text-success">Tudo em dia!</h3>
+        <p class="text-muted fs-5">Parabéns à equipe. Todas as evoluções foram registradas dentro do prazo.</p>
+        <a href="{% url 'dashboard' %}" class="btn btn-primary mt-3">Voltar ao Painel</a>
+    </div>
+{% endif %}
+{% endblock %}
