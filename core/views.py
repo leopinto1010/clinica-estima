@@ -741,11 +741,13 @@ def lista_terapeutas(request):
 
 @login_required
 def ocupacao_salas(request):
+    import re # Necessário para identificar os números nos nomes das salas
+
     if not is_admin(request.user):
         messages.error(request, "Acesso restrito à administração.")
         return redirect('dashboard')
 
-    # 1. Definição de datas (mantido igual)
+    # 1. Definição de datas
     data_get = request.GET.get('data')
     if data_get:
         data_atual = datetime.strptime(data_get, '%Y-%m-%d').date()
@@ -755,18 +757,39 @@ def ocupacao_salas(request):
     data_anterior = (data_atual - timedelta(days=1)).strftime('%Y-%m-%d')
     data_proxima = (data_atual + timedelta(days=1)).strftime('%Y-%m-%d')
 
-    # 2. Buscas no banco (mantido igual)
-    salas = Sala.objects.all().order_by('nome')
+    # --- 2. Busca e Ordenação Personalizada das Salas ---
+    # Ordem desejada: 1, 1A, 2, 3... 8, Reunião, 9... 16
+    todas_salas = Sala.objects.all()
+    
+    def sort_key(sala):
+        # Normaliza o nome (minúsculo e sem acentos)
+        nome = remover_acentos(sala.nome).lower()
+        
+        # Regras Específicas
+        if '1a' in nome: return 1.5       # "1A" vale 1.5 (fica entre 1 e 2)
+        if 'reuniao' in nome: return 8.5  # "Reunião" vale 8.5 (fica entre 8 e 9)
+        
+        # Regra Numérica: Extrai o primeiro número encontrado
+        numeros = re.findall(r'\d+', nome)
+        if numeros:
+            return float(numeros[0])
+            
+        return 999.0 # Salas sem número e sem regra ficam no final
+    
+    # Aplica a ordenação na lista de salas
+    salas = sorted(todas_salas, key=sort_key)
+    # ----------------------------------------------------
+
+    # 3. Busca agendamentos do dia
     agendamentos = Agendamento.objects.ativos().filter(
         data=data_atual
     ).select_related('paciente', 'terapeuta', 'sala', 'agenda_fixa')
 
-    # 3. Lógica de Agrupamento (NOVO)
-    # Estrutura temporária: agrupados[(hora, sala_id, paciente_id)] = dados
+    # 4. Agrupamento (Lógica de "Ana + Bia")
     agrupados = {}
 
     for item in agendamentos:
-        if not item.sala: continue # Ignora sem sala
+        if not item.sala: continue 
 
         h_str = item.hora_inicio.strftime('%H:%M')
         s_id = item.sala.id
@@ -774,52 +797,39 @@ def ocupacao_salas(request):
         
         chave = (h_str, s_id, p_id)
         
-        # Pega apenas o primeiro nome para não ficar muito grande (ex: "Ana" em vez de "Ana Silva")
+        # Pega apenas o primeiro nome do terapeuta
         nome_terapeuta = item.terapeuta.nome.split()[0]
 
         if chave in agrupados:
-            # JA EXISTE: Adiciona o terapeuta à lista existente (União)
             agrupados[chave]['terapeutas'].append(nome_terapeuta)
-            
-            # Se algum dos agendamentos for fixo, consideramos o bloco como fixo
             if item.agenda_fixa:
                 agrupados[chave]['agenda_fixa'] = True
         else:
-            # NOVO: Cria o registro
             agrupados[chave] = {
                 'paciente_nome': item.paciente.nome,
                 'terapeutas': [nome_terapeuta],
-                'agenda_fixa': True if item.agenda_fixa else False,
-                # Guardamos o objeto original apenas para referência se precisar de outras cores
-                'obj_original': item 
+                'agenda_fixa': True if item.agenda_fixa else False
             }
 
-    # 4. Monta a Grade Final para o Template
+    # 5. Monta a Grade Final
     horarios_grade = get_horarios_clinica()
-    
-    # Inicializa o mapa vazio
     agenda_map = {t.strftime('%H:%M'): {s.id: [] for s in salas} for t in horarios_grade}
 
-    # Preenche o mapa com os dados agrupados
     for (h_str, s_id, p_id), dados in agrupados.items():
         if h_str in agenda_map and s_id in agenda_map[h_str]:
-            
-            # Une os nomes com " + "
             texto_terapeutas = " + ".join(dados['terapeutas'])
             
-            # Cria o objeto simplificado para o template
             item_display = {
                 'paciente_nome': dados['paciente_nome'],
                 'terapeuta_nome': texto_terapeutas,
                 'agenda_fixa': dados['agenda_fixa']
             }
-            
             agenda_map[h_str][s_id].append(item_display)
 
     return render(request, 'ocupacao_salas.html', {
         'agenda_map': agenda_map,
         'horarios_grade': horarios_grade,
-        'salas': salas,
+        'salas': salas, # Agora enviamos a lista ordenada
         'data_atual': data_atual,
         'data_input': data_atual.strftime('%Y-%m-%d'),
         'data_anterior': data_anterior,
