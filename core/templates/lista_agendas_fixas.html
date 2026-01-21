@@ -124,34 +124,37 @@
             </tr>
         </thead>
         <tbody>
-            {% for hora in range_horarios %}
+            {% for hora in horarios_grade %}
             <tr>
-                <td class="col-hora">{{ hora }}:00</td>
+                <td class="col-hora">{{ hora|date:"H:i" }}</td>
                 {% for dia_idx in "012345"|make_list %}
                     <td>
-                        {% for item in agenda_map|dict_get:hora|dict_get:dia_idx %} 
-                            <div class="fixo-card">
-                                <div class="fixo-actions">
-                                    <a href="{% url 'editar_agenda_fixa' item.id %}" class="btn-icon-sm" title="Editar"><i class="bi bi-pencil-fill"></i></a>
-                                    <a href="{% url 'excluir_agenda_fixa' item.id %}" class="btn-icon-sm btn-icon-del" title="Excluir/Desativar"><i class="bi bi-trash-fill"></i></a>
-                                </div>
-                                
-                                <div class="fixo-hora">
-                                    {{ item.hora_inicio|date:"H:i" }} - {{ item.hora_fim|date:"H:i" }}
-                                </div>
-                                <span class="fixo-paciente text-truncate">{{ item.paciente.nome }}</span>
-                                
-                                <div class="fixo-info">
-                                    {% if is_admin and not filtro_terapeuta %}
-                                        <div class="text-truncate"><i class="bi bi-person"></i> {{ item.terapeuta.nome|slice:":15" }}</div>
-                                    {% endif %}
+                        {# A chave para busca no dicionário agora é a hora formatada #}
+                        {% with chave_hora=hora|date:"H:i" %}
+                            {% for item in agenda_map|dict_get:chave_hora|dict_get:dia_idx %} 
+                                <div class="fixo-card">
+                                    <div class="fixo-actions">
+                                        <a href="{% url 'editar_agenda_fixa' item.id %}" class="btn-icon-sm" title="Editar"><i class="bi bi-pencil-fill"></i></a>
+                                        <a href="{% url 'excluir_agenda_fixa' item.id %}" class="btn-icon-sm btn-icon-del" title="Excluir/Desativar"><i class="bi bi-trash-fill"></i></a>
+                                    </div>
                                     
-                                    {% if item.sala %}
-                                        <span class="badge-sala mt-1 d-inline-block">{{ item.sala.nome }}</span>
-                                    {% endif %}
+                                    <div class="fixo-hora">
+                                        {{ item.hora_inicio|date:"H:i" }} - {{ item.hora_fim|date:"H:i" }}
+                                    </div>
+                                    <span class="fixo-paciente text-truncate">{{ item.paciente.nome }}</span>
+                                    
+                                    <div class="fixo-info">
+                                        {% if is_admin and not filtro_terapeuta %}
+                                            <div class="text-truncate"><i class="bi bi-person"></i> {{ item.terapeuta.nome|slice:":15" }}</div>
+                                        {% endif %}
+                                        
+                                        {% if item.sala %}
+                                            <span class="badge-sala mt-1 d-inline-block">{{ item.sala.nome }}</span>
+                                        {% endif %}
+                                    </div>
                                 </div>
-                            </div>
-                        {% endfor %}
+                            {% endfor %}
+                        {% endwith %}
                     </td>
                 {% endfor %}
             </tr>

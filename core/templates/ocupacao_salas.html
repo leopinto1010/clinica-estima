@@ -19,7 +19,7 @@
         position: relative;
     }
 
-    /* FIXO: Azul (Atualizado) */
+    /* FIXO: Azul */
     .tipo-fixo {
         border-left-color: #0d6efd; 
         background-color: #e7f1ff;  
@@ -54,6 +54,14 @@
         transition: all 0.2s;
     }
     .btn-nav-date:hover { background: #f8f9fa; color: #0d6efd; }
+    
+    .col-hora-icon {
+        width: 70px;
+        text-align: center;
+        vertical-align: middle !important;
+        background-color: #f8f9fa;
+        color: #6c757d;
+    }
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -127,7 +135,7 @@
         <table class="table table-bordered text-center mb-0 align-middle" style="table-layout: fixed; min-width: 1000px;">
             <thead class="bg-light">
                 <tr>
-                    <th style="width: 70px;" class="text-secondary small text-uppercase">Horário</th>
+                    <th class="col-hora-icon"><i class="bi bi-clock"></i></th>
                     {% for dia in datas_cabecalho %}
                         <th class="text-secondary small text-uppercase {% if dia == hoje_date %}bg-primary bg-opacity-10{% endif %}">
                             {{ dia|date:"l" }} <br>
@@ -137,14 +145,15 @@
                 </tr>
             </thead>
             <tbody>
-                {% for hora in range_horarios %}
+                {% for hora in horarios_grade %}
                 <tr>
-                    <td class="fw-bold text-muted small bg-light">{{ hora }}:00</td>
+                    <td class="fw-bold text-muted small bg-light">{{ hora|date:"H:i" }}</td>
                     
                     {% for dia_idx in "012345"|make_list %}
                         <td class="p-1 align-top text-start position-relative" style="height: 60px; background-color: #fff;">
                             
-                            {% with lista=agenda_map|dict_get:hora|dict_get:dia_idx %}
+                            {% with chave_hora=hora|date:"H:i" %}
+                            {% with lista=agenda_map|dict_get:chave_hora|dict_get:dia_idx %}
                                 {% for item in lista %}
                                     <div class="evento-sala {% if item.agenda_fixa %}tipo-fixo{% else %}tipo-avulso{% endif %}" 
                                          title="Terapeuta: {{ item.terapeuta.nome }}">
@@ -169,8 +178,8 @@
                                     </div>
                                 {% endfor %}
                             {% endwith %}
-
-                        </td>
+                            {% endwith %} 
+                            </td>
                     {% endfor %}
                 </tr>
                 {% endfor %}

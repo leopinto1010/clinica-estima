@@ -4,6 +4,7 @@ from django.contrib.auth.forms import UserCreationForm
 from .models import Paciente, Terapeuta, Agendamento, Consulta, ESPECIALIDADES_CHOICES, AgendaFixa, Sala
 from datetime import datetime, timedelta
 from django.utils import timezone
+from .utils import get_horarios_clinica
 
 class CadastroEquipeForm(UserCreationForm):
     nome_completo = forms.CharField(max_length=100, label="Nome Completo")
@@ -37,6 +38,13 @@ class AgendamentoForm(forms.ModelForm):
         label="Repetir por quantas semanas?",
         widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': '0 = Apenas hoje'})
     )
+    
+    # Campo personalizado para a seleção de horário
+    hora_inicio = forms.TimeField(
+        label="Horário de Início",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
     class Meta:
         model = Agendamento
         fields = ['paciente', 'terapeuta', 'sala', 'data', 'hora_inicio', 'hora_fim']
@@ -45,16 +53,23 @@ class AgendamentoForm(forms.ModelForm):
             'terapeuta': forms.Select(attrs={'class': 'form-control campo-busca'}),
             'sala': forms.Select(attrs={'class': 'form-select'}),
             'data': forms.DateInput(attrs={'class': 'form-control seletor-apenas-data'}),
-            'hora_inicio': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
-            'hora_fim': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
+            # hora_inicio definido no __init__
+            'hora_fim': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time', 'readonly': 'readonly'}),
         }
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['sala'].required = True
         self.fields['sala'].label = "Sala de Atendimento"
+        self.fields['hora_fim'].required = False
+        
         # Filtra apenas pacientes ativos
         self.fields['paciente'].queryset = Paciente.objects.filter(ativo=True).order_by('nome')
+        
+        # Popula o Select com os horários da clínica
+        horarios = get_horarios_clinica()
+        choices = [(t, t.strftime('%H:%M')) for t in horarios]
+        self.fields['hora_inicio'].widget.choices = choices
 
     def clean(self):
         cleaned_data = super().clean()
@@ -66,13 +81,13 @@ class AgendamentoForm(forms.ModelForm):
         if not (terapeuta and data and hora_inicio):
             return cleaned_data
         
-        # Define 45 minutos padrão se estiver vazio
-        if not hora_fim:
-            dt_inicio_naive = datetime.combine(data, hora_inicio)
-            dt_inicio_aware = timezone.make_aware(dt_inicio_naive, timezone.get_current_timezone())
-            dt_fim = dt_inicio_aware + timedelta(minutes=45)
-            hora_fim = dt_fim.time()
-            cleaned_data['hora_fim'] = hora_fim 
+        # Define 45 minutos padrão se estiver vazio (agora sempre será calculado assim)
+        # Convertemos para datetime completo para somar timedelta
+        dt_inicio_naive = datetime.combine(data, hora_inicio)
+        dt_inicio_aware = timezone.make_aware(dt_inicio_naive, timezone.get_current_timezone())
+        dt_fim = dt_inicio_aware + timedelta(minutes=45)
+        hora_fim = dt_fim.time()
+        cleaned_data['hora_fim'] = hora_fim 
         
         # Verifica conflitos
         tem_conflito = Agendamento.verificar_conflito(
@@ -107,6 +122,12 @@ class RegistrarFaltaForm(forms.ModelForm):
         return tipo
 
 class AgendaFixaForm(forms.ModelForm):
+    # Campo personalizado para a seleção de horário na Agenda Fixa também
+    hora_inicio = forms.TimeField(
+        label="Horário de Início",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+
     class Meta:
         model = AgendaFixa
         fields = ['paciente', 'terapeuta', 'sala', 'dia_semana', 'hora_inicio', 'hora_fim', 'data_inicio', 'data_fim', 'ativo']
@@ -115,8 +136,8 @@ class AgendaFixaForm(forms.ModelForm):
             'terapeuta': forms.Select(attrs={'class': 'form-control campo-busca'}),
             'sala': forms.Select(attrs={'class': 'form-select'}),
             'dia_semana': forms.Select(attrs={'class': 'form-select'}),
-            'hora_inicio': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
-            'hora_fim': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
+            # hora_inicio via Select
+            'hora_fim': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time', 'readonly': 'readonly'}),
             'data_inicio': forms.DateInput(attrs={'class': 'form-control seletor-apenas-data'}),
             'data_fim': forms.DateInput(attrs={'class': 'form-control seletor-apenas-data'}),
         }
@@ -125,20 +146,22 @@ class AgendaFixaForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['sala'].required = True
         self.fields['sala'].label = "Sala de Atendimento"
-        
-        # ALTERAÇÃO CRÍTICA: Permite deixar vazio no formulário para cálculo automático
         self.fields['hora_fim'].required = False 
         
         # Filtra apenas pacientes ativos
         self.fields['paciente'].queryset = Paciente.objects.filter(ativo=True).order_by('nome')
 
+        # Popula o Select com os horários da clínica
+        horarios = get_horarios_clinica()
+        choices = [(t, t.strftime('%H:%M')) for t in horarios]
+        self.fields['hora_inicio'].widget.choices = choices
+
     def clean(self):
         cleaned_data = super().clean()
         hora_inicio = cleaned_data.get('hora_inicio')
-        hora_fim = cleaned_data.get('hora_fim')
         
-        # Se hora_inicio foi informada, mas hora_fim não, define 45min
-        if hora_inicio and not hora_fim:
+        # Define 45min
+        if hora_inicio:
             dummy_date = datetime.now().date()
             dt_inicio_naive = datetime.combine(dummy_date, hora_inicio)
             dt_inicio_aware = timezone.make_aware(dt_inicio_naive, timezone.get_current_timezone())

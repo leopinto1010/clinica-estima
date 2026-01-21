@@ -7,17 +7,34 @@ def make_datetime_aware(data, hora):
     dt_naive = datetime.combine(data, hora)
     return timezone.make_aware(dt_naive, timezone.get_current_timezone())
 
+def get_horarios_clinica():
+    """Gera a lista de horários de 45min com intervalo de almoço"""
+    horarios = []
+    
+    # Manhã: Início 7:15 até 11:45 (7 slots) -> Fim 12:30
+    inicio_manha = datetime(2000, 1, 1, 7, 15)
+    for i in range(7):
+        horarios.append((inicio_manha + timedelta(minutes=45*i)).time())
+        
+    # Tarde: Início 13:30 até 18:45 (8 slots) -> Fim 19:30
+    inicio_tarde = datetime(2000, 1, 1, 13, 30)
+    for i in range(8):
+        horarios.append((inicio_tarde + timedelta(minutes=45*i)).time())
+        
+    return horarios
+
 def gerar_agenda_futura(dias_a_frente=None, agenda_especifica=None):
     from .models import Agendamento, AgendaFixa
     
     hoje = timezone.now().date()
-    ano_atual = hoje.year
-    fim_do_ano = date(ano_atual, 12, 31)
+    # ano_atual = hoje.year
+    # fim_do_ano = date(ano_atual, 12, 31)
     
+    # Se não definir dias, faz por 365 dias (1 ano)
     if dias_a_frente:
         limite = hoje + timedelta(days=dias_a_frente)
     else:
-        limite = fim_do_ano
+        limite = hoje + timedelta(days=365)
     
     if agenda_especifica:
         grades = [agenda_especifica]
@@ -90,7 +107,7 @@ def criar_agendamentos_em_lote(form_data, user_request):
         if tem_conflito:
             conflitos.append(nova_data.strftime('%d/%m'))
         else:
-            # Remove "sobras" de faltas deletadas ou agendamentos deletados que possam estar atrapalhando
+            # Remove "sobras" de faltas deletadas ou agendamentos deletados
             Agendamento.objects.ativos().filter(
                 terapeuta=terapeuta,
                 data=nova_data,

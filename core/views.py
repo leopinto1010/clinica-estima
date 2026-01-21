@@ -23,12 +23,14 @@ from .forms import (
 )
 
 from .decorators import admin_required, terapeuta_required, dono_required, is_admin, is_terapeuta, is_dono
-from .utils import setup_grupos, criar_agendamentos_em_lote, gerar_agenda_futura
+from .utils import setup_grupos, criar_agendamentos_em_lote, gerar_agenda_futura, get_horarios_clinica
 from django.urls import reverse
 
 def remover_acentos(texto):
     if not texto: return ""
     return ''.join(c for c in unicodedata.normalize('NFD', texto) if unicodedata.category(c) != 'Mn')
+
+# ... (Mantenha as outras views: dashboard, lista_pacientes, etc. sem alterações até lista_agendamentos) ...
 
 @login_required
 def dashboard(request):
@@ -72,7 +74,6 @@ def lista_pacientes(request):
 
     if busca:
         busca_limpa = remover_acentos(busca).lower()
-        # CORREÇÃO: Busca no campo normalizado nome_search
         pacientes = pacientes.filter(Q(nome_search__icontains=busca_limpa) | Q(cpf__icontains=busca))
     
     if filtro_tipo:
@@ -154,13 +155,17 @@ def detalhe_paciente(request, paciente_id):
         'is_admin': is_admin(request.user)
     })
 
+# --- VIEW ATUALIZADA ---
 @login_required
 def lista_agendamentos(request):
     data_inicio_get = request.GET.get('data_inicio')
     data_fim_get = request.GET.get('data_fim')
     filtro_hoje = request.GET.get('filtro_hoje')
     filtro_semana = request.GET.get('filtro_semana')
-    busca_nome = request.GET.get('busca_nome')
+    
+    # ALTERADO: Filtro por ID em vez de busca por texto
+    filtro_paciente = request.GET.get('filtro_paciente')
+    
     filtro_tipo = request.GET.get('filtro_tipo')
     filtro_terapeuta = request.GET.get('filtro_terapeuta')
     filtro_status = request.GET.get('filtro_status')
@@ -171,15 +176,14 @@ def lista_agendamentos(request):
     
     if filtro_hoje:
         data_inicio, data_fim = hoje, hoje
-    elif filtro_semana:
+    elif data_inicio_get and data_fim_get:
+        data_inicio = datetime.strptime(data_inicio_get, '%Y-%m-%d').date()
+        data_fim = datetime.strptime(data_fim_get, '%Y-%m-%d').date()
+    else:
+        # Padrão: Semana atual (Seg-Dom)
         start_week = hoje - timedelta(days=hoje.weekday())
         data_inicio, data_fim = start_week, start_week + timedelta(days=6)
-    elif data_inicio_get and data_fim_get:
-        data_inicio, data_fim = data_inicio_get, data_fim_get
-    else:
-        data_inicio = hoje.replace(day=1)
-        prox_mes = data_inicio.replace(day=28) + timedelta(days=4)
-        data_fim = prox_mes - timedelta(days=prox_mes.day)
+        filtro_semana = '1'
 
     agendamentos = Agendamento.objects.ativos().select_related('paciente', 'terapeuta', 'sala', 'agenda_fixa').filter(
         data__range=[data_inicio, data_fim]
@@ -196,26 +200,48 @@ def lista_agendamentos(request):
         elif filtro_terapeuta: 
             agendamentos = agendamentos.filter(terapeuta_id=filtro_terapeuta)
         else:
-            agendamentos = Agendamento.objects.none()
+            pass
     
-    if busca_nome:
-        # CORREÇÃO: Normaliza a busca e usa nome_search
-        busca_limpa = remover_acentos(busca_nome).lower()
-        agendamentos = agendamentos.filter(paciente__nome_search__icontains=busca_limpa)
+    # ALTERADO: Filtra pelo ID exato do paciente selecionado
+    if filtro_paciente:
+        agendamentos = agendamentos.filter(paciente_id=filtro_paciente)
 
     if filtro_tipo: agendamentos = agendamentos.filter(tipo_atendimento=filtro_tipo)
     if filtro_status: agendamentos = agendamentos.filter(status=filtro_status)
     if filtro_sala: agendamentos = agendamentos.filter(sala_id=filtro_sala)
 
+    # Preparação da Grade
+    horarios_grade = get_horarios_clinica()
+    
+    delta = data_fim - data_inicio
+    dates_in_range = []
+    for i in range(delta.days + 1):
+        dates_in_range.append(data_inicio + timedelta(days=i))
+
+    agenda_map = {t.strftime('%H:%M'): {d.strftime('%Y-%m-%d'): [] for d in dates_in_range} for t in horarios_grade}
+
+    for item in agendamentos:
+        h_str = item.hora_inicio.strftime('%H:%M')
+        d_str = item.data.strftime('%Y-%m-%d')
+        
+        if h_str in agenda_map and d_str in agenda_map[h_str]:
+            agenda_map[h_str][d_str].append(item)
+
     return render(request, 'lista_agendamentos.html', {
-        'agendamentos': agendamentos, 
+        'agenda_map': agenda_map,
+        'horarios_grade': horarios_grade,
+        'dates_in_range': dates_in_range,
         'agora': agora,
         'data_inicio': str(data_inicio), 'data_fim': str(data_fim),
         'filtro_hoje': filtro_hoje, 'filtro_semana': filtro_semana,
         'tipos_atendimento': TIPO_ATENDIMENTO_CHOICES,
+        
+        # ALTERADO: Passamos a lista de pacientes ativos para o select
+        'pacientes': Paciente.objects.filter(ativo=True).order_by('nome'),
+        'filtro_paciente_selecionado': int(filtro_paciente) if filtro_paciente else None,
+        
         'terapeutas': Terapeuta.objects.all() if is_admin(request.user) else None,
         'salas': Sala.objects.all(),
-        'busca_nome': busca_nome or '',
         'filtro_tipo_selecionado': filtro_tipo,
         'filtro_terapeuta_selecionado': filtro_terapeuta, 
         'filtro_sala_selecionado': filtro_sala,
@@ -224,6 +250,7 @@ def lista_agendamentos(request):
         'is_admin': is_admin(request.user)
     })
 
+# ... (Mantenha o restante das views: novo_agendamento, lista_agendas_fixas, etc.) ...
 @login_required
 def novo_agendamento(request):
     if not is_admin(request.user):
@@ -265,22 +292,22 @@ def lista_agendas_fixas(request):
     if terapeuta_id:
         agendas = agendas.filter(terapeuta_id=terapeuta_id)
     
-    range_horarios = range(7, 21) 
+    horarios_grade = get_horarios_clinica()
     range_dias = range(6) 
     
-    agenda_map = {h: {d: [] for d in range_dias} for h in range_horarios}
+    agenda_map = {t.strftime('%H:%M'): {d: [] for d in range_dias} for t in horarios_grade}
     
     for item in agendas:
-        h = item.hora_inicio.hour
+        h_str = item.hora_inicio.strftime('%H:%M')
         d = item.dia_semana
-        if h in agenda_map and d in range_dias:
-            agenda_map[h][d].append(item)
+        if h_str in agenda_map and d in range_dias:
+            agenda_map[h_str][d].append(item)
             
     nomes_dias = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
     return render(request, 'lista_agendas_fixas.html', {
         'agenda_map': agenda_map,
-        'range_horarios': range_horarios,
+        'horarios_grade': horarios_grade,
         'nomes_dias': nomes_dias,
         'terapeutas': Terapeuta.objects.all(),
         'is_admin': True, 
@@ -299,8 +326,6 @@ def nova_agenda_fixa(request):
             nova_grade = form.save()
             qtd = gerar_agenda_futura(agenda_especifica=nova_grade) 
             messages.success(request, f"Regra criada! {qtd} agendamentos foram lançados no calendário.")
-            
-            # ALTERAÇÃO AQUI: Redirecionar mantendo o filtro do terapeuta criado
             return redirect(f"{reverse('lista_agendas_fixas')}?terapeuta={nova_grade.terapeuta.id}")
             
     else:
@@ -630,7 +655,6 @@ def lista_consultas_geral(request):
     if data_inicio and data_fim: agendamentos = agendamentos.filter(data__range=[data_inicio, data_fim])
     
     if busca_nome:
-        # CORREÇÃO: Normaliza a busca e usa nome_search
         busca_limpa = remover_acentos(busca_nome).lower()
         agendamentos = agendamentos.filter(paciente__nome_search__icontains=busca_limpa)
 
@@ -720,8 +744,9 @@ def ocupacao_salas(request):
     data_anterior = (start_week - timedelta(days=7)).strftime('%Y-%m-%d')
     data_proxima = (start_week + timedelta(days=7)).strftime('%Y-%m-%d')
     
-    range_horarios = range(7, 21) 
-    agenda_map = {h: {d: [] for d in range(6)} for h in range_horarios}
+    horarios_grade = get_horarios_clinica()
+    
+    agenda_map = {t.strftime('%H:%M'): {d: [] for d in range(6)} for t in horarios_grade}
 
     if sala_id:
         agendamentos = Agendamento.objects.ativos().filter(
@@ -730,18 +755,18 @@ def ocupacao_salas(request):
         ).select_related('paciente', 'terapeuta', 'sala', 'agenda_fixa')
 
         for item in agendamentos:
-            h = item.hora_inicio.hour
+            h_str = item.hora_inicio.strftime('%H:%M')
             d = item.data.weekday() 
             
-            if h in agenda_map and 0 <= d <= 5:
-                agenda_map[h][d].append(item)
+            if h_str in agenda_map and 0 <= d <= 5:
+                agenda_map[h_str][d].append(item)
 
     salas = Sala.objects.all()
     datas_cabecalho = [start_week + timedelta(days=i) for i in range(6)]
 
     return render(request, 'ocupacao_salas.html', {
         'agenda_map': agenda_map,
-        'range_horarios': range_horarios,
+        'horarios_grade': horarios_grade,
         'datas_cabecalho': datas_cabecalho,
         'salas': salas,
         'sala_selecionada': int(sala_id) if sala_id else None,
