@@ -135,7 +135,9 @@
                                 <div class="fixo-card">
                                     <div class="fixo-actions">
                                         <a href="{% url 'editar_agenda_fixa' item.id %}" class="btn-icon-sm" title="Editar"><i class="bi bi-pencil-fill"></i></a>
-                                        <a href="{% url 'excluir_agenda_fixa' item.id %}" class="btn-icon-sm btn-icon-del" title="Excluir/Desativar"><i class="bi bi-trash-fill"></i></a>
+                                        <a href="{% url 'excluir_agenda_fixa' item.id %}?{{ request.GET.urlencode }}" class="btn-icon-sm btn-icon-del" title="Excluir/Desativar">
+                                        <i class="bi bi-trash-fill"></i>
+                                        </a>
                                     </div>
                                     
                                     <div class="fixo-hora">

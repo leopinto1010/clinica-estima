@@ -387,6 +387,9 @@ def excluir_agenda_fixa(request, id):
         return redirect('dashboard')
 
     if request.method == 'POST':
+        # Captura os filtros que vieram do formulário oculto
+        filtros_origem = request.POST.get('filtros_origem', '')
+        
         agenda.ativo = False
         agenda.save()
         
@@ -398,9 +401,21 @@ def excluir_agenda_fixa(request, id):
             msg_extra = f" {qtd} agendamentos futuros foram removidos."
             
         messages.success(request, f"Agenda fixa desativada.{msg_extra}")
-        return redirect('lista_agendas_fixas')
+        
+        # Monta a URL de retorno mantendo os filtros
+        url_destino = reverse('lista_agendas_fixas')
+        if filtros_origem:
+            url_destino += f"?{filtros_origem}"
+            
+        return redirect(url_destino)
     
-    return render(request, 'confirmar_exclusao_fixa.html', {'agenda': agenda})
+    # No GET, pegamos os filtros da URL atual para passar ao template
+    filtros_origem = request.GET.urlencode()
+    
+    return render(request, 'confirmar_exclusao_fixa.html', {
+        'agenda': agenda,
+        'filtros_origem': filtros_origem # Passamos para o template
+    })
 
 @login_required
 def reposicao_agendamento(request, agendamento_id):

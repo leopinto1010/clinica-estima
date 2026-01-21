@@ -233,7 +233,13 @@
                 allowInput: true     
             });
 
-            $('.campo-busca').select2({ theme: 'bootstrap-5', placeholder: "Buscar...", width: '100%' });
+            // ATUALIZADO: Habilitado allowClear para permitir "limpar" a busca
+            $('.campo-busca').select2({ 
+                theme: 'bootstrap-5', 
+                placeholder: "Selecione...", 
+                width: '100%',
+                allowClear: true 
+            });
             
             setTimeout(() => { $('.custom-toast').css('animation', 'fadeOut 0.5s forwards'); setTimeout(() => $('.custom-toast').remove(), 500); }, 5000);
         });
