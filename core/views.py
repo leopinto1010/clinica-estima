@@ -954,40 +954,63 @@ def relatorio_grade_pacientes(request):
 
 @login_required
 def relatorio_atrasos(request):
-    if not is_admin(request.user):
-        messages.error(request, "Acesso restrito à gestão.")
+    # Permite acesso se for Admin OU Terapeuta
+    eh_admin = is_admin(request.user)
+    eh_terapeuta = is_terapeuta(request.user)
+
+    if not (eh_admin or eh_terapeuta):
+        messages.error(request, "Acesso restrito.")
         return redirect('dashboard')
 
     agora = timezone.localtime(timezone.now())
+    # Atraso = Agora > (Fim do atendimento + 24h)
+    # Ou seja: Fim do atendimento <= Agora - 24h
     limite_corte = agora - timedelta(hours=24)
 
-    # 1. Busca todos os agendamentos que estão "AGUARDANDO" e são anteriores ao corte
-    # Filtramos primeiro por data para otimizar o banco
-    possiveis_atrasos = Agendamento.objects.ativos().filter(
+    # 1. Query inicial
+    candidatos = Agendamento.objects.ativos().filter(
         status='AGUARDANDO',
         data__lte=limite_corte.date()
-    ).select_related('paciente', 'terapeuta', 'sala').order_by('terapeuta__nome', 'data', 'hora_inicio')
+    ).select_related('terapeuta', 'paciente', 'sala').order_by('terapeuta__nome', 'data')
 
-    atrasados_por_terapeuta = defaultdict(list)
-    total_atrasos = 0
+    # SE FOR TERAPEUTA (E NÃO ADMIN), FILTRA APENAS OS DELE
+    if not eh_admin and eh_terapeuta:
+        candidatos = candidatos.filter(terapeuta=request.user.terapeuta)
+
+    # 2. Processamento refinado (Data + Hora)
+    mapa_atrasos = defaultdict(list)
+    total_geral = 0
     
-    # 2. Refinamento preciso (Data + Hora)
-    for item in possiveis_atrasos:
-        # Cria um datetime consciente do timezone com a data e hora fim do agendamento
-        # Usamos hora_fim para dar o benefício da dúvida (24h após o TÉRMINO)
-        dt_termino_naive = datetime.combine(item.data, item.hora_fim if item.hora_fim else item.hora_inicio)
+    for item in candidatos:
+        hora_ref = item.hora_fim if item.hora_fim else item.hora_inicio
+        dt_termino_naive = datetime.combine(item.data, hora_ref)
         dt_termino_aware = timezone.make_aware(dt_termino_naive, timezone.get_current_timezone())
         
+        # Verifica 24h exatas
         if dt_termino_aware <= limite_corte:
-            atrasados_por_terapeuta[item.terapeuta].append(item)
-            total_atrasos += 1
+            delta = agora - dt_termino_aware
+            item.atraso_dias = delta.days # Dias inteiros de atraso
+            
+            # Se for 0 dias (mas > 24h, ex: 25h), mostramos "1 dia" ou tratamos no template
+            # Mas o pedido foi "dias exatos". Se delta.days for 0, significa < 48h desde o fim.
+            
+            mapa_atrasos[item.terapeuta].append(item)
+            total_geral += 1
 
-    # Converte para dict normal para o template iterar facilmente
-    resultado = dict(atrasados_por_terapeuta)
+    # 3. Monta lista para o template
+    relatorio = []
+    for terapeuta, lista in mapa_atrasos.items():
+        relatorio.append({
+            'terapeuta': terapeuta,
+            'quantidade': len(lista),
+            'agendamentos': lista
+        })
+
+    relatorio.sort(key=lambda x: x['quantidade'], reverse=True)
 
     return render(request, 'relatorio_atrasos.html', {
-        'atrasados_por_terapeuta': resultado,
-        'total_atrasos': total_atrasos,
-        'limite_corte': limite_corte,
-        'agora': agora
+        'relatorio': relatorio,
+        'total_geral': total_geral,
+        'data_corte': limite_corte,
+        'is_admin': eh_admin # Passamos flag para personalizar msg no template
     })

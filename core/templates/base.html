@@ -130,6 +130,13 @@
                 </a>
                 <ul class="dropdown-menu dropdown-menu-start shadow border-0" aria-labelledby="menuRelatorios">
                     <li>
+                        <a class="dropdown-item d-flex align-items-center justify-content-between" href="{% url 'relatorio_atrasos' %}">
+                            <span><i class="bi bi-hourglass-split me-2 text-danger"></i>Atraso de Evoluções</span>
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider"></li>
+
+                    <li>
                         <a class="dropdown-item" href="{% url 'relatorio_mensal' %}">
                             <i class="bi bi-graph-up-arrow me-2 text-muted"></i>
                             {% if is_admin %}Financeiro & Equipe{% else %}Meu Desempenho{% endif %}
@@ -150,13 +157,6 @@
                     <i class="bi bi-gear-fill me-1"></i> Gestão
                 </a>
                 <ul class="dropdown-menu dropdown-menu-start shadow border-0" aria-labelledby="menuGestao">
-                    <li>
-                        <a class="dropdown-item d-flex align-items-center justify-content-between" href="{% url 'relatorio_atrasos' %}">
-                            <span><i class="bi bi-hourglass-bottom me-2 text-danger"></i>Atraso de Evoluções</span>
-                        </a>
-                    </li>
-                    <li><hr class="dropdown-divider"></li>
-
                     <li><h6 class="dropdown-header text-uppercase small fw-bold">Pessoas</h6></li>
                     <li>
                         <a class="dropdown-item" href="{% url 'lista_terapeutas' %}">
@@ -240,6 +240,7 @@
                 allowInput: true     
             });
 
+            // ATUALIZAÇÃO: allowClear: true adicionado
             $('.campo-busca').select2({ 
                 theme: 'bootstrap-5', 
                 placeholder: "Selecione...", 
