@@ -3,204 +3,193 @@
 
 {% block content %}
 <style>
-    /* Estilo base do card do agendamento na grade */
-    .evento-sala {
-        font-size: 0.75rem;
+    /* Container para rolagem horizontal (Estilo Excel) */
+    .table-responsive-excel {
+        overflow-x: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        background: white;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        max-height: 80vh; /* Altura máxima para rolar verticalmente também se precisar */
+    }
+
+    .table-excel {
+        width: auto; /* Permite que a tabela cresça horizontalmente */
+        min-width: 100%;
+        border-collapse: separate; 
+        border-spacing: 0;
+    }
+
+    .table-excel th, .table-excel td {
+        border-right: 1px solid #dee2e6;
+        border-bottom: 1px solid #dee2e6;
+        padding: 8px;
+        vertical-align: top;
+        font-size: 0.85rem;
+    }
+
+    /* Cabeçalho das Salas (Sticky Top) */
+    .table-excel thead th {
+        position: sticky;
+        top: 0;
+        background-color: #e9ecef; /* Cor cinza claro igual cabeçalho padrão */
+        z-index: 100;
+        text-align: center;
+        min-width: 160px; /* Largura mínima para caber os nomes */
+        border-bottom: 2px solid #ced4da;
+    }
+
+    /* Coluna de Horários (Sticky Left) */
+    .col-horario {
+        position: sticky;
+        left: 0;
+        background-color: #f8f9fa;
+        z-index: 101; /* Fica acima do cabeçalho quando rola */
+        text-align: center;
+        vertical-align: middle !important;
+        font-weight: bold;
+        width: 80px;
+        min-width: 80px;
+        border-right: 2px solid #dee2e6;
+    }
+
+    /* Header da primeira célula (canto superior esquerdo) */
+    .header-canto {
+        position: sticky;
+        left: 0;
+        top: 0;
+        z-index: 102;
+        background-color: #e9ecef;
+        border-right: 2px solid #dee2e6;
+        border-bottom: 2px solid #ced4da;
+    }
+
+    /* Cartão do Agendamento dentro da Célula */
+    .card-evento {
+        background-color: #fff;
+        border: 1px solid #ddd;
+        border-left: 3px solid #0d6efd; /* Azul padrão */
+        border-radius: 4px;
         padding: 6px;
-        margin-bottom: 3px;
-        border-radius: 6px;
-        border-left: 4px solid;
+        margin-bottom: 4px;
         box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         transition: transform 0.1s;
     }
-    .evento-sala:hover {
+    .card-evento:hover {
         transform: scale(1.02);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         z-index: 10;
-        position: relative;
     }
 
-    /* FIXO: Azul */
-    .tipo-fixo {
-        border-left-color: #0d6efd; 
-        background-color: #e7f1ff;  
-        color: #004085;             
-    }
-    .tipo-fixo .text-muted {
-        color: #6c8dbb !important;
-    }
+    /* Cores por tipo */
+    .evento-fixo { border-left-color: #0d6efd; background-color: #f0f7ff; }
+    .evento-avulso { border-left-color: #fd7e14; background-color: #fff8e1; }
     
-    /* AVULSO: Laranja */
-    .tipo-avulso {
-        border-left-color: #fd7e14;
-        background-color: #fff3cd;
-        color: #664d03;
-    }
-
-    /* Estilo para a navegação de datas */
-    .nav-date-container {
-        background: #fff;
-        border: 1px solid #dee2e6;
-        border-radius: 8px;
-        display: flex;
-        align-items: center;
-        padding: 4px;
-    }
-    .btn-nav-date {
-        border: none;
-        background: transparent;
-        color: #6c757d;
-        padding: 5px 10px;
-        border-radius: 4px;
-        transition: all 0.2s;
-    }
-    .btn-nav-date:hover { background: #f8f9fa; color: #0d6efd; }
-    
-    .col-hora-icon {
-        width: 70px;
-        text-align: center;
-        vertical-align: middle !important;
-        background-color: #f8f9fa;
-        color: #6c757d;
-    }
+    .paciente-nome { font-weight: 700; color: #344767; display: block; margin-bottom: 2px; }
+    .terapeuta-nome { font-size: 0.75rem; color: #6c757d; }
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h4 class="fw-bold text-dark mb-1"><i class="bi bi-building-fill me-2 text-primary"></i>Gestão de Salas</h4>
-        <p class="text-muted small mb-0">Visualização dinâmica de ocupação semanal.</p>
+        <h4 class="fw-bold text-dark mb-1"><i class="bi bi-grid-1x2-fill me-2 text-primary"></i>Grade de Salas</h4>
+        <p class="text-muted small mb-0">Visão geral de ocupação diária por sala.</p>
     </div>
 </div>
 
-<div class="card mb-4 border-0 shadow-sm">
-    <div class="card-body bg-light py-3">
-        <form method="GET" id="formFiltroSalas" class="row align-items-center justify-content-between">
+<div class="card mb-3 border-0 shadow-sm">
+    <div class="card-body bg-light py-2">
+        <form method="GET" id="formNavegacao" class="d-flex justify-content-center align-items-center gap-3">
             
-            <input type="hidden" name="data_inicio" id="inputDataInicio" value="{{ data_atual_input }}">
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="navegarData('{{ data_anterior }}')">
+                <i class="bi bi-chevron-left"></i>
+            </button>
 
-            <div class="col-md-4">
-                <div class="input-group">
-                    <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-door-open-fill"></i></span>
-                    <select name="sala" class="form-select border-start-0" onchange="this.form.submit()">
-                        <option value="" disabled {% if not sala_selecionada %}selected{% endif %}>Selecione uma Sala...</option>
-                        {% for s in salas %}
-                            <option value="{{ s.id }}" {% if s.id == sala_selecionada %}selected{% endif %}>
-                                {{ s.nome }}
-                            </option>
-                        {% endfor %}
-                    </select>
+            <div class="d-flex align-items-center bg-white border rounded px-3 py-1 shadow-sm" style="cursor: pointer;" onclick="document.getElementById('pickerData').showPicker()">
+                <i class="bi bi-calendar-event me-2 text-primary"></i>
+                <div class="text-center lh-1">
+                    <span class="d-block fw-bold text-dark">{{ data_atual|date:"l" }}</span>
+                    <span class="small text-muted">
+                        {{ data_atual|date:"d" }} de {{ data_atual|date:"F, Y" }}
+                    </span>
+                </div>
+                <input type="date" name="data" id="pickerData" 
+                       value="{{ data_input }}" 
+                       style="position: absolute; opacity: 0; width: 1px;"
+                       onchange="this.form.submit()">
+            </div>
+
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="navegarData('{{ data_proxima }}')">
+                <i class="bi bi-chevron-right"></i>
+            </button>
+
+            <div class="ms-4 d-none d-md-flex gap-3">
+                <div class="d-flex align-items-center">
+                    <div style="width: 10px; height: 10px; background: #f0f7ff; border-left: 2px solid #0d6efd; margin-right: 5px;"></div>
+                    <span class="small text-muted">Fixo</span>
+                </div>
+                <div class="d-flex align-items-center">
+                    <div style="width: 10px; height: 10px; background: #fff8e1; border-left: 2px solid #fd7e14; margin-right: 5px;"></div>
+                    <span class="small text-muted">Avulso</span>
                 </div>
             </div>
 
-            <div class="col-md-5 d-flex justify-content-center">
-                <div class="nav-date-container shadow-sm">
-                    <button type="button" class="btn-nav-date" onclick="navegarSemana('{{ data_anterior }}')" title="Semana Anterior">
-                        <i class="bi bi-chevron-left"></i>
-                    </button>
-                    
-                    <div class="px-3 text-center" style="cursor: pointer;" onclick="document.getElementById('pickerData').showPicker()">
-                        <small class="d-block text-muted fw-bold text-uppercase" style="font-size: 0.65rem; letter-spacing: 1px;">Intervalo</small>
-                        <span class="fw-bold text-dark">
-                            {{ start_week|date:"d/m" }} <span class="text-muted mx-1">até</span> {{ end_week|date:"d/m" }}
-                        </span>
-                        <input type="date" id="pickerData" 
-                               style="position: absolute; opacity: 0; width: 1px; height: 1px;" 
-                               onchange="navegarSemana(this.value)">
-                    </div>
-
-                    <button type="button" class="btn-nav-date" onclick="navegarSemana('{{ data_proxima }}')" title="Próxima Semana">
-                        <i class="bi bi-chevron-right"></i>
-                    </button>
-                </div>
-            </div>
-            
-            <div class="col-md-3 text-end">
-                <div class="d-inline-flex align-items-center bg-white px-3 py-2 rounded border shadow-sm">
-                    <div class="d-flex align-items-center me-3">
-                        <div style="width: 12px; height: 12px; background: #e7f1ff; border-left: 3px solid #0d6efd; margin-right: 5px;"></div>
-                        <span class="small fw-bold text-muted">Fixo</span>
-                    </div>
-                    <div class="d-flex align-items-center">
-                        <div style="width: 12px; height: 12px; background: #fff3cd; border-left: 3px solid #fd7e14; margin-right: 5px;"></div>
-                        <span class="small fw-bold text-muted">Avulso</span>
-                    </div>
-                </div>
-            </div>
         </form>
     </div>
 </div>
 
-{% if sala_selecionada %}
-<div class="card border-0 shadow-sm">
-    <div class="table-responsive">
-        <table class="table table-bordered text-center mb-0 align-middle" style="table-layout: fixed; min-width: 1000px;">
-            <thead class="bg-light">
-                <tr>
-                    <th class="col-hora-icon"><i class="bi bi-clock"></i></th>
-                    {% for dia in datas_cabecalho %}
-                        <th class="text-secondary small text-uppercase {% if dia == hoje_date %}bg-primary bg-opacity-10{% endif %}">
-                            {{ dia|date:"l" }} <br>
-                            <span class="text-dark fw-bold">{{ dia|date:"d/m" }}</span>
-                        </th>
-                    {% endfor %}
-                </tr>
-            </thead>
-            <tbody>
-                {% for hora in horarios_grade %}
-                <tr>
-                    <td class="fw-bold text-muted small bg-light">{{ hora|date:"H:i" }}</td>
-                    
-                    {% for dia_idx in "012345"|make_list %}
-                        <td class="p-1 align-top text-start position-relative" style="height: 60px; background-color: #fff;">
-                            
-                            {% with chave_hora=hora|date:"H:i" %}
-                            {% with lista=agenda_map|dict_get:chave_hora|dict_get:dia_idx %}
-                                {% for item in lista %}
-                                    <div class="evento-sala {% if item.agenda_fixa %}tipo-fixo{% else %}tipo-avulso{% endif %}" 
-                                         title="Terapeuta: {{ item.terapeuta.nome }}">
-                                        
-                                        <div class="fw-bold text-truncate" style="font-size: 0.8rem;">
-                                            {{ item.paciente.nome }}
-                                        </div>
-
-                                        <div class="d-block small fw-bold opacity-75 my-1" style="font-size: 0.7rem;">
-                                            {{ item.hora_inicio|date:"H:i" }} - {{ item.hora_fim|date:"H:i" }}
-                                        </div>
-                                        
-                                        <div class="d-flex justify-content-between text-muted border-top border-secondary border-opacity-10 pt-1 mt-1">
-                                            <span style="font-size: 0.65rem;">{{ item.terapeuta.nome|slice:":12" }}...</span>
-                                            
-                                            {% if item.agenda_fixa %}
-                                                <i class="bi bi-arrow-repeat opacity-50" style="font-size: 0.7rem;" title="Horário Fixo"></i>
-                                            {% else %}
-                                                <i class="bi bi-star-fill text-warning opacity-50" style="font-size: 0.7rem;" title="Avulso"></i>
-                                            {% endif %}
-                                        </div>
-                                    </div>
-                                {% endfor %}
-                            {% endwith %}
-                            {% endwith %} 
-                            </td>
-                    {% endfor %}
-                </tr>
+<div class="table-responsive-excel">
+    <table class="table-excel">
+        <thead>
+            <tr>
+                <th class="header-canto text-muted small text-uppercase">Horário</th>
+                {% for sala in salas %}
+                    <th style="background-color: #f8f9fa;">
+                        {{ sala.nome }}
+                    </th>
                 {% endfor %}
-            </tbody>
-        </table>
-    </div>
+            </tr>
+        </thead>
+        <tbody>
+            {% for hora in horarios_grade %}
+            <tr>
+                <td class="col-horario">{{ hora|date:"H:i" }}</td>
+                
+                {% for sala in salas %}
+                    <td>
+                        {# Busca no dicionário: agenda_map['08:00'][sala_id] #}
+                        {% with chave_hora=hora|date:"H:i" %}
+                        {% with lista_agendamentos=agenda_map|dict_get:chave_hora|dict_get:sala.id %}
+                            
+                            {% for item in lista_agendamentos %}
+                                <div class="card-evento {% if item.agenda_fixa %}evento-fixo{% else %}evento-avulso{% endif %}"
+                                     title="Clique para ver detalhes">
+                                    
+                                    <span class="paciente-nome">{{ item.paciente_nome }}</span>
+                                    
+                                    <div class="terapeuta-nome">
+                                        {{ item.terapeuta_nome }}
+                                    </div>
+                                    
+                                    {% if not forloop.last %}
+                                        <hr style="margin: 4px 0; opacity: 0.2;">
+                                    {% endif %}
+                                </div>
+                            {% endfor %}
+
+                        {% endwith %}
+                        {% endwith %}
+                    </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </div>
-{% else %}
-<div class="text-center py-5">
-    <div class="mb-3 text-muted opacity-50">
-        <i class="bi bi-door-open" style="font-size: 4rem;"></i>
-    </div>
-    <h5 class="fw-bold text-muted">Selecione uma sala acima</h5>
-    <p class="text-muted small">Escolha uma sala para visualizar a grade de ocupação e horários.</p>
-</div>
-{% endif %}
 
 <script>
-    function navegarSemana(dataDestino) {
-        document.getElementById('inputDataInicio').value = dataDestino;
-        document.getElementById('formFiltroSalas').submit();
+    function navegarData(novaData) {
+        document.getElementById('pickerData').value = novaData;
+        document.getElementById('formNavegacao').submit();
     }
 </script>
 {% endblock %}

@@ -745,49 +745,83 @@ def ocupacao_salas(request):
         messages.error(request, "Acesso restrito à administração.")
         return redirect('dashboard')
 
-    sala_id = request.GET.get('sala')
-    data_get = request.GET.get('data_inicio')
-    
+    # 1. Definição de datas (mantido igual)
+    data_get = request.GET.get('data')
     if data_get:
-        data_base = datetime.strptime(data_get, '%Y-%m-%d').date()
+        data_atual = datetime.strptime(data_get, '%Y-%m-%d').date()
     else:
-        data_base = timezone.now().date()
+        data_atual = timezone.now().date()
     
-    start_week = data_base - timedelta(days=data_base.weekday())
-    end_week = start_week + timedelta(days=5) 
-    
-    data_anterior = (start_week - timedelta(days=7)).strftime('%Y-%m-%d')
-    data_proxima = (start_week + timedelta(days=7)).strftime('%Y-%m-%d')
-    
+    data_anterior = (data_atual - timedelta(days=1)).strftime('%Y-%m-%d')
+    data_proxima = (data_atual + timedelta(days=1)).strftime('%Y-%m-%d')
+
+    # 2. Buscas no banco (mantido igual)
+    salas = Sala.objects.all().order_by('nome')
+    agendamentos = Agendamento.objects.ativos().filter(
+        data=data_atual
+    ).select_related('paciente', 'terapeuta', 'sala', 'agenda_fixa')
+
+    # 3. Lógica de Agrupamento (NOVO)
+    # Estrutura temporária: agrupados[(hora, sala_id, paciente_id)] = dados
+    agrupados = {}
+
+    for item in agendamentos:
+        if not item.sala: continue # Ignora sem sala
+
+        h_str = item.hora_inicio.strftime('%H:%M')
+        s_id = item.sala.id
+        p_id = item.paciente.id
+        
+        chave = (h_str, s_id, p_id)
+        
+        # Pega apenas o primeiro nome para não ficar muito grande (ex: "Ana" em vez de "Ana Silva")
+        nome_terapeuta = item.terapeuta.nome.split()[0]
+
+        if chave in agrupados:
+            # JA EXISTE: Adiciona o terapeuta à lista existente (União)
+            agrupados[chave]['terapeutas'].append(nome_terapeuta)
+            
+            # Se algum dos agendamentos for fixo, consideramos o bloco como fixo
+            if item.agenda_fixa:
+                agrupados[chave]['agenda_fixa'] = True
+        else:
+            # NOVO: Cria o registro
+            agrupados[chave] = {
+                'paciente_nome': item.paciente.nome,
+                'terapeutas': [nome_terapeuta],
+                'agenda_fixa': True if item.agenda_fixa else False,
+                # Guardamos o objeto original apenas para referência se precisar de outras cores
+                'obj_original': item 
+            }
+
+    # 4. Monta a Grade Final para o Template
     horarios_grade = get_horarios_clinica()
     
-    agenda_map = {t.strftime('%H:%M'): {d: [] for d in range(6)} for t in horarios_grade}
+    # Inicializa o mapa vazio
+    agenda_map = {t.strftime('%H:%M'): {s.id: [] for s in salas} for t in horarios_grade}
 
-    if sala_id:
-        agendamentos = Agendamento.objects.ativos().filter(
-            data__range=[start_week, end_week],
-            sala_id=sala_id
-        ).select_related('paciente', 'terapeuta', 'sala', 'agenda_fixa')
-
-        for item in agendamentos:
-            h_str = item.hora_inicio.strftime('%H:%M')
-            d = item.data.weekday() 
+    # Preenche o mapa com os dados agrupados
+    for (h_str, s_id, p_id), dados in agrupados.items():
+        if h_str in agenda_map and s_id in agenda_map[h_str]:
             
-            if h_str in agenda_map and 0 <= d <= 5:
-                agenda_map[h_str][d].append(item)
-
-    salas = Sala.objects.all()
-    datas_cabecalho = [start_week + timedelta(days=i) for i in range(6)]
+            # Une os nomes com " + "
+            texto_terapeutas = " + ".join(dados['terapeutas'])
+            
+            # Cria o objeto simplificado para o template
+            item_display = {
+                'paciente_nome': dados['paciente_nome'],
+                'terapeuta_nome': texto_terapeutas,
+                'agenda_fixa': dados['agenda_fixa']
+            }
+            
+            agenda_map[h_str][s_id].append(item_display)
 
     return render(request, 'ocupacao_salas.html', {
         'agenda_map': agenda_map,
         'horarios_grade': horarios_grade,
-        'datas_cabecalho': datas_cabecalho,
         'salas': salas,
-        'sala_selecionada': int(sala_id) if sala_id else None,
-        'data_atual_input': start_week.strftime('%Y-%m-%d'),
-        'start_week': start_week,
-        'end_week': end_week,
+        'data_atual': data_atual,
+        'data_input': data_atual.strftime('%Y-%m-%d'),
         'data_anterior': data_anterior,
         'data_proxima': data_proxima,
         'is_admin': is_admin(request.user)
