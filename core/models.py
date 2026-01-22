@@ -17,10 +17,10 @@ def validar_tamanho_arquivo(file):
 # --- MODALIDADES (Exceções / Funções Específicas na Consulta) ---
 MODALIDADE_CHOICES = [
     ('BOBATH', 'Fisioterapia (Bobath)'),
-    ('PEDIASUIT', 'Fisioterapia (Pediasuit)'),       # Renomeado
-    ('RESPIRATORIA', 'Fisioterapia (Respiratória)'), # Adicionado
+    ('PEDIASUIT', 'Fisioterapia (Pediasuit)'),       
+    ('RESPIRATORIA', 'Fisioterapia (Respiratória)'), 
     ('AT', 'Assistente Terapêutico (AT)'),
-    ('PSICOPEDAGOGIA', 'Psicopedagogia'),            # Apenas a exceção
+    ('PSICOPEDAGOGIA', 'Psicopedagogia'),            
 ]
 
 # --- ESPECIALIDADES (Cargo Principal do Profissional) ---
@@ -35,7 +35,7 @@ ESPECIALIDADES_CHOICES = [
     ('Musicoterapeuta', 'Musicoterapeuta'),
     ('Arteterapeuta', 'Arteterapeuta'),
     ('Terapeuta Alimentar', 'Terapeuta Alimentar'),
-    ('Assistente Terapêutico', 'Assistente Terapêutico'), # Adicionado
+    ('Assistente Terapêutico', 'Assistente Terapêutico'), 
 ]
 
 TIPO_ATENDIMENTO_CHOICES = [
@@ -128,7 +128,9 @@ class AgendaFixa(models.Model):
 
     @property
     def descricao_modalidade(self):
-        if self.modalidade:
+        # CORREÇÃO AQUI: Se a modalidade for o valor antigo "FISIOTERAPIA",
+        # ignoramos e retornamos a especialidade do terapeuta.
+        if self.modalidade and self.modalidade != 'FISIOTERAPIA':
             return self.get_modalidade_display()
         return self.terapeuta.especialidade or "Padrão"
 
@@ -189,7 +191,9 @@ class Agendamento(models.Model):
 
     @property
     def descricao_modalidade(self):
-        if self.modalidade:
+        # CORREÇÃO AQUI: Se a modalidade for o valor antigo "FISIOTERAPIA",
+        # ignoramos e retornamos a especialidade do terapeuta.
+        if self.modalidade and self.modalidade != 'FISIOTERAPIA':
             return self.get_modalidade_display()
         return self.terapeuta.especialidade or "Padrão"
 
