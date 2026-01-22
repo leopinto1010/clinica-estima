@@ -39,9 +39,10 @@ class AgendamentoForm(forms.ModelForm):
         widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': '0 = Apenas hoje'})
     )
     
+    # ALTERADO: Mudamos de Select para TimeInput para permitir horários quebrados
     hora_inicio = forms.TimeField(
         label="Horário de Início",
-        widget=forms.Select(attrs={'class': 'form-select'})
+        widget=forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'})
     )
 
     class Meta:
@@ -62,15 +63,14 @@ class AgendamentoForm(forms.ModelForm):
         self.fields['sala'].label = "Sala de Atendimento"
         self.fields['hora_fim'].required = False
         
-        # --- AQUI: Define o texto da opção vazia ---
         self.fields['modalidade'].empty_label = "Padrão do Terapeuta"
-        # -------------------------------------------
         
         self.fields['paciente'].queryset = Paciente.objects.filter(ativo=True).order_by('nome')
         
-        horarios = get_horarios_clinica()
-        choices = [(t, t.strftime('%H:%M')) for t in horarios]
-        self.fields['hora_inicio'].widget.choices = choices
+        # REMOVIDO: Não forçamos mais choices vindos do get_horarios_clinica
+        # horarios = get_horarios_clinica()
+        # choices = [(t, t.strftime('%H:%M')) for t in horarios]
+        # self.fields['hora_inicio'].widget.choices = choices
 
     def clean(self):
         cleaned_data = super().clean()
@@ -121,9 +121,10 @@ class RegistrarFaltaForm(forms.ModelForm):
         return tipo
 
 class AgendaFixaForm(forms.ModelForm):
+    # ALTERADO: Mudamos de Select para TimeInput
     hora_inicio = forms.TimeField(
         label="Horário de Início",
-        widget=forms.Select(attrs={'class': 'form-select'})
+        widget=forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'})
     )
 
     class Meta:
@@ -146,15 +147,14 @@ class AgendaFixaForm(forms.ModelForm):
         self.fields['sala'].label = "Sala de Atendimento"
         self.fields['hora_fim'].required = False 
         
-        # --- AQUI: Define o texto da opção vazia ---
         self.fields['modalidade'].empty_label = "Padrão do Terapeuta"
-        # -------------------------------------------
         
         self.fields['paciente'].queryset = Paciente.objects.filter(ativo=True).order_by('nome')
 
-        horarios = get_horarios_clinica()
-        choices = [(t, t.strftime('%H:%M')) for t in horarios]
-        self.fields['hora_inicio'].widget.choices = choices
+        # REMOVIDO: Não forçamos mais choices
+        # horarios = get_horarios_clinica()
+        # choices = [(t, t.strftime('%H:%M')) for t in horarios]
+        # self.fields['hora_inicio'].widget.choices = choices
 
     def clean(self):
         cleaned_data = super().clean()

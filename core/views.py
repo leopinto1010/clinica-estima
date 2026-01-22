@@ -30,6 +30,24 @@ def remover_acentos(texto):
     if not texto: return ""
     return ''.join(c for c in unicodedata.normalize('NFD', texto) if unicodedata.category(c) != 'Mn')
 
+# --- FUNÇÃO AUXILIAR PARA ENCAIXAR HORÁRIOS QUEBRADOS NA GRADE VISUAL ---
+def encontrar_slot_visual(hora_real, horarios_grade):
+    """
+    Recebe um horário real (ex: 07:30) e a lista de horários da grade.
+    Retorna a string 'HH:MM' do slot onde esse horário deve aparecer visualmente
+    (o slot imediatamente anterior ou igual).
+    """
+    if not horarios_grade: return hora_real.strftime('%H:%M')
+    
+    slot_candidato = horarios_grade[0]
+    for h in horarios_grade:
+        if h > hora_real:
+            break
+        slot_candidato = h
+    
+    return slot_candidato.strftime('%H:%M')
+# ------------------------------------------------------------------------
+
 @login_required
 def dashboard(request):
     hoje = timezone.localtime(timezone.now()).date()
@@ -212,7 +230,9 @@ def lista_agendamentos(request):
     agenda_map = {t.strftime('%H:%M'): {d.strftime('%Y-%m-%d'): [] for d in dates_in_range} for t in horarios_grade}
 
     for item in agendamentos:
-        h_str = item.hora_inicio.strftime('%H:%M')
+        # ALTERADO: Usa a função auxiliar para mapear horários quebrados para o slot visual mais próximo
+        h_str = encontrar_slot_visual(item.hora_inicio, horarios_grade)
+        
         d_str = item.data.strftime('%Y-%m-%d')
         
         if h_str in agenda_map and d_str in agenda_map[h_str]:
@@ -285,7 +305,9 @@ def lista_agendas_fixas(request):
     agenda_map = {t.strftime('%H:%M'): {d: [] for d in range_dias} for t in horarios_grade}
     
     for item in agendas:
-        h_str = item.hora_inicio.strftime('%H:%M')
+        # ALTERADO: Usa a função auxiliar para mapear horários quebrados
+        h_str = encontrar_slot_visual(item.hora_inicio, horarios_grade)
+        
         d = item.dia_semana
         if h_str in agenda_map and d in range_dias:
             agenda_map[h_str][d].append(item)
@@ -359,7 +381,9 @@ def editar_agenda_fixa(request, id):
 
             gerar_agenda_futura(agenda_especifica=nova_agenda)
             messages.success(request, f"Agenda Fixa salva e sincronizada.{msg_extra}")
-            return redirect('lista_agendas_fixas')
+            
+            return redirect(f"{reverse('lista_agendas_fixas')}?terapeuta={nova_agenda.terapeuta.id}")
+            
     else:
         form = AgendaFixaForm(instance=agenda)
 
@@ -782,14 +806,18 @@ def ocupacao_salas(request):
             agrupados[chave] = {
                 'paciente_nome': item.paciente.nome,
                 'terapeutas': [nome_terapeuta],
-                'agenda_fixa': True if item.agenda_fixa else False
+                'agenda_fixa': True if item.agenda_fixa else False,
+                'hora_real': item.hora_inicio 
             }
 
     horarios_grade = get_horarios_clinica()
     agenda_map = {t.strftime('%H:%M'): {s.id: [] for s in salas} for t in horarios_grade}
 
     for (h_str, s_id, p_id), dados in agrupados.items():
-        if h_str in agenda_map and s_id in agenda_map[h_str]:
+        # ALTERADO: Re-calcula o slot visual baseado na hora real guardada no agrupamento
+        h_visual = encontrar_slot_visual(dados['hora_real'], horarios_grade)
+
+        if h_visual in agenda_map and s_id in agenda_map[h_visual]:
             texto_terapeutas = " + ".join(dados['terapeutas'])
             
             item_display = {
@@ -797,7 +825,7 @@ def ocupacao_salas(request):
                 'terapeuta_nome': texto_terapeutas,
                 'agenda_fixa': dados['agenda_fixa']
             }
-            agenda_map[h_str][s_id].append(item_display)
+            agenda_map[h_visual][s_id].append(item_display)
 
     return render(request, 'ocupacao_salas.html', {
         'agenda_map': agenda_map,
@@ -932,16 +960,11 @@ def relatorio_grade_pacientes(request):
                 hora = item.hora_inicio
                 horarios_unicos.add(hora)
                 
-                # --- CORREÇÃO DE BUG ---
-                # A migração antiga colocava 'FISIOTERAPIA' como default para todo mundo.
-                # Aqui nós ignoramos esse valor genérico para forçar o uso da especialidade correta.
-                # Se for realmente um Fisioterapeuta, vai cair no CASO 2 e mostrar 'Fisio'.
                 modalidade = item.modalidade
                 if modalidade == 'FISIOTERAPIA':
                     modalidade = None
 
                 if modalidade:
-                    # CASO 1: Modalidade Específica Selecionada
                     if modalidade == 'BOBATH':
                         area_atuacao = "Bobath"
                     elif modalidade == 'PEDIASUIT':
@@ -955,7 +978,6 @@ def relatorio_grade_pacientes(request):
                     else:
                         area_atuacao = item.get_modalidade_display().split('(')[0].strip()
                 else:
-                    # CASO 2: Padrão (Usa a especialidade do terapeuta)
                     area_atuacao = item.terapeuta.especialidade if item.terapeuta.especialidade else "Terapeuta"
                     
                     if area_atuacao == 'Terapeuta Ocupacional': 
@@ -1071,9 +1093,6 @@ def relatorio_atrasos(request):
 def reverter_agendamento(request, agendamento_id):
     agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
     
-    # PERMISSÕES:
-    # 1. Admin/Recepção pode reverter qualquer um.
-    # 2. Terapeuta pode reverter apenas os seus PRÓPRIOS agendamentos.
     eh_dono = (is_terapeuta(request.user) and agendamento.terapeuta.usuario == request.user)
     pode_mexer = is_admin(request.user) or eh_dono
     
@@ -1082,11 +1101,9 @@ def reverter_agendamento(request, agendamento_id):
         return redirect('lista_agendamentos')
 
     if agendamento.status in ['REALIZADO', 'FALTA']:
-        # Se houver um prontuário (Consulta) criado por engano, nós o removemos.
         if hasattr(agendamento, 'consulta'):
             agendamento.consulta.delete()
             
-        # Reseta os dados para o estado inicial
         agendamento.status = 'AGUARDANDO'
         agendamento.tipo_cancelamento = None
         agendamento.motivo_cancelamento = None
