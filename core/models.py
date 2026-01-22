@@ -101,6 +101,9 @@ class Terapeuta(models.Model):
     registro_profissional = models.CharField(max_length=50, blank=True, null=True)
     especialidade = models.CharField(max_length=50, choices=ESPECIALIDADES_CHOICES, blank=True, null=True)
     
+    class Meta:
+        ordering = ['nome']
+
     def __str__(self):
         return self.nome
 
