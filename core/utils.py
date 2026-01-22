@@ -27,14 +27,13 @@ def gerar_agenda_futura(dias_a_frente=None, agenda_especifica=None):
     from .models import Agendamento, AgendaFixa
     
     hoje = timezone.now().date()
-    # ano_atual = hoje.year
-    # fim_do_ano = date(ano_atual, 12, 31)
     
-    # Se não definir dias, faz por 365 dias (1 ano)
+    # Se não definir dias, o padrão agora é até o FIM DO ANO CORRENTE
     if dias_a_frente:
         limite = hoje + timedelta(days=dias_a_frente)
     else:
-        limite = hoje + timedelta(days=365)
+        # Alterado: Vai até 31/12 do ano atual
+        limite = date(hoje.year, 12, 31)
     
     if agenda_especifica:
         grades = [agenda_especifica]
@@ -46,20 +45,51 @@ def gerar_agenda_futura(dias_a_frente=None, agenda_especifica=None):
     for grade in grades:
         data_atual = max(grade.data_inicio, hoje)
         limite_grade = limite
+        
+        # Se a grade tiver uma data fim específica menor que o fim do ano, respeita a grade
         if grade.data_fim:
             limite_grade = min(limite, grade.data_fim)
             
         while data_atual <= limite_grade:
             if data_atual.weekday() == grade.dia_semana:
                 
-                tem_conflito = Agendamento.verificar_conflito(
+                # --- LÓGICA DE ABSORÇÃO ---
+                # Verifica se já existe algo ocupando este horário 'AGUARDANDO'
+                conflito_ou_existente = Agendamento.objects.ativos().filter(
                     terapeuta=grade.terapeuta,
                     data=data_atual,
-                    hora_inicio=grade.hora_inicio,
-                    hora_fim=grade.hora_fim
-                )
+                    status='AGUARDANDO'
+                ).filter(
+                    hora_inicio__lt=grade.hora_fim,
+                    hora_fim__gt=grade.hora_inicio
+                ).first()
+
+                if conflito_ou_existente:
+                    # 1. É do MESMO paciente? -> REAPROVEITAR (Absorver)
+                    if conflito_ou_existente.paciente == grade.paciente:
+                        mudou = False
+                        
+                        if conflito_ou_existente.agenda_fixa != grade:
+                            conflito_ou_existente.agenda_fixa = grade
+                            mudou = True
+                        
+                        if conflito_ou_existente.sala != grade.sala:
+                            conflito_ou_existente.sala = grade.sala
+                            mudou = True
+                            
+                        if conflito_ou_existente.hora_inicio != grade.hora_inicio:
+                            conflito_ou_existente.hora_inicio = grade.hora_inicio
+                            conflito_ou_existente.hora_fim = grade.hora_fim
+                            mudou = True
+
+                        if mudou:
+                            conflito_ou_existente.save()
+                            total_criados += 1
+                    
+                    # 2. Se for de OUTRO paciente -> Conflito Real -> Pula
                 
-                if not tem_conflito:
+                else:
+                    # Se NÃO existe nada no horário -> Cria Novo
                     Agendamento.objects.create(
                         agenda_fixa=grade,
                         paciente=grade.paciente,
