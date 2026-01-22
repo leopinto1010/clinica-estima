@@ -14,13 +14,16 @@ def validar_tamanho_arquivo(file):
     if file.size > limite_mb * 1024 * 1024:
         raise ValidationError(f"O arquivo não pode exceder {limite_mb}MB.")
 
-# --- LISTA REDUZIDA (Apenas as variações) ---
+# --- MODALIDADES (Exceções / Funções Específicas na Consulta) ---
 MODALIDADE_CHOICES = [
     ('BOBATH', 'Fisioterapia (Bobath)'),
-    ('PEDIA', 'Fisioterapia (Pedia)'),
+    ('PEDIASUIT', 'Fisioterapia (Pediasuit)'),       # Renomeado
+    ('RESPIRATORIA', 'Fisioterapia (Respiratória)'), # Adicionado
     ('AT', 'Assistente Terapêutico (AT)'),
+    ('PSICOPEDAGOGIA', 'Psicopedagogia'),            # Apenas a exceção
 ]
 
+# --- ESPECIALIDADES (Cargo Principal do Profissional) ---
 ESPECIALIDADES_CHOICES = [
     ('Fonoaudiólogo(a)', 'Fonoaudiólogo(a)'),
     ('Fisioterapeuta', 'Fisioterapeuta'),
@@ -32,7 +35,7 @@ ESPECIALIDADES_CHOICES = [
     ('Musicoterapeuta', 'Musicoterapeuta'),
     ('Arteterapeuta', 'Arteterapeuta'),
     ('Terapeuta Alimentar', 'Terapeuta Alimentar'),
-    ('Assistente Terapêutico', 'Assistente Terapêutico'),
+    ('Assistente Terapêutico', 'Assistente Terapêutico'), # Adicionado
 ]
 
 TIPO_ATENDIMENTO_CHOICES = [
@@ -42,14 +45,13 @@ TIPO_ATENDIMENTO_CHOICES = [
     ('SOCIAL', 'Social'),
 ]
 
-# ... (Classes Sala, Convenio, Paciente e Terapeuta permanecem iguais) ...
 class Sala(models.Model):
     nome = models.CharField(max_length=50, verbose_name="Nome da Sala")
     def __str__(self): return self.nome
 
 class Convenio(models.Model):
     nome = models.CharField(max_length=100, unique=True, verbose_name="Nome do Convênio")
-    ativo = models.BooleanField(default=True)
+    ativo = models.BooleanField(default=True, verbose_name="Ativo?")
     class Meta:
         ordering = ['nome']
         verbose_name = "Convênio"
@@ -62,10 +64,10 @@ class Paciente(models.Model):
     cpf = models.CharField(max_length=11, unique=True, null=True, blank=True, validators=[RegexValidator(regex=r'^\d{11}$')])
     data_nascimento = models.DateField(null=True, blank=True)
     telefone = models.CharField(max_length=11, blank=True, null=True, validators=[RegexValidator(regex=r'^\d{10,11}$')])
-    tipo_padrao = models.CharField(max_length=20, choices=TIPO_ATENDIMENTO_CHOICES, default='PARTICULAR')
-    convenio = models.ForeignKey(Convenio, on_delete=models.SET_NULL, null=True, blank=True)
-    carteirinha = models.CharField(max_length=50, blank=True, null=True)
-    ativo = models.BooleanField(default=True)
+    tipo_padrao = models.CharField(max_length=20, choices=TIPO_ATENDIMENTO_CHOICES, default='PARTICULAR', verbose_name="Tipo de Atendimento Padrão")
+    convenio = models.ForeignKey(Convenio, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Convênio (Se houver)")
+    carteirinha = models.CharField(max_length=50, blank=True, null=True, verbose_name="Número da Carteirinha")
+    ativo = models.BooleanField(default=True, verbose_name="Cadastro Ativo")
     class Meta:
         ordering = ['nome']
         verbose_name = 'Paciente'
@@ -91,24 +93,24 @@ class AgendaFixa(models.Model):
     paciente = models.ForeignKey(Paciente, on_delete=models.CASCADE)
     terapeuta = models.ForeignKey(Terapeuta, on_delete=models.PROTECT)
     
-    # --- ALTERADO: Opcional e com choices restritos ---
+    # --- CAMPO MODALIDADE ---
     modalidade = models.CharField(
         max_length=50, 
         choices=MODALIDADE_CHOICES, 
-        blank=True,  # Permite vazio no form
-        null=True,   # Permite NULL no banco
+        blank=True, 
+        null=True, 
         default=None,
         verbose_name="Modalidade (Vazio = Padrão)"
     )
-    # --------------------------------------------------
+    # ------------------------
 
-    sala = models.ForeignKey(Sala, on_delete=models.PROTECT, null=True, blank=True)
-    dia_semana = models.IntegerField(choices=DIAS_DA_SEMANA)
-    hora_inicio = models.TimeField()
-    hora_fim = models.TimeField()
-    ativo = models.BooleanField(default=True)
-    data_inicio = models.DateField(default=timezone.now)
-    data_fim = models.DateField(null=True, blank=True)
+    sala = models.ForeignKey(Sala, on_delete=models.PROTECT, null=True, blank=True, verbose_name="Sala Fixa")
+    dia_semana = models.IntegerField(choices=DIAS_DA_SEMANA, verbose_name="Dia da Semana")
+    hora_inicio = models.TimeField(verbose_name="Início")
+    hora_fim = models.TimeField(verbose_name="Fim")
+    ativo = models.BooleanField(default=True, verbose_name="Grade Ativa")
+    data_inicio = models.DateField(default=timezone.now, verbose_name="Vigência Início")
+    data_fim = models.DateField(null=True, blank=True, verbose_name="Vigência Fim (Opcional)")
 
     class Meta:
         verbose_name = "Horário Fixo (Grade)"
@@ -124,7 +126,6 @@ class AgendaFixa(models.Model):
             self.hora_fim = (dt_inicio + timedelta(minutes=45)).time()
         super().save(*args, **kwargs)
 
-    # --- PROPRIEDADE INTELIGENTE DE EXIBIÇÃO ---
     @property
     def descricao_modalidade(self):
         if self.modalidade:
@@ -146,7 +147,7 @@ class Agendamento(models.Model):
     paciente = models.ForeignKey(Paciente, on_delete=models.CASCADE)
     terapeuta = models.ForeignKey(Terapeuta, on_delete=models.PROTECT)
     
-    # --- ALTERADO: Opcional e com choices restritos ---
+    # --- CAMPO MODALIDADE ---
     modalidade = models.CharField(
         max_length=50, 
         choices=MODALIDADE_CHOICES, 
@@ -155,18 +156,18 @@ class Agendamento(models.Model):
         default=None,
         verbose_name="Modalidade (Consulta)"
     )
-    # --------------------------------------------------
+    # ------------------------
 
     agenda_fixa = models.ForeignKey(AgendaFixa, on_delete=models.SET_NULL, null=True, blank=True, related_name='agendamentos_gerados')
     sala = models.ForeignKey(Sala, on_delete=models.SET_NULL, null=True, blank=True)
-    data = models.DateField()
-    hora_inicio = models.TimeField()
-    hora_fim = models.TimeField(blank=True, null=True)
+    data = models.DateField(verbose_name="Data da Consulta")
+    hora_inicio = models.TimeField(verbose_name="Horário de Início")
+    hora_fim = models.TimeField(verbose_name="Horário de Término", blank=True, null=True)
     tipo_atendimento = models.CharField(max_length=20, choices=TIPO_ATENDIMENTO_CHOICES, default='PARTICULAR')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='AGUARDANDO')
     deletado = models.BooleanField(default=False)
-    tipo_cancelamento = models.CharField(max_length=20, choices=TIPO_CANCELAMENTO_CHOICES, null=True, blank=True)
-    motivo_cancelamento = models.TextField(null=True, blank=True)
+    tipo_cancelamento = models.CharField(max_length=20, choices=TIPO_CANCELAMENTO_CHOICES, null=True, blank=True, verbose_name="Tipo de Falta")
+    motivo_cancelamento = models.TextField(null=True, blank=True, verbose_name="Observação da Falta")
     
     objects = AgendamentoManager()
 
@@ -178,7 +179,7 @@ class Agendamento(models.Model):
             dt_inicio = datetime.combine(dummy_date, self.hora_inicio)
             self.hora_fim = (dt_inicio + timedelta(minutes=45)).time()
         super().save(*args, **kwargs)
-        
+
     @classmethod
     def verificar_conflito(cls, terapeuta, data, hora_inicio, hora_fim, ignorar_id=None):
         conflitos = cls.objects.ativos().filter(terapeuta=terapeuta, data=data).exclude(status='FALTA')
@@ -186,24 +187,22 @@ class Agendamento(models.Model):
         if ignorar_id: conflitos = conflitos.exclude(id=ignorar_id)
         return conflitos.exists()
 
-    # --- PROPRIEDADE INTELIGENTE DE EXIBIÇÃO ---
     @property
     def descricao_modalidade(self):
         if self.modalidade:
             return self.get_modalidade_display()
         return self.terapeuta.especialidade or "Padrão"
 
-# ... (Consulta e AnexoConsulta permanecem iguais) ...
 class Consulta(models.Model):
     agendamento = models.OneToOneField(Agendamento, on_delete=models.CASCADE, primary_key=True)
-    evolucao = models.TextField()
+    evolucao = models.TextField(verbose_name="Evolução do Paciente")
     data_registro = models.DateTimeField(auto_now_add=True)
 
 class AnexoConsulta(models.Model):
     consulta = models.ForeignKey(Consulta, on_delete=models.CASCADE, related_name='anexos')
-    arquivo = models.FileField(upload_to='prontuarios/%Y/%m/', validators=[validar_tamanho_arquivo])
+    arquivo = models.FileField(upload_to='prontuarios/%Y/%m/', verbose_name="Arquivo", validators=[validar_tamanho_arquivo])
     data_upload = models.DateTimeField(auto_now_add=True)
-    def __str__(self): return f"Anexo {self.id}"
+    def __str__(self): return f"Anexo {self.id} - {self.consulta.agendamento.paciente.nome}"
     @property
     def eh_imagem(self):
         nome = self.arquivo.name.lower()

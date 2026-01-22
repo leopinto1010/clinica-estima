@@ -932,30 +932,38 @@ def relatorio_grade_pacientes(request):
                 hora = item.hora_inicio
                 horarios_unicos.add(hora)
                 
-                # --- LÓGICA ATUALIZADA: Prioriza a Modalidade ---
+                # --- LÓGICA ATUALIZADA ---
                 if item.modalidade:
-                    # Se tiver modalidade específica, usa o nome curto dela
+                    # CASO 1: Modalidade Específica Selecionada
                     if item.modalidade == 'BOBATH':
                         area_atuacao = "Bobath"
-                    elif item.modalidade == 'PEDIA':
-                        area_atuacao = "Pedia"
+                    elif item.modalidade == 'PEDIASUIT':
+                        area_atuacao = "Pediasuit"
+                    elif item.modalidade == 'RESPIRATORIA':
+                        area_atuacao = "Resp"
                     elif item.modalidade == 'AT':
                         area_atuacao = "AT"
+                    elif item.modalidade == 'PSICOPEDAGOGIA':
+                        area_atuacao = "Psicoped"
                     else:
-                        # Fallback para o nome de exibição padrão se surgir outra opção futura
                         area_atuacao = item.get_modalidade_display().split('(')[0].strip()
                 else:
-                    # Se NÃO tiver modalidade, usa a especialidade do terapeuta (Comportamento Padrão)
+                    # CASO 2: Padrão (Usa a especialidade do terapeuta)
                     area_atuacao = item.terapeuta.especialidade if item.terapeuta.especialidade else "Terapeuta"
                     
-                    # Abreviações para caber na tabela
                     if area_atuacao == 'Terapeuta Ocupacional': 
                         area_atuacao = 'TO'
-                    elif area_atuacao == 'Fonoaudiólogo(a)':
+                    elif area_atuacao == 'Fonoaudiólogo(a)': 
                         area_atuacao = 'Fono'
-                    elif area_atuacao == 'Psicólogo(a)':
+                    elif area_atuacao == 'Psicólogo(a)': 
                         area_atuacao = 'Psico'
-                # ------------------------------------------------
+                    elif area_atuacao == 'Psicopedagogo(a)': 
+                        area_atuacao = 'Psicoped'
+                    elif area_atuacao == 'Fisioterapeuta': 
+                        area_atuacao = 'Fisio'
+                    elif area_atuacao == 'Assistente Terapêutico': # Novo caso
+                        area_atuacao = 'AT'
+                # -------------------------
                 
                 primeiro_nome = item.terapeuta.nome.split()[0]
                 texto = f"{area_atuacao} ({primeiro_nome})"
