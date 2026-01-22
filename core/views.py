@@ -1020,3 +1020,32 @@ def relatorio_atrasos(request):
         'data_corte': limite_corte,
         'is_admin': eh_admin 
     })
+
+@login_required
+def reverter_agendamento(request, agendamento_id):
+    agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
+    
+    # PERMISSÕES:
+    # 1. Admin/Recepção pode reverter qualquer um.
+    # 2. Terapeuta pode reverter apenas os seus PRÓPRIOS agendamentos.
+    eh_dono = (is_terapeuta(request.user) and agendamento.terapeuta.usuario == request.user)
+    pode_mexer = is_admin(request.user) or eh_dono
+    
+    if not pode_mexer:
+        messages.error(request, "Apenas a recepção ou o terapeuta responsável podem desfazer este status.")
+        return redirect('lista_agendamentos')
+
+    if agendamento.status in ['REALIZADO', 'FALTA']:
+        # Se houver um prontuário (Consulta) criado por engano, nós o removemos.
+        if hasattr(agendamento, 'consulta'):
+            agendamento.consulta.delete()
+            
+        # Reseta os dados para o estado inicial
+        agendamento.status = 'AGUARDANDO'
+        agendamento.tipo_cancelamento = None
+        agendamento.motivo_cancelamento = None
+        agendamento.save()
+        
+        messages.success(request, "Correção realizada: Agendamento voltou para 'Aguardando'.")
+    
+    return redirect('lista_agendamentos')

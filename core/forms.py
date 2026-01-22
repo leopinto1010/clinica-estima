@@ -53,8 +53,8 @@ class AgendamentoForm(forms.ModelForm):
             'terapeuta': forms.Select(attrs={'class': 'form-control campo-busca'}),
             'sala': forms.Select(attrs={'class': 'form-select'}),
             'data': forms.DateInput(attrs={'class': 'form-control seletor-apenas-data'}),
-            # hora_inicio definido no __init__
-            'hora_fim': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time', 'readonly': 'readonly'}),
+            # REMOVIDO readonly DAQUI
+            'hora_fim': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
         }
     
     def __init__(self, *args, **kwargs):
@@ -81,13 +81,13 @@ class AgendamentoForm(forms.ModelForm):
         if not (terapeuta and data and hora_inicio):
             return cleaned_data
         
-        # Define 45 minutos padrão se estiver vazio (agora sempre será calculado assim)
-        # Convertemos para datetime completo para somar timedelta
-        dt_inicio_naive = datetime.combine(data, hora_inicio)
-        dt_inicio_aware = timezone.make_aware(dt_inicio_naive, timezone.get_current_timezone())
-        dt_fim = dt_inicio_aware + timedelta(minutes=45)
-        hora_fim = dt_fim.time()
-        cleaned_data['hora_fim'] = hora_fim 
+        # LÓGICA ATUALIZADA: Só calcula 45min se hora_fim estiver vazio
+        if not hora_fim:
+            dt_inicio_naive = datetime.combine(data, hora_inicio)
+            dt_inicio_aware = timezone.make_aware(dt_inicio_naive, timezone.get_current_timezone())
+            dt_fim = dt_inicio_aware + timedelta(minutes=45)
+            hora_fim = dt_fim.time()
+            cleaned_data['hora_fim'] = hora_fim 
         
         # Verifica conflitos
         tem_conflito = Agendamento.verificar_conflito(
@@ -136,8 +136,8 @@ class AgendaFixaForm(forms.ModelForm):
             'terapeuta': forms.Select(attrs={'class': 'form-control campo-busca'}),
             'sala': forms.Select(attrs={'class': 'form-select'}),
             'dia_semana': forms.Select(attrs={'class': 'form-select'}),
-            # hora_inicio via Select
-            'hora_fim': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time', 'readonly': 'readonly'}),
+            # REMOVIDO readonly DAQUI TAMBÉM
+            'hora_fim': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
             'data_inicio': forms.DateInput(attrs={'class': 'form-control seletor-apenas-data'}),
             'data_fim': forms.DateInput(attrs={'class': 'form-control seletor-apenas-data'}),
         }
@@ -159,9 +159,10 @@ class AgendaFixaForm(forms.ModelForm):
     def clean(self):
         cleaned_data = super().clean()
         hora_inicio = cleaned_data.get('hora_inicio')
+        hora_fim = cleaned_data.get('hora_fim')
         
-        # Define 45min
-        if hora_inicio:
+        # LÓGICA ATUALIZADA: Só define 45min se hora_fim não for informado
+        if hora_inicio and not hora_fim:
             dummy_date = datetime.now().date()
             dt_inicio_naive = datetime.combine(dummy_date, hora_inicio)
             dt_inicio_aware = timezone.make_aware(dt_inicio_naive, timezone.get_current_timezone())

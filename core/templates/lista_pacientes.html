@@ -73,7 +73,8 @@
             <thead class="bg-light">
                 <tr>
                     <th class="ps-4 text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Nome</th>
-                    <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">CPF</th>
+                    {# ALTERAÇÃO 1: Título da coluna mudado de CPF para Nascimento #}
+                    <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Nascimento</th>
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Status</th>
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Telefone</th>
                     
@@ -94,7 +95,8 @@
                         {{ paciente.nome }}
                       </a>
                     </td>
-                    <td>{{ paciente.cpf|default:"-" }}</td>
+                    {# ALTERAÇÃO 2: Exibindo data_nascimento em vez de cpf #}
+                    <td>{{ paciente.data_nascimento|date:"d/m/Y"|default:"-" }}</td>
                     
                     <td>
                         {% if paciente.ativo %}

@@ -243,6 +243,7 @@
                     {% for data in dates_in_range %}
                         <td class="p-1 align-top text-start position-relative" style="height: 60px; background-color: #fff;">
                             
+                            {# AQUI ESTAVA O ERRO: Corrigido para dict_get #}
                             {% with chave_hora=hora|date:"H:i" %}
                             {% with chave_data=data|date:"Y-m-d" %}
                             {% with lista=agenda_map|dict_get:chave_hora|dict_get:chave_data %}
@@ -338,12 +339,25 @@
 
         var htmlBotoes = ''; 
         var htmlLixeira = '';
+        
+        // NOVA LÓGICA: Gera URL de reverter (substitui 'excluir' por 'reverter' na URL)
+        var url_reverter = url_excluir.replace('excluir', 'reverter');
 
         if (paramsUrl) {
-            url_atender += '?' + paramsUrl;
-            url_falta += '?' + paramsUrl;
-            url_repor += '?' + paramsUrl;
-            url_excluir += '?' + paramsUrl;
+            var separator = (url_atender.indexOf('?') === -1) ? '?' : '&';
+            url_atender += separator + paramsUrl;
+            
+            separator = (url_falta.indexOf('?') === -1) ? '?' : '&';
+            url_falta += separator + paramsUrl;
+            
+            separator = (url_repor.indexOf('?') === -1) ? '?' : '&';
+            url_repor += separator + paramsUrl;
+            
+            separator = (url_excluir.indexOf('?') === -1) ? '?' : '&';
+            url_excluir += separator + paramsUrl;
+            
+            separator = (url_reverter.indexOf('?') === -1) ? '?' : '&';
+            url_reverter += separator + paramsUrl;
         }
 
         if (IS_ADMIN && (status_cod === 'AGUARDANDO' || status_cod === 'FALTA') && !is_fixo) { 
@@ -353,10 +367,20 @@
         if (status_cod === 'AGUARDANDO') { 
             htmlBotoes += `<a href="${url_atender}" class="btn btn-primary flex-grow-1 fw-bold rounded-pill">Atender Paciente</a>`; 
             htmlBotoes += `<a href="${url_falta}" class="btn btn-outline-danger rounded-pill px-4">Falta</a>`; 
+        
         } else if (status_cod === 'REALIZADO') { 
-            htmlBotoes += `<a href="${url_atender}" class="btn btn-success w-100 rounded-pill fw-bold">Ver Prontuário</a>`; 
-        } else { 
-            htmlBotoes += `<a href="${url_repor}" class="btn btn-secondary w-100 rounded-pill fw-bold"><i class="bi bi-arrow-repeat"></i> Agendar Reposição</a>`; 
+            // ADICIONADO: Botão de reverter status (botão amarelo)
+            htmlBotoes += `<div class="d-flex gap-2 w-100">`;
+            htmlBotoes += `  <a href="${url_atender}" class="btn btn-success flex-grow-1 rounded-pill fw-bold">Ver Prontuário</a>`;
+            htmlBotoes += `  <a href="${url_reverter}" class="btn btn-warning text-white rounded-pill px-3" onclick="return confirm('ATENÇÃO: Desfazer este atendimento voltará o status para AGUARDANDO. Confirma?')" title="Desfazer"><i class="bi bi-arrow-counterclockwise"></i></a>`;
+            htmlBotoes += `</div>`;
+            
+        } else if (status_cod === 'FALTA') { 
+            // ADICIONADO: Botão de reverter status para faltas também
+            htmlBotoes += `<div class="d-flex gap-2 w-100">`;
+            htmlBotoes += `  <a href="${url_repor}" class="btn btn-secondary flex-grow-1 rounded-pill fw-bold"><i class="bi bi-arrow-repeat"></i> Repor</a>`; 
+            htmlBotoes += `  <a href="${url_reverter}" class="btn btn-warning text-white rounded-pill px-3" onclick="return confirm('ATENÇÃO: Desfazer esta falta voltará o status para AGUARDANDO. Confirma?')" title="Desfazer"><i class="bi bi-arrow-counterclockwise"></i></a>`;
+            htmlBotoes += `</div>`;
         }
 
         $('#detalheAcoesPrincipais').html(htmlBotoes);

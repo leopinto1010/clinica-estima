@@ -1,117 +1,185 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 
 {% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 no-print">
+        <div>
+            <h2>Grade de Horários por Paciente</h2>
+            <p class="text-muted mb-0">Visão consolidada da Agenda Fixa.</p>
+        </div>
+        <div>
+            <button class="btn btn-outline-danger me-2 shadow-sm" onclick="restaurarOriginais()">
+                <i class="bi bi-arrow-counterclockwise"></i> Restaurar Dados Originais
+            </button>
+            <button class="btn btn-primary shadow-sm" onclick="window.print()">
+                <i class="bi bi-printer"></i> Imprimir / Salvar PDF
+            </button>
+        </div>
+    </div>
+
+    <div class="alert alert-info no-print d-flex align-items-center shadow-sm" role="alert" style="border-left: 5px solid #0dcaf0;">
+        <i class="bi bi-pencil-square fs-3 me-3"></i>
+        <div>
+            <strong>MODO DE SIMULAÇÃO LIVRE:</strong> 
+            <br>
+            Você pode clicar e alterar <strong>qualquer célula</strong> (mesmo as já preenchidas) para simular cenários.
+            <br>
+            As suas alterações ficam em <span class="text-danger fw-bold">vermelho</span> e não afetam o banco de dados oficial.
+            <br>
+            <em>Para voltar à planilha oficial, clique no botão "Restaurar Dados Originais" acima.</em>
+        </div>
+    </div>
+
+    {% if relatorio %}
+        {% for item in relatorio %}
+            <div class="card mb-4 shadow-sm quebra-pagina">
+                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 text-primary fw-bold">{{ item.paciente.nome }}</h5>
+                    <span class="badge bg-secondary">{{ item.paciente.get_tipo_padrao_display }}</span>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover mb-0 text-center align-middle">
+                            <thead class="table-secondary">
+                                <tr>
+                                    <th style="width: 10%;">Horário</th>
+                                    {% for dia in dias_semana %}
+                                        <th style="width: 18%;">{{ dia }}</th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for linha in item.linhas %}
+                                    <tr>
+                                        <td class="fw-bold bg-light">{{ linha.hora|date:"H:i" }}</td>
+                                        {% for conteudo in linha.colunas %}
+                                            
+                                            {# TODAS as células agora são editáveis #}
+                                            <td contenteditable="true" 
+                                                class="celula-interativa"
+                                                data-key="draft_{{ item.paciente.id }}_{{ linha.hora|date:'Hi' }}_{{ forloop.counter0 }}">
+                                                
+                                                {# Se tiver conteúdo original, mostramos o badge verde #}
+                                                {% if conteudo %}
+                                                    <span class="badge bg-success bg-opacity-75 text-white p-2 w-100 text-wrap conteudo-original">
+                                                        {{ conteudo }}
+                                                    </span>
+                                                {# Se for vazio, mostramos o traço #}
+                                                {% else %}
+                                                    <span class="text-muted small opacity-25 conteudo-original">--</span>
+                                                {% endif %}
+                                            </td>
+                                        {% endfor %}
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <div class="alert alert-warning">
+            Nenhum paciente com agenda fixa encontrada.
+        </div>
+    {% endif %}
+</div>
+
 <style>
-    /* Estilo inspirado na imagem Excel enviada */
-    .grade-header {
-        background-color: #d0bcff; /* Lilás claro */
-        border: 2px solid #000;
-        text-align: center;
-        font-weight: bold;
-        padding: 5px;
-        color: #000;
-        text-transform: uppercase;
+    /* Estilo para células editáveis */
+    .celula-interativa {
+        cursor: text;
+        transition: all 0.2s;
     }
     
-    .paciente-box {
-        border: 2px solid #000;
-        background-color: white;
-        font-weight: bold;
-        padding: 8px 15px;
-        margin-bottom: 2px;
-        display: inline-block;
-        min-width: 200px;
+    .celula-interativa:hover {
+        background-color: #fff3cd; /* Amarelo claro para indicar que pode mexer */
+        outline: 1px dashed #ffc107;
     }
 
-    .tabela-excel {
-        width: 100%;
-        border-collapse: collapse;
-        margin-bottom: 40px;
-        font-size: 0.85rem;
+    .celula-interativa:focus {
+        outline: 2px solid #dc3545;
+        background-color: #fff;
+        z-index: 10; /* Fica por cima */
     }
 
-    .tabela-excel th {
-        background-color: #d0bcff; /* Cabeçalho Roxo */
-        border: 1px solid #000;
-        padding: 8px;
-        text-align: center;
-        color: black;
-        width: 18%; /* Distribui dias igualmente */
+    /* ESTILO QUANDO A CÉLULA FOI EDITADA */
+    .celula-interativa.editado {
+        color: #dc3545 !important; /* Texto Vermelho */
+        font-weight: 700;
+        background-color: #fff5f5;
+        font-size: 0.9rem;
     }
     
-    .tabela-excel th.th-hora {
-        width: 10%;
-        background-color: white;
-        border: none;
+    /* Esconde o badge original (verde) se a célula foi editada */
+    .celula-interativa.editado .conteudo-original {
+        display: none;
     }
 
-    .tabela-excel td {
-        border: 1px solid #000;
-        padding: 8px;
-        text-align: center;
-        background-color: white;
-        height: 40px;
-        vertical-align: middle;
-    }
-
-    .tabela-excel td.td-hora {
-        font-weight: bold;
-        border: 2px solid #000;
-        background-color: white;
-        width: 10%;
-    }
-
-    .celula-vazia {
-        background-color: white;
+    @media print {
+        .no-print { display: none !important; }
+        .quebra-pagina { page-break-inside: avoid; margin-bottom: 2rem; }
+        .card { border: none !important; box-shadow: none !important; }
+        
+        .celula-interativa.editado {
+            color: #000 !important;
+            font-style: italic !important;
+            text-decoration: underline;
+        }
     }
 </style>
 
-<div class="container-fluid px-0">
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="grade-header mb-4 fs-5">
-                Pacientes UP - Grade de Horários Fixos
-            </div>
-        </div>
-    </div>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const celulas = document.querySelectorAll('[contenteditable]');
 
-    {% for item in relatorio %}
-    <div class="mb-2">
-        <div class="paciente-box">
-            {{ item.paciente.nome }}
-        </div>
+        // 1. Carregar rascunhos salvos
+        celulas.forEach(el => {
+            const key = el.getAttribute('data-key');
+            const salvo = localStorage.getItem(key);
 
-        <table class="tabela-excel">
-            <thead>
-                <tr>
-                    <th class="th-hora"></th> {% for dia in dias_semana %}
-                        <th>{{ dia }}</th>
-                    {% endfor %}
-                </tr>
-            </thead>
-            <tbody>
-                {% for linha in item.linhas %}
-                <tr>
-                    <td class="td-hora">
-                        {{ linha.hora|date:"H:i" }}
-                    </td>
-                    
-                    {% for col in linha.colunas %}
-                        <td>
-                            {% if col %}
-                                {{ col }}
-                            {% endif %}
-                        </td>
-                    {% endfor %}
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% empty %}
-        <div class="alert alert-info text-center">
-            Nenhuma agenda fixa cadastrada no sistema.
-        </div>
-    {% endfor %}
-</div>
+            if (salvo !== null) {
+                // Se tem rascunho, substitui o conteúdo (some o badge verde) e fica vermelho
+                el.innerText = salvo;
+                el.classList.add('editado');
+            }
+
+            // 2. Salvar ao digitar
+            el.addEventListener('input', function() {
+                const valor = this.innerText.trim();
+                
+                if (valor) {
+                    localStorage.setItem(key, this.innerText);
+                    this.classList.add('editado');
+                } else {
+                    // Se apagar tudo, removemos do storage
+                    localStorage.removeItem(key);
+                    // Aqui optamos por não recarregar imediatamente para não atrapalhar a digitação,
+                    // mas visualmente ficará vazio até o refresh.
+                    this.classList.add('editado'); 
+                }
+            });
+
+            // Evitar que o Enter pule linha (comportamento de Excel)
+            el.addEventListener('keydown', event => {
+                if (event.key === 'Enter') {
+                    event.preventDefault();
+                    el.blur();
+                }
+            });
+        });
+    });
+
+    // Função solicitada: Recarrega a planilha correta (Apaga os rascunhos)
+    function restaurarOriginais() {
+        if (confirm('Isso apagará todas as simulações manuais e recarregará os dados oficiais do sistema. Confirmar?')) {
+            Object.keys(localStorage).forEach(key => {
+                if (key.startsWith('draft_')) {
+                    localStorage.removeItem(key);
+                }
+            });
+            window.location.reload(); // Recarrega a página vinda do servidor
+        }
+    }
+</script>
 {% endblock %}

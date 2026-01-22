@@ -30,6 +30,7 @@ from core.views import (
     ocupacao_salas,
     relatorio_grade_pacientes, 
     relatorio_atrasos,
+    reverter_agendamento,
 )
 
 urlpatterns = [
@@ -55,6 +56,7 @@ urlpatterns = [
     path('agendamentos/falta/<int:agendamento_id>/', marcar_falta, name='marcar_falta'),
     path('agendamentos/excluir/<int:agendamento_id>/', excluir_agendamento, name='excluir_agendamento'),
     path('agendamentos/limpar-dia/', limpar_dia, name='limpar_dia'),
+    path('agendamentos/reverter/<int:agendamento_id>/', reverter_agendamento, name='reverter_agendamento'),
     
     # --- AGENDA FIXA ---
     path('agenda-fixa/', lista_agendas_fixas, name='lista_agendas_fixas'),
