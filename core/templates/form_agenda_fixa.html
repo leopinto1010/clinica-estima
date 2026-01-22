@@ -36,6 +36,12 @@
                     {% endif %}
 
                     <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Especialidade / Modalidade</label>
+                        {{ form.modalidade }}
+                        <div class="form-text small">Ex: Fisioterapia (Bobath), Assistente Terapêutico, etc.</div>
+                        {{ form.modalidade.errors }}
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label fw-bold small text-muted">Sala</label>
                         {{ form.sala }}
                         <div class="form-text small">Define em qual sala o atendimento ocorrerá fixamente.</div>

@@ -18,7 +18,7 @@
     }
     .evento-sala:hover { transform: scale(1.02); z-index: 10; position: relative; }
     
-    /* CORES POR STATUS (Com !important para garantir que não sumam) */
+    /* CORES POR STATUS */
     .status-AGUARDANDO { 
         border-left-color: #0d6efd !important; 
         background-color: #e7f1ff !important; 
@@ -40,23 +40,23 @@
         background: #fff;
         border: 1px solid #dee2e6;
         border-radius: 8px;
-        display: inline-flex; /* Mudado para inline-flex para abraçar o conteúdo */
+        display: inline-flex;
         align-items: center;
         padding: 4px;
-        min-width: 320px; /* Largura mínima para estabilidade */
+        min-width: 320px;
     }
     .btn-nav-date {
         border: none; background: transparent; color: #6c757d;
-        padding: 5px 0; /* Padding vertical apenas */
-        width: 40px;    /* LARGURA FIXA PARA MANTER O CENTRO */
+        padding: 5px 0;
+        width: 40px;
         text-align: center;
         border-radius: 4px; transition: all 0.2s;
-        flex-shrink: 0; /* Impede o botão de encolher */
+        flex-shrink: 0;
     }
     .btn-nav-date:hover { background: #f8f9fa; color: #0d6efd; }
     
     .nav-center-text {
-        flex-grow: 1; /* Ocupa todo o espaço sobrando no meio */
+        flex-grow: 1;
         text-align: center;
         padding: 0 10px;
     }
@@ -121,6 +121,7 @@
             </div>
             <div>
                 <h5 class="mb-0 fw-bold text-dark" id="detalhePaciente">Nome do Paciente</h5>
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle mt-1" id="detalheModalidade">Modalidade</span>
                 <span class="badge bg-secondary-subtle text-secondary mt-1 border" id="detalheSalaBadge">Sem Sala</span>
             </div>
         </div>
@@ -129,7 +130,7 @@
             <div class="col-6"><label class="small text-muted fw-bold text-uppercase d-block mb-1">Status</label><div id="detalheStatus" class="fw-medium text-dark bg-white border rounded p-2 text-center small"></div></div>
             <div class="col-12"><label class="small text-muted fw-bold text-uppercase d-block mb-1">Terapeuta</label><div id="detalheTerapeuta" class="fw-medium text-dark bg-white border rounded p-2"></div></div>
             {% if is_admin %}
-            <div class="col-12"><label class="small text-muted fw-bold text-uppercase d-block mb-1">Tipo de Atendimento</label><div id="detalheTipo" class="fw-medium text-secondary"></div></div>
+            <div class="col-12"><label class="small text-muted fw-bold text-uppercase d-block mb-1">Tipo de Pagamento</label><div id="detalheTipo" class="fw-medium text-secondary"></div></div>
             {% endif %}
         </div>
       </div>
@@ -243,7 +244,6 @@
                     {% for data in dates_in_range %}
                         <td class="p-1 align-top text-start position-relative" style="height: 60px; background-color: #fff;">
                             
-                            {# AQUI ESTAVA O ERRO: Corrigido para dict_get #}
                             {% with chave_hora=hora|date:"H:i" %}
                             {% with chave_data=data|date:"Y-m-d" %}
                             {% with lista=agenda_map|dict_get:chave_hora|dict_get:chave_data %}
@@ -261,12 +261,17 @@
                                             '{% url 'marcar_falta' item.id %}',
                                             '{% url 'reposicao_agendamento' item.id %}',
                                             '{% url 'excluir_agendamento' item.id %}',
-                                            {{ item.agenda_fixa|yesno:'true,false' }}
+                                            {{ item.agenda_fixa|yesno:'true,false' }},
+                                            '{{ item.descricao_modalidade|escapejs }}' 
                                          )"
                                          title="Terapeuta: {{ item.terapeuta.nome }}">
                                         
                                         <div class="fw-bold text-truncate" style="font-size: 0.8rem;">
                                             {{ item.paciente.nome }}
+                                        </div>
+
+                                        <div class="text-primary fw-bold text-truncate" style="font-size: 0.7rem; letter-spacing: -0.3px;">
+                                            {{ item.descricao_modalidade }}
                                         </div>
 
                                         <div class="d-flex justify-content-between text-muted border-top border-secondary border-opacity-10 pt-1 mt-1">
@@ -329,18 +334,19 @@
         document.getElementById('formFiltro').submit();
     }
 
-    function abrirDetalhes(paciente, sala, terapeuta, tipo, data_fmt, status_label, status_cod, url_atender, url_falta, url_repor, url_excluir, is_fixo) {
+    function abrirDetalhes(paciente, sala, terapeuta, tipo, data_fmt, status_label, status_cod, url_atender, url_falta, url_repor, url_excluir, is_fixo, modalidade_label) {
         $('#detalhePaciente').text(paciente);
         $('#detalheSalaBadge').text(sala);
         $('#detalheTerapeuta').text(terapeuta);
         $('#detalheTipo').text(tipo);
         $('#detalheData').text(data_fmt);
         $('#detalheStatus').text(status_label);
+        
+        // Exibe a modalidade (que pode ser a especialidade padrão ou Bobath/AT)
+        $('#detalheModalidade').text(modalidade_label);
 
         var htmlBotoes = ''; 
         var htmlLixeira = '';
-        
-        // NOVA LÓGICA: Gera URL de reverter (substitui 'excluir' por 'reverter' na URL)
         var url_reverter = url_excluir.replace('excluir', 'reverter');
 
         if (paramsUrl) {
@@ -369,14 +375,12 @@
             htmlBotoes += `<a href="${url_falta}" class="btn btn-outline-danger rounded-pill px-4">Falta</a>`; 
         
         } else if (status_cod === 'REALIZADO') { 
-            // ADICIONADO: Botão de reverter status (botão amarelo)
             htmlBotoes += `<div class="d-flex gap-2 w-100">`;
             htmlBotoes += `  <a href="${url_atender}" class="btn btn-success flex-grow-1 rounded-pill fw-bold">Ver Prontuário</a>`;
             htmlBotoes += `  <a href="${url_reverter}" class="btn btn-warning text-white rounded-pill px-3" onclick="return confirm('ATENÇÃO: Desfazer este atendimento voltará o status para AGUARDANDO. Confirma?')" title="Desfazer"><i class="bi bi-arrow-counterclockwise"></i></a>`;
             htmlBotoes += `</div>`;
             
         } else if (status_cod === 'FALTA') { 
-            // ADICIONADO: Botão de reverter status para faltas também
             htmlBotoes += `<div class="d-flex gap-2 w-100">`;
             htmlBotoes += `  <a href="${url_repor}" class="btn btn-secondary flex-grow-1 rounded-pill fw-bold"><i class="bi bi-arrow-repeat"></i> Repor</a>`; 
             htmlBotoes += `  <a href="${url_reverter}" class="btn btn-warning text-white rounded-pill px-3" onclick="return confirm('ATENÇÃO: Desfazer esta falta voltará o status para AGUARDANDO. Confirma?')" title="Desfazer"><i class="bi bi-arrow-counterclockwise"></i></a>`;

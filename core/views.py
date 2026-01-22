@@ -932,11 +932,33 @@ def relatorio_grade_pacientes(request):
                 hora = item.hora_inicio
                 horarios_unicos.add(hora)
                 
-                especialidade = item.terapeuta.especialidade if item.terapeuta.especialidade else "Terapeuta"
-                if especialidade == 'Terapeuta Ocupacional': especialidade = 'TO'
+                # --- LÓGICA ATUALIZADA: Prioriza a Modalidade ---
+                if item.modalidade:
+                    # Se tiver modalidade específica, usa o nome curto dela
+                    if item.modalidade == 'BOBATH':
+                        area_atuacao = "Bobath"
+                    elif item.modalidade == 'PEDIA':
+                        area_atuacao = "Pedia"
+                    elif item.modalidade == 'AT':
+                        area_atuacao = "AT"
+                    else:
+                        # Fallback para o nome de exibição padrão se surgir outra opção futura
+                        area_atuacao = item.get_modalidade_display().split('(')[0].strip()
+                else:
+                    # Se NÃO tiver modalidade, usa a especialidade do terapeuta (Comportamento Padrão)
+                    area_atuacao = item.terapeuta.especialidade if item.terapeuta.especialidade else "Terapeuta"
+                    
+                    # Abreviações para caber na tabela
+                    if area_atuacao == 'Terapeuta Ocupacional': 
+                        area_atuacao = 'TO'
+                    elif area_atuacao == 'Fonoaudiólogo(a)':
+                        area_atuacao = 'Fono'
+                    elif area_atuacao == 'Psicólogo(a)':
+                        area_atuacao = 'Psico'
+                # ------------------------------------------------
                 
                 primeiro_nome = item.terapeuta.nome.split()[0]
-                texto = f"{especialidade} ({primeiro_nome})"
+                texto = f"{area_atuacao} ({primeiro_nome})"
                 
                 grade_map[hora][dia].append(texto)
 

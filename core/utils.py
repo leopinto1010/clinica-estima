@@ -32,7 +32,7 @@ def gerar_agenda_futura(dias_a_frente=None, agenda_especifica=None):
     if dias_a_frente:
         limite = hoje + timedelta(days=dias_a_frente)
     else:
-        # Alterado: Vai até 31/12 do ano atual
+        # Vai até 31/12 do ano atual
         limite = date(hoje.year, 12, 31)
     
     if agenda_especifica:
@@ -65,7 +65,7 @@ def gerar_agenda_futura(dias_a_frente=None, agenda_especifica=None):
                 ).first()
 
                 if conflito_ou_existente:
-                    # 1. É do MESMO paciente? -> REAPROVEITAR (Absorver)
+                    # 1. É do MESMO paciente? -> REAPROVEITAR (Absorver e Atualizar)
                     if conflito_ou_existente.paciente == grade.paciente:
                         mudou = False
                         
@@ -76,6 +76,12 @@ def gerar_agenda_futura(dias_a_frente=None, agenda_especifica=None):
                         if conflito_ou_existente.sala != grade.sala:
                             conflito_ou_existente.sala = grade.sala
                             mudou = True
+                            
+                        # --- ATUALIZADO: Verifica e atualiza a Modalidade ---
+                        if conflito_ou_existente.modalidade != grade.modalidade:
+                            conflito_ou_existente.modalidade = grade.modalidade
+                            mudou = True
+                        # ----------------------------------------------------
                             
                         if conflito_ou_existente.hora_inicio != grade.hora_inicio:
                             conflito_ou_existente.hora_inicio = grade.hora_inicio
@@ -94,6 +100,7 @@ def gerar_agenda_futura(dias_a_frente=None, agenda_especifica=None):
                         agenda_fixa=grade,
                         paciente=grade.paciente,
                         terapeuta=grade.terapeuta,
+                        modalidade=grade.modalidade, # --- NOVO: Copia a modalidade ---
                         sala=grade.sala,
                         data=data_atual,
                         hora_inicio=grade.hora_inicio,
@@ -117,6 +124,9 @@ def criar_agendamentos_em_lote(form_data, user_request):
     hora_inicio = form_data['hora_inicio']
     hora_fim = form_data['hora_fim']
     repeticoes = form_data.get('repeticoes', 0)
+    
+    # --- NOVO: Pega a modalidade do form ---
+    modalidade = form_data.get('modalidade', 'FISIOTERAPIA') 
     
     tipo = paciente.tipo_padrao
 
@@ -150,6 +160,7 @@ def criar_agendamentos_em_lote(form_data, user_request):
                 paciente=paciente,
                 terapeuta=terapeuta,
                 sala=sala,
+                modalidade=modalidade, # --- SALVA A MODALIDADE ---
                 data=nova_data,
                 hora_inicio=hora_inicio,
                 hora_fim=hora_fim,
