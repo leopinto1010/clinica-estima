@@ -14,12 +14,12 @@ import unicodedata
 from .models import (
     Paciente, Terapeuta, Agendamento, Consulta, AnexoConsulta, 
     TIPO_ATENDIMENTO_CHOICES, ESPECIALIDADES_CHOICES,
-    AgendaFixa, Sala
+    AgendaFixa, Sala, BloqueioFixo
 )
 
 from .forms import (
     PacienteForm, AgendamentoForm, ConsultaForm, 
-    CadastroEquipeForm, RegistrarFaltaForm, AgendaFixaForm
+    CadastroEquipeForm, RegistrarFaltaForm, AgendaFixaForm, BloqueioFixoForm
 )
 
 from .decorators import admin_required, terapeuta_required, dono_required, is_admin, is_terapeuta, is_dono
@@ -30,23 +30,14 @@ def remover_acentos(texto):
     if not texto: return ""
     return ''.join(c for c in unicodedata.normalize('NFD', texto) if unicodedata.category(c) != 'Mn')
 
-# --- FUNÇÃO AUXILIAR PARA ENCAIXAR HORÁRIOS QUEBRADOS NA GRADE VISUAL ---
 def encontrar_slot_visual(hora_real, horarios_grade):
-    """
-    Recebe um horário real (ex: 07:30) e a lista de horários da grade.
-    Retorna a string 'HH:MM' do slot onde esse horário deve aparecer visualmente
-    (o slot imediatamente anterior ou igual).
-    """
     if not horarios_grade: return hora_real.strftime('%H:%M')
-    
     slot_candidato = horarios_grade[0]
     for h in horarios_grade:
         if h > hora_real:
             break
         slot_candidato = h
-    
     return slot_candidato.strftime('%H:%M')
-# ------------------------------------------------------------------------
 
 @login_required
 def dashboard(request):
@@ -177,12 +168,7 @@ def lista_agendamentos(request):
     data_fim_get = request.GET.get('data_fim')
     filtro_hoje = request.GET.get('filtro_hoje')
     filtro_semana = request.GET.get('filtro_semana')
-    filtro_paciente = request.GET.get('filtro_paciente')
-    filtro_tipo = request.GET.get('filtro_tipo')
-    filtro_terapeuta = request.GET.get('filtro_terapeuta')
-    filtro_status = request.GET.get('filtro_status')
-    filtro_sala = request.GET.get('filtro_sala')
-
+    
     agora = timezone.localtime(timezone.now())
     hoje = agora.date()
     
@@ -196,32 +182,47 @@ def lista_agendamentos(request):
         data_inicio, data_fim = start_week, start_week + timedelta(days=6)
         filtro_semana = '1'
 
+    filtro_paciente = request.GET.get('filtro_paciente')
+    filtro_tipo = request.GET.get('filtro_tipo')
+    filtro_terapeuta = request.GET.get('filtro_terapeuta')
+    filtro_status = request.GET.get('filtro_status')
+    filtro_sala = request.GET.get('filtro_sala')
+
     agendamentos = Agendamento.objects.ativos().select_related('paciente', 'terapeuta', 'sala', 'agenda_fixa').filter(
         data__range=[data_inicio, data_fim]
     ).order_by('data', 'hora_inicio')
 
+    bloqueios_fixos = BloqueioFixo.objects.select_related('terapeuta').all()
+
     if not is_admin(request.user):
         if is_terapeuta(request.user):
             agendamentos = agendamentos.filter(terapeuta=request.user.terapeuta)
+            bloqueios_fixos = bloqueios_fixos.filter(terapeuta=request.user.terapeuta)
         else:
             agendamentos = Agendamento.objects.none()
+            bloqueios_fixos = bloqueios_fixos.none()
     else:
-        if filtro_terapeuta == 'todos': 
-            pass 
-        elif filtro_terapeuta: 
+        if filtro_terapeuta and filtro_terapeuta != 'todos': 
             agendamentos = agendamentos.filter(terapeuta_id=filtro_terapeuta)
-        else:
-            pass
+            bloqueios_fixos = bloqueios_fixos.filter(terapeuta_id=filtro_terapeuta)
     
     if filtro_paciente:
         agendamentos = agendamentos.filter(paciente_id=filtro_paciente)
+        bloqueios_fixos = bloqueios_fixos.none()
 
-    if filtro_tipo: agendamentos = agendamentos.filter(tipo_atendimento=filtro_tipo)
-    if filtro_status: agendamentos = agendamentos.filter(status=filtro_status)
-    if filtro_sala: agendamentos = agendamentos.filter(sala_id=filtro_sala)
+    if filtro_tipo: 
+        agendamentos = agendamentos.filter(tipo_atendimento=filtro_tipo)
+        bloqueios_fixos = bloqueios_fixos.none()
+
+    if filtro_status: 
+        agendamentos = agendamentos.filter(status=filtro_status)
+        bloqueios_fixos = bloqueios_fixos.none()
+
+    if filtro_sala: 
+        agendamentos = agendamentos.filter(sala_id=filtro_sala)
+        bloqueios_fixos = bloqueios_fixos.none()
 
     horarios_grade = get_horarios_clinica()
-    
     delta = data_fim - data_inicio
     dates_in_range = []
     for i in range(delta.days + 1):
@@ -230,13 +231,45 @@ def lista_agendamentos(request):
     agenda_map = {t.strftime('%H:%M'): {d.strftime('%Y-%m-%d'): [] for d in dates_in_range} for t in horarios_grade}
 
     for item in agendamentos:
-        # ALTERADO: Usa a função auxiliar para mapear horários quebrados para o slot visual mais próximo
         h_str = encontrar_slot_visual(item.hora_inicio, horarios_grade)
-        
         d_str = item.data.strftime('%Y-%m-%d')
         
         if h_str in agenda_map and d_str in agenda_map[h_str]:
+            item.tipo_obj = 'agendamento'
             agenda_map[h_str][d_str].append(item)
+
+    for data_loop in dates_in_range:
+        dia_semana_loop = data_loop.weekday()
+        d_str = data_loop.strftime('%Y-%m-%d')
+        bloqueios_do_dia = [b for b in bloqueios_fixos if b.dia_semana == dia_semana_loop]
+        
+        for b in bloqueios_do_dia:
+            curr_time = datetime.combine(datetime.today(), b.hora_inicio)
+            end_time = datetime.combine(datetime.today(), b.hora_fim)
+            
+            while curr_time < end_time:
+                h_str = encontrar_slot_visual(curr_time.time(), horarios_grade)
+                
+                if h_str in agenda_map and d_str in agenda_map[h_str]:
+                    # CORREÇÃO AQUI: Verifica se é dicionário antes de usar .get()
+                    # Porque a lista pode ter objetos Agendamento (não dicts) e Bloqueios (dicts)
+                    ja_existe = any(
+                        isinstance(x, dict) and x.get('id') == b.id and x.get('tipo_obj') == 'bloqueio' 
+                        for x in agenda_map[h_str][d_str]
+                    )
+                    
+                    if not ja_existe:
+                        bloqueio_visual = {
+                            'tipo_obj': 'bloqueio',
+                            'id': b.id,
+                            'terapeuta': b.terapeuta,
+                            'hora_real_inicio': b.hora_inicio,
+                            'hora_real_fim': b.hora_fim,
+                            'status': 'BLOQUEADO'
+                        }
+                        agenda_map[h_str][d_str].append(bloqueio_visual)
+                
+                curr_time += timedelta(minutes=45) 
 
     return render(request, 'lista_agendamentos.html', {
         'agenda_map': agenda_map,
@@ -255,7 +288,7 @@ def lista_agendamentos(request):
         'filtro_sala_selecionado': filtro_sala,
         'status_choices': Agendamento.STATUS_CHOICES,
         'filtro_status_selecionado': filtro_status,
-        'is_admin': is_admin(request.user)
+        'is_admin': is_admin(request.user),
     })
 
 @login_required
@@ -294,10 +327,12 @@ def lista_agendas_fixas(request):
         return redirect('dashboard')
         
     agendas = AgendaFixa.objects.filter(ativo=True).select_related('paciente', 'terapeuta', 'sala')
+    bloqueios = BloqueioFixo.objects.select_related('terapeuta').all()
     
     terapeuta_id = request.GET.get('terapeuta')
     if terapeuta_id:
         agendas = agendas.filter(terapeuta_id=terapeuta_id)
+        bloqueios = bloqueios.filter(terapeuta_id=terapeuta_id)
     
     horarios_grade = get_horarios_clinica()
     range_dias = range(6) 
@@ -305,12 +340,27 @@ def lista_agendas_fixas(request):
     agenda_map = {t.strftime('%H:%M'): {d: [] for d in range_dias} for t in horarios_grade}
     
     for item in agendas:
-        # ALTERADO: Usa a função auxiliar para mapear horários quebrados
         h_str = encontrar_slot_visual(item.hora_inicio, horarios_grade)
-        
         d = item.dia_semana
         if h_str in agenda_map and d in range_dias:
+            item.tipo_obj = 'fixo' 
             agenda_map[h_str][d].append(item)
+
+    for b in bloqueios:
+        if b.dia_semana in range_dias:
+            curr_time = datetime.combine(datetime.today(), b.hora_inicio)
+            end_time = datetime.combine(datetime.today(), b.hora_fim)
+            
+            while curr_time < end_time:
+                h_str = encontrar_slot_visual(curr_time.time(), horarios_grade)
+                if h_str in agenda_map:
+                    # Aqui usamos atributos de objeto diretamente pois tanto 'b' quanto 'item' na lista são objetos nesta view
+                    ja_existe = any(x.id == b.id and getattr(x, 'tipo_obj', '') == 'bloqueio' for x in agenda_map[h_str][b.dia_semana])
+                    if not ja_existe:
+                        b.tipo_obj = 'bloqueio'
+                        agenda_map[h_str][b.dia_semana].append(b)
+                
+                curr_time += timedelta(minutes=45)
             
     nomes_dias = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
@@ -320,8 +370,48 @@ def lista_agendas_fixas(request):
         'nomes_dias': nomes_dias,
         'terapeutas': Terapeuta.objects.all().order_by('nome'),
         'is_admin': True, 
-        'filtro_terapeuta': terapeuta_id
+        'filtro_terapeuta': terapeuta_id,
+        'bloqueio_form': BloqueioFixoForm() 
     })
+
+@login_required
+def adicionar_bloqueio(request):
+    filtro_terapeuta = request.GET.get('terapeuta')
+    
+    if request.method == 'POST':
+        if not is_admin(request.user):
+            messages.error(request, "Permissão negada.")
+            url_destino = reverse('lista_agendas_fixas')
+            if filtro_terapeuta: url_destino += f"?terapeuta={filtro_terapeuta}"
+            return redirect(url_destino)
+            
+        form = BloqueioFixoForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Bloqueio fixo criado com sucesso.")
+        else:
+            messages.error(request, "Erro ao criar bloqueio. Verifique os dados.")
+            
+    url_destino = reverse('lista_agendas_fixas')
+    if filtro_terapeuta:
+        url_destino += f"?terapeuta={filtro_terapeuta}"
+    return redirect(url_destino) 
+
+@login_required
+def excluir_bloqueio(request, bloqueio_id):
+    filtro_terapeuta = request.GET.get('terapeuta')
+
+    if not is_admin(request.user):
+        messages.error(request, "Permissão negada.")
+    else:
+        bloqueio = get_object_or_404(BloqueioFixo, id=bloqueio_id)
+        bloqueio.delete()
+        messages.success(request, "Bloqueio removido.")
+    
+    url_destino = reverse('lista_agendas_fixas')
+    if filtro_terapeuta:
+        url_destino += f"?terapeuta={filtro_terapeuta}"
+    return redirect(url_destino)
 
 @login_required
 def nova_agenda_fixa(request):
@@ -633,14 +723,22 @@ def realizar_consulta(request, agendamento_id):
 @login_required
 def limpar_dia(request):
     if request.method == 'POST':
+        if not is_admin(request.user):
+            messages.error(request, "Permissão negada.")
+            return redirect('lista_agendamentos')
+
         data = request.POST.get('data_para_limpar')
+        terapeuta_id = request.POST.get('terapeuta_id')
+
         if data: 
             qs = Agendamento.objects.ativos().filter(data=data).exclude(status='REALIZADO')
-            if not is_admin(request.user):
-                if is_terapeuta(request.user): qs = qs.filter(terapeuta=request.user.terapeuta)
-                else: qs = Agendamento.objects.none()
-            qs.update(deletado=True)
-            messages.info(request, "Agenda limpa.")
+            
+            if terapeuta_id and terapeuta_id != 'todos':
+                qs = qs.filter(terapeuta_id=terapeuta_id)
+
+            total = qs.update(deletado=True)
+            messages.info(request, f"Agenda limpa. {total} agendamentos removidos.")
+            
     return redirect('lista_agendamentos')
 
 @login_required
@@ -814,7 +912,6 @@ def ocupacao_salas(request):
     agenda_map = {t.strftime('%H:%M'): {s.id: [] for s in salas} for t in horarios_grade}
 
     for (h_str, s_id, p_id), dados in agrupados.items():
-        # ALTERADO: Re-calcula o slot visual baseado na hora real guardada no agrupamento
         h_visual = encontrar_slot_visual(dados['hora_real'], horarios_grade)
 
         if h_visual in agenda_map and s_id in agenda_map[h_visual]:
@@ -1119,7 +1216,6 @@ def editar_terapeuta(request, terapeuta_id):
     usuario = terapeuta.usuario
     
     if request.method == 'POST':
-        # Você pode usar um ModelForm simples para o Terapeuta ou o User
         nome = request.POST.get('nome')
         registro = request.POST.get('registro')
         especialidade = request.POST.get('especialidade')
@@ -1146,7 +1242,6 @@ def editar_terapeuta(request, terapeuta_id):
 def excluir_terapeuta(request, terapeuta_id):
     terapeuta = get_object_or_404(Terapeuta, id=terapeuta_id)
     
-    # Verifica se existem agendamentos para evitar erro de integridade (PROTECT)
     if Agendamento.objects.filter(terapeuta=terapeuta).exists():
         messages.error(request, "Não é possível excluir: este terapeuta possui agendamentos vinculados. Desative o usuário em vez de excluir.")
     else:

@@ -14,7 +14,7 @@ def validar_tamanho_arquivo(file):
     if file.size > limite_mb * 1024 * 1024:
         raise ValidationError(f"O arquivo não pode exceder {limite_mb}MB.")
 
-# --- MODALIDADES (Exceções / Funções Específicas na Consulta) ---
+# --- MODALIDADES ---
 MODALIDADE_CHOICES = [
     ('BOBATH', 'Fisioterapia (Bobath)'),
     ('PEDIASUIT', 'Fisioterapia (Pediasuit)'),       
@@ -23,7 +23,7 @@ MODALIDADE_CHOICES = [
     ('PSICOPEDAGOGIA', 'Psicopedagogia'),            
 ]
 
-# --- ESPECIALIDADES (Cargo Principal do Profissional) ---
+# --- ESPECIALIDADES ---
 ESPECIALIDADES_CHOICES = [
     ('Fonoaudiólogo(a)', 'Fonoaudiólogo(a)'),
     ('Fisioterapeuta', 'Fisioterapeuta'),
@@ -93,7 +93,6 @@ class AgendaFixa(models.Model):
     paciente = models.ForeignKey(Paciente, on_delete=models.CASCADE)
     terapeuta = models.ForeignKey(Terapeuta, on_delete=models.PROTECT)
     
-    # --- CAMPO MODALIDADE ---
     modalidade = models.CharField(
         max_length=50, 
         choices=MODALIDADE_CHOICES, 
@@ -102,7 +101,6 @@ class AgendaFixa(models.Model):
         default=None,
         verbose_name="Modalidade (Vazio = Padrão)"
     )
-    # ------------------------
 
     sala = models.ForeignKey(Sala, on_delete=models.PROTECT, null=True, blank=True, verbose_name="Sala Fixa")
     dia_semana = models.IntegerField(choices=DIAS_DA_SEMANA, verbose_name="Dia da Semana")
@@ -128,8 +126,6 @@ class AgendaFixa(models.Model):
 
     @property
     def descricao_modalidade(self):
-        # CORREÇÃO AQUI: Se a modalidade for o valor antigo "FISIOTERAPIA",
-        # ignoramos e retornamos a especialidade do terapeuta.
         if self.modalidade and self.modalidade != 'FISIOTERAPIA':
             return self.get_modalidade_display()
         return self.terapeuta.especialidade or "Padrão"
@@ -149,7 +145,6 @@ class Agendamento(models.Model):
     paciente = models.ForeignKey(Paciente, on_delete=models.CASCADE)
     terapeuta = models.ForeignKey(Terapeuta, on_delete=models.PROTECT)
     
-    # --- CAMPO MODALIDADE ---
     modalidade = models.CharField(
         max_length=50, 
         choices=MODALIDADE_CHOICES, 
@@ -158,7 +153,6 @@ class Agendamento(models.Model):
         default=None,
         verbose_name="Modalidade (Consulta)"
     )
-    # ------------------------
 
     agenda_fixa = models.ForeignKey(AgendaFixa, on_delete=models.SET_NULL, null=True, blank=True, related_name='agendamentos_gerados')
     sala = models.ForeignKey(Sala, on_delete=models.SET_NULL, null=True, blank=True)
@@ -191,8 +185,6 @@ class Agendamento(models.Model):
 
     @property
     def descricao_modalidade(self):
-        # CORREÇÃO AQUI: Se a modalidade for o valor antigo "FISIOTERAPIA",
-        # ignoramos e retornamos a especialidade do terapeuta.
         if self.modalidade and self.modalidade != 'FISIOTERAPIA':
             return self.get_modalidade_display()
         return self.terapeuta.especialidade or "Padrão"
@@ -211,3 +203,24 @@ class AnexoConsulta(models.Model):
     def eh_imagem(self):
         nome = self.arquivo.name.lower()
         return nome.endswith(('.jpg', '.jpeg', '.png', '.webp'))
+
+# --- NOVO MODELO: BLOQUEIO FIXO ---
+class BloqueioFixo(models.Model):
+    DIAS_DA_SEMANA = [
+        (0, 'Segunda-feira'), (1, 'Terça-feira'), (2, 'Quarta-feira'),
+        (3, 'Quinta-feira'), (4, 'Sexta-feira'), (5, 'Sábado'), (6, 'Domingo'),
+    ]
+
+    terapeuta = models.ForeignKey(Terapeuta, on_delete=models.CASCADE)
+    dia_semana = models.IntegerField(choices=DIAS_DA_SEMANA, verbose_name="Dia da Semana")
+    hora_inicio = models.TimeField()
+    hora_fim = models.TimeField()
+    # Motivo removido
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Bloqueio {self.terapeuta} - {self.get_dia_semana_display()}"
+
+    class Meta:
+        verbose_name = "Bloqueio de Agenda (Fixo)"
+        verbose_name_plural = "Bloqueios de Agenda (Fixos)"

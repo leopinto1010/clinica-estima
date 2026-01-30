@@ -1,8 +1,8 @@
 from django import forms
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import UserCreationForm
-from .models import Paciente, Terapeuta, Agendamento, Consulta, ESPECIALIDADES_CHOICES, AgendaFixa, Sala
-from datetime import datetime, timedelta
+from .models import Paciente, Terapeuta, Agendamento, Consulta, ESPECIALIDADES_CHOICES, AgendaFixa, Sala, BloqueioFixo
+from datetime import datetime, timedelta, time
 from django.utils import timezone
 from .utils import get_horarios_clinica
 
@@ -39,7 +39,6 @@ class AgendamentoForm(forms.ModelForm):
         widget=forms.NumberInput(attrs={'class': 'form-control', 'placeholder': '0 = Apenas hoje'})
     )
     
-    # ALTERADO: Mudamos de Select para TimeInput para permitir horários quebrados
     hora_inicio = forms.TimeField(
         label="Horário de Início",
         widget=forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'})
@@ -66,11 +65,6 @@ class AgendamentoForm(forms.ModelForm):
         self.fields['modalidade'].empty_label = "Padrão do Terapeuta"
         
         self.fields['paciente'].queryset = Paciente.objects.filter(ativo=True).order_by('nome')
-        
-        # REMOVIDO: Não forçamos mais choices vindos do get_horarios_clinica
-        # horarios = get_horarios_clinica()
-        # choices = [(t, t.strftime('%H:%M')) for t in horarios]
-        # self.fields['hora_inicio'].widget.choices = choices
 
     def clean(self):
         cleaned_data = super().clean()
@@ -89,6 +83,19 @@ class AgendamentoForm(forms.ModelForm):
             hora_fim = dt_fim.time()
             cleaned_data['hora_fim'] = hora_fim 
         
+        # 1. VERIFICAR BLOQUEIO FIXO (Semanal)
+        dia_semana = data.weekday() # 0 = Seg, 6 = Dom
+        bloqueado = BloqueioFixo.objects.filter(
+            terapeuta=terapeuta,
+            dia_semana=dia_semana,
+            hora_inicio__lt=hora_fim,
+            hora_fim__gt=hora_inicio
+        ).exists()
+
+        if bloqueado:
+            raise forms.ValidationError(f"Bloqueado! Dr(a) {terapeuta.nome} possui um bloqueio fixo neste horário.")
+
+        # 2. VERIFICAR CONFLITOS DE AGENDAMENTO
         tem_conflito = Agendamento.verificar_conflito(
             terapeuta=terapeuta, data=data, hora_inicio=hora_inicio, hora_fim=hora_fim,
             ignorar_id=self.instance.pk if self.instance.pk else None
@@ -121,7 +128,6 @@ class RegistrarFaltaForm(forms.ModelForm):
         return tipo
 
 class AgendaFixaForm(forms.ModelForm):
-    # ALTERADO: Mudamos de Select para TimeInput
     hora_inicio = forms.TimeField(
         label="Horário de Início",
         widget=forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'})
@@ -151,13 +157,10 @@ class AgendaFixaForm(forms.ModelForm):
         
         self.fields['paciente'].queryset = Paciente.objects.filter(ativo=True).order_by('nome')
 
-        # REMOVIDO: Não forçamos mais choices
-        # horarios = get_horarios_clinica()
-        # choices = [(t, t.strftime('%H:%M')) for t in horarios]
-        # self.fields['hora_inicio'].widget.choices = choices
-
     def clean(self):
         cleaned_data = super().clean()
+        terapeuta = cleaned_data.get('terapeuta')
+        dia_semana = cleaned_data.get('dia_semana')
         hora_inicio = cleaned_data.get('hora_inicio')
         hora_fim = cleaned_data.get('hora_fim')
         
@@ -167,5 +170,58 @@ class AgendaFixaForm(forms.ModelForm):
             dt_inicio_aware = timezone.make_aware(dt_inicio_naive, timezone.get_current_timezone())
             dt_fim = dt_inicio_aware + timedelta(minutes=45)
             cleaned_data['hora_fim'] = dt_fim.time()
+            hora_fim = cleaned_data['hora_fim']
             
+        if terapeuta and dia_semana is not None and hora_inicio and hora_fim:
+            bloqueado = BloqueioFixo.objects.filter(
+                terapeuta=terapeuta,
+                dia_semana=int(dia_semana),
+                hora_inicio__lt=hora_fim,
+                hora_fim__gt=hora_inicio
+            ).exists()
+            
+            if bloqueado:
+                raise forms.ValidationError("Este horário coincide com um BLOQUEIO FIXO deste terapeuta.")
+            
+        return cleaned_data
+
+class BloqueioFixoForm(forms.ModelForm):
+    class Meta:
+        model = BloqueioFixo
+        fields = ['terapeuta', 'dia_semana', 'hora_inicio', 'hora_fim']
+        widgets = {
+            'terapeuta': forms.Select(attrs={'class': 'form-select'}),
+            'dia_semana': forms.Select(attrs={'class': 'form-select'}),
+            'hora_inicio': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
+            'hora_fim': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['hora_inicio'].required = False
+        self.fields['hora_fim'].required = False
+
+    def clean(self):
+        cleaned_data = super().clean()
+        start = cleaned_data.get('hora_inicio')
+        end = cleaned_data.get('hora_fim')
+
+        # PADRÕES SOLICITADOS
+        HORA_ABERTURA = time(7, 15)  
+        HORA_FECHAMENTO = time(19, 30) 
+
+        if not start and not end:
+            cleaned_data['hora_inicio'] = HORA_ABERTURA
+            cleaned_data['hora_fim'] = HORA_FECHAMENTO
+        elif not start and end:
+            cleaned_data['hora_inicio'] = HORA_ABERTURA
+        elif start and not end:
+            cleaned_data['hora_fim'] = HORA_FECHAMENTO
+
+        final_start = cleaned_data.get('hora_inicio')
+        final_end = cleaned_data.get('hora_fim')
+
+        if final_start and final_end and final_start >= final_end:
+            raise forms.ValidationError("O horário de início deve ser anterior ao horário de fim.")
+
         return cleaned_data

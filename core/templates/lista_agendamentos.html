@@ -35,6 +35,17 @@
         color: #842029 !important; 
     }
 
+    /* ESTILO PARA BLOQUEIO (Visualização Apenas) */
+    .status-BLOQUEADO {
+        border-left-color: #6c757d !important;
+        background-color: #e9ecef !important; /* Cinza */
+        color: #495057 !important;
+        background-image: linear-gradient(45deg,rgba(255,255,255,.15) 25%,transparent 25%,transparent 50%,rgba(255,255,255,.15) 50%,rgba(255,255,255,.15) 75%,transparent 75%,transparent);
+        background-size: 1rem 1rem;
+        cursor: not-allowed;
+        opacity: 0.9;
+    }
+
     /* Navegação Centralizada */
     .nav-date-container {
         background: #fff;
@@ -100,7 +111,23 @@
                 <label class="form-label small fw-bold">Selecione o dia:</label>
                 <input type="date" name="data_para_limpar" class="form-control" required min="{{ agora|date:'Y-m-d' }}">
             </div>
-            <button type="submit" class="btn btn-danger w-100 rounded-pill" onclick="return confirm('Confirmar exclusão em massa?')">Apagar Tudo</button>
+
+            <div class="mb-4 text-start">
+                <label class="form-label small fw-bold">Profissional (Alvo):</label>
+                <select name="terapeuta_id" class="form-select">
+                    <option value="todos" selected>Limpar de TODOS</option>
+                    {% for t in terapeutas %}
+                        <option value="{{ t.id }}">{{ t.nome }}</option>
+                    {% endfor %}
+                </select>
+                <div class="form-text small text-danger mt-1" style="font-size: 0.75rem;">
+                    Cuidado: Essa ação não pode ser desfeita.
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-danger w-100 rounded-pill" onclick="return confirm('ATENÇÃO: Isso removerá os agendamentos do sistema. Confirmar?')">
+                Executar Limpeza
+            </button>
         </form>
       </div>
     </div>
@@ -248,46 +275,58 @@
                             {% with chave_data=data|date:"Y-m-d" %}
                             {% with lista=agenda_map|dict_get:chave_hora|dict_get:chave_data %}
                                 {% for item in lista %}
-                                    <div class="evento-sala status-{{ item.status }}" 
-                                         onclick="abrirDetalhes(
-                                            '{{ item.paciente.nome|escapejs }}',
-                                            '{{ item.sala.nome|default:'-'|escapejs }}',
-                                            '{{ item.terapeuta.nome|escapejs }}',
-                                            '{{ item.get_tipo_atendimento_display|escapejs }}',
-                                            '{{ item.data|date:'d/m/Y' }} • {{ item.hora_inicio|date:'H:i' }}',
-                                            '{{ item.get_status_display }}',
-                                            '{{ item.status }}',
-                                            '{% url 'realizar_consulta' item.id %}',
-                                            '{% url 'marcar_falta' item.id %}',
-                                            '{% url 'reposicao_agendamento' item.id %}',
-                                            '{% url 'excluir_agendamento' item.id %}',
-                                            {{ item.agenda_fixa|yesno:'true,false' }},
-                                            '{{ item.descricao_modalidade|escapejs }}' 
-                                         )"
-                                         title="Terapeuta: {{ item.terapeuta.nome }}">
-                                        
-                                        <div class="fw-bold text-truncate" style="font-size: 0.8rem;">
-                                            {{ item.paciente.nome }}
+                                
+                                    {% if item.tipo_obj == 'bloqueio' %}
+                                        <div class="evento-sala status-BLOQUEADO position-relative" title="Bloqueio Fixo (Semanal)">
+                                            <div class="fw-bold text-truncate" style="font-size: 0.8rem;">
+                                                <i class="bi bi-lock-fill me-1"></i> {{ item.terapeuta.nome }}
+                                            </div>
+                                            <div class="text-truncate small opacity-75" style="font-size: 0.7rem;">
+                                                Indisponível
+                                            </div>
                                         </div>
-
-                                        <div class="text-primary fw-bold text-truncate" style="font-size: 0.7rem; letter-spacing: -0.3px;">
-                                            {{ item.descricao_modalidade }}
-                                        </div>
-
-                                        <div class="d-flex justify-content-between text-muted border-top border-secondary border-opacity-10 pt-1 mt-1">
-                                            <span style="font-size: 0.65rem; color: inherit;">
-                                                {% if is_admin %}
-                                                    {{ item.terapeuta.nome|slice:":10" }}...
-                                                {% else %}
-                                                    {{ item.sala.nome|default:"-" }}
-                                                {% endif %}
-                                            </span>
+                                    {% else %}
+                                        <div class="evento-sala status-{{ item.status }}" 
+                                             onclick="abrirDetalhes(
+                                                '{{ item.paciente.nome|escapejs }}',
+                                                '{{ item.sala.nome|default:'-'|escapejs }}',
+                                                '{{ item.terapeuta.nome|escapejs }}',
+                                                '{{ item.get_tipo_atendimento_display|escapejs }}',
+                                                '{{ item.data|date:'d/m/Y' }} • {{ item.hora_inicio|date:'H:i' }}',
+                                                '{{ item.get_status_display }}',
+                                                '{{ item.status }}',
+                                                '{% url 'realizar_consulta' item.id %}',
+                                                '{% url 'marcar_falta' item.id %}',
+                                                '{% url 'reposicao_agendamento' item.id %}',
+                                                '{% url 'excluir_agendamento' item.id %}',
+                                                {{ item.agenda_fixa|yesno:'true,false' }},
+                                                '{{ item.descricao_modalidade|escapejs }}' 
+                                             )"
+                                             title="Terapeuta: {{ item.terapeuta.nome }}">
                                             
-                                            {% if item.agenda_fixa %}
-                                                <i class="bi bi-arrow-repeat opacity-50" style="font-size: 0.7rem;" title="Fixo"></i>
-                                            {% endif %}
+                                            <div class="fw-bold text-truncate" style="font-size: 0.8rem;">
+                                                {{ item.paciente.nome }}
+                                            </div>
+    
+                                            <div class="text-primary fw-bold text-truncate" style="font-size: 0.7rem; letter-spacing: -0.3px;">
+                                                {{ item.descricao_modalidade }}
+                                            </div>
+    
+                                            <div class="d-flex justify-content-between text-muted border-top border-secondary border-opacity-10 pt-1 mt-1">
+                                                <span style="font-size: 0.65rem; color: inherit;">
+                                                    {% if is_admin %}
+                                                        {{ item.terapeuta.nome|slice:":10" }}...
+                                                    {% else %}
+                                                        {{ item.sala.nome|default:"-" }}
+                                                    {% endif %}
+                                                </span>
+                                                {% if item.agenda_fixa %}
+                                                    <i class="bi bi-arrow-repeat opacity-50" style="font-size: 0.7rem;" title="Fixo"></i>
+                                                {% endif %}
+                                            </div>
                                         </div>
-                                    </div>
+                                    {% endif %}
+                                    
                                 {% endfor %}
                             {% endwith %}
                             {% endwith %}
@@ -314,10 +353,8 @@
         } else if (acao === 'proxima') {
             dtInicio.setDate(dtInicio.getDate() + 7);
         } else {
-            // Data selecionada no DatePicker
             var selecionada = new Date(acao);
             var day = selecionada.getDay(); 
-            // Ajusta para segunda-feira
             var diff = selecionada.getDate() - day + (day == 0 ? -6 : 1); 
             dtInicio = new Date(selecionada.setDate(diff));
         }
@@ -341,8 +378,6 @@
         $('#detalheTipo').text(tipo);
         $('#detalheData').text(data_fmt);
         $('#detalheStatus').text(status_label);
-        
-        // Exibe a modalidade (que pode ser a especialidade padrão ou Bobath/AT)
         $('#detalheModalidade').text(modalidade_label);
 
         var htmlBotoes = ''; 
@@ -352,21 +387,13 @@
         if (paramsUrl) {
             var separator = (url_atender.indexOf('?') === -1) ? '?' : '&';
             url_atender += separator + paramsUrl;
-            
-            separator = (url_falta.indexOf('?') === -1) ? '?' : '&';
             url_falta += separator + paramsUrl;
-            
-            separator = (url_repor.indexOf('?') === -1) ? '?' : '&';
             url_repor += separator + paramsUrl;
-            
-            separator = (url_excluir.indexOf('?') === -1) ? '?' : '&';
             url_excluir += separator + paramsUrl;
-            
-            separator = (url_reverter.indexOf('?') === -1) ? '?' : '&';
             url_reverter += separator + paramsUrl;
         }
 
-        if (IS_ADMIN && (status_cod === 'AGUARDANDO' || status_cod === 'FALTA') && !is_fixo) { 
+        if (IS_ADMIN && (status_cod === 'AGUARDANDO' || status_cod === 'FALTA')) { 
              htmlLixeira = `<a href="${url_excluir}" class="btn btn-outline-danger border-0 p-2" onclick="return confirm('ATENÇÃO: Apagar permanentemente?')" title="Excluir"><i class="bi bi-trash fs-5"></i></a>`; 
         }
 

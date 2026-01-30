@@ -3,94 +3,94 @@
 
 {% block content %}
 <style>
+    /* Estilo de grade */
     .grade-container {
-        overflow-x: auto;
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-        margin-bottom: 30px;
+        overflow-x: auto; background: white; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 30px;
     }
-    .table-grade {
-        width: 100%;
-        min-width: 900px;
-        border-collapse: separate; 
-        border-spacing: 0;
-    }
-    .table-grade th, .table-grade td {
-        border: 1px solid #dee2e6;
-        padding: 8px;
-        vertical-align: top;
-    }
-    .col-hora {
-        width: 60px;
-        text-align: center;
-        background-color: #f8f9fa;
-        font-weight: bold;
-        color: #6c757d;
-        vertical-align: middle !important;
-    }
-    .col-dia {
-        width: 15.6%;
-        text-align: center;
-        background-color: #f8f9fa;
-        text-transform: uppercase;
-        font-size: 0.8rem;
-        color: #495057;
-        padding: 12px;
-    }
+    .table-grade { width: 100%; min-width: 900px; border-collapse: separate; border-spacing: 0; }
+    .table-grade th, .table-grade td { border: 1px solid #dee2e6; padding: 8px; vertical-align: top; }
+    .col-hora { width: 60px; text-align: center; background-color: #f8f9fa; font-weight: bold; color: #6c757d; vertical-align: middle !important; }
+    .col-dia { width: 15.6%; text-align: center; background-color: #f8f9fa; text-transform: uppercase; font-size: 0.8rem; color: #495057; padding: 12px; }
+    
+    /* CARD AGENDAMENTO FIXO */
     .fixo-card {
-        background-color: #e3f2fd;
-        border-left: 3px solid #2196f3;
-        padding: 6px;
-        margin-bottom: 4px;
-        border-radius: 4px;
-        font-size: 0.8rem;
-        transition: all 0.2s;
-        text-align: left;
-        position: relative;
+        background-color: #e3f2fd; border-left: 3px solid #2196f3; padding: 6px; margin-bottom: 4px; border-radius: 4px; font-size: 0.8rem; position: relative; transition: all 0.2s;
     }
-    .fixo-card:hover {
-        background-color: #bbdefb;
-        transform: translateY(-1px);
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
+    .fixo-card:hover { transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     .fixo-hora { font-weight: 700; color: #1565c0; font-size: 0.75rem; }
     .fixo-paciente { font-weight: 600; color: #343a40; display: block; margin-top: 2px; }
     .fixo-info { font-size: 0.7rem; color: #666; margin-top: 2px; }
     
-    /* Agrupa os botões de ação (editar e excluir) */
-    .fixo-actions {
-        position: absolute; top: 4px; right: 4px;
-        display: flex; gap: 4px; opacity: 0.6;
+    /* CARD BLOQUEIO (Sem hora visível) */
+    .bloqueio-card {
+        background-color: #e9ecef; border-left: 3px solid #6c757d; padding: 6px; margin-bottom: 4px; border-radius: 4px; font-size: 0.8rem; position: relative;
+        background-image: linear-gradient(45deg,rgba(255,255,255,.15) 25%,transparent 25%,transparent 50%,rgba(255,255,255,.15) 50%,rgba(255,255,255,.15) 75%,transparent 75%,transparent);
+        background-size: 1rem 1rem;
     }
-    .fixo-card:hover .fixo-actions { opacity: 1; }
-    
-    .btn-icon-sm {
-        color: #1565c0; font-size: 11px; cursor: pointer;
-        padding: 1px 3px; border-radius: 3px;
-    }
-    .btn-icon-sm:hover { background-color: rgba(255,255,255,0.5); }
-    .btn-icon-del:hover { color: #dc3545; }
+    .bloqueio-texto { font-weight: 700; color: #495057; }
 
-    .badge-sala { background: rgba(255,255,255,0.6); border: 1px solid rgba(0,0,0,0.1); padding: 1px 4px; border-radius: 3px; }
+    .fixo-actions { position: absolute; top: 4px; right: 4px; display: flex; gap: 4px; opacity: 0.6; }
+    .fixo-card:hover .fixo-actions, .bloqueio-card:hover .fixo-actions { opacity: 1; }
+    
+    .btn-icon-sm { color: #1565c0; font-size: 11px; cursor: pointer; padding: 1px 3px; border-radius: 3px; }
+    .btn-icon-del:hover { color: #dc3545; }
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h4 class="fw-bold text-dark mb-1"><i class="bi bi-grid-3x3-gap-fill me-2 text-primary"></i>Planejamento Semanal</h4>
-        <p class="text-muted small mb-0">
-            Defina a grade fixa recorrente ou crie agendamentos pontuais.
-        </p>
+        <p class="text-muted small mb-0">Grade fixa recorrente e bloqueios de horário.</p>
     </div>
     
     <div class="d-flex gap-2">
-        <a href="{% url 'novo_agendamento' %}" class="btn btn-outline-primary shadow-sm">
-            <i class="bi bi-calendar-plus me-1"></i>Avulso
-        </a>
+        {% if is_admin %}
+        <button type="button" class="btn btn-secondary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNovoBloqueio">
+            <i class="bi bi-slash-circle me-1"></i> Bloquear Horário
+        </button>
+        {% endif %}
+        
         <a href="{% url 'nova_agenda_fixa' %}" class="btn btn-primary shadow-sm">
-            <i class="bi bi-arrow-repeat me-1"></i>Fixo
+            <i class="bi bi-plus-lg me-1"></i>Nova Grade
         </a>
     </div>
+</div>
+
+<div id="modalNovoBloqueio" class="modal fade" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg">
+      <div class="modal-header bg-secondary text-white border-0">
+        <h5 class="modal-title fs-6"><i class="bi bi-slash-circle me-2"></i>Bloqueio Fixo (Semanal)</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <form action="{% url 'adicionar_bloqueio' %}{% if filtro_terapeuta %}?terapeuta={{ filtro_terapeuta }}{% endif %}" method="POST">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label class="form-label small fw-bold">Terapeuta</label>
+                {{ bloqueio_form.terapeuta }}
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label small fw-bold">Dia da Semana</label>
+                {{ bloqueio_form.dia_semana }}
+            </div>
+            
+            <div class="row mb-4">
+                <div class="col-6">
+                    <label class="form-label small fw-bold">Início</label>
+                    {{ bloqueio_form.hora_inicio }}
+                </div>
+                <div class="col-6">
+                    <label class="form-label small fw-bold">Fim</label>
+                    {{ bloqueio_form.hora_fim }}
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-secondary w-100 rounded-pill">Criar Bloqueio</button>
+        </form>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="card border-0 shadow-sm mb-4">
@@ -129,32 +129,50 @@
                 <td class="col-hora">{{ hora|date:"H:i" }}</td>
                 {% for dia_idx in "012345"|make_list %}
                     <td>
-                        {# A chave para busca no dicionário agora é a hora formatada #}
                         {% with chave_hora=hora|date:"H:i" %}
                             {% for item in agenda_map|dict_get:chave_hora|dict_get:dia_idx %} 
-                                <div class="fixo-card">
-                                    <div class="fixo-actions">
-                                        <a href="{% url 'editar_agenda_fixa' item.id %}" class="btn-icon-sm" title="Editar"><i class="bi bi-pencil-fill"></i></a>
-                                        <a href="{% url 'excluir_agenda_fixa' item.id %}?{{ request.GET.urlencode }}" class="btn-icon-sm btn-icon-del" title="Excluir/Desativar">
-                                        <i class="bi bi-trash-fill"></i>
-                                        </a>
+                                
+                                {% if item.tipo_obj == 'bloqueio' %}
+                                    <div class="bloqueio-card">
+                                        <div class="fixo-actions">
+                                            <a href="{% url 'excluir_bloqueio' item.id %}{% if filtro_terapeuta %}?terapeuta={{ filtro_terapeuta }}{% endif %}" class="btn-icon-sm btn-icon-del text-dark" 
+                                               onclick="return confirm('Remover bloqueio?')" title="Remover">
+                                                <i class="bi bi-x-lg"></i>
+                                            </a>
+                                        </div>
+                                        <div class="bloqueio-texto">
+                                            <i class="bi bi-lock-fill me-1"></i> Bloqueado
+                                        </div>
+                                        <div class="fixo-info">
+                                            {{ item.terapeuta.nome|slice:":15" }}
+                                        </div>
                                     </div>
-                                    
-                                    <div class="fixo-hora">
-                                        {{ item.hora_inicio|date:"H:i" }} - {{ item.hora_fim|date:"H:i" }}
-                                    </div>
-                                    <span class="fixo-paciente text-truncate">{{ item.paciente.nome }}</span>
-                                    
-                                    <div class="fixo-info">
-                                        {% if is_admin and not filtro_terapeuta %}
-                                            <div class="text-truncate"><i class="bi bi-person"></i> {{ item.terapeuta.nome|slice:":15" }}</div>
-                                        {% endif %}
+
+                                {% else %}
+                                    <div class="fixo-card">
+                                        <div class="fixo-actions">
+                                            <a href="{% url 'editar_agenda_fixa' item.id %}" class="btn-icon-sm" title="Editar"><i class="bi bi-pencil-fill"></i></a>
+                                            <a href="{% url 'excluir_agenda_fixa' item.id %}?{{ request.GET.urlencode }}" class="btn-icon-sm btn-icon-del" title="Excluir/Desativar">
+                                            <i class="bi bi-trash-fill"></i>
+                                            </a>
+                                        </div>
                                         
-                                        {% if item.sala %}
-                                            <span class="badge-sala mt-1 d-inline-block">{{ item.sala.nome }}</span>
-                                        {% endif %}
+                                        <div class="fixo-hora">
+                                            {{ item.hora_inicio|date:"H:i" }} - {{ item.hora_fim|date:"H:i" }}
+                                        </div>
+                                        <span class="fixo-paciente text-truncate">{{ item.paciente.nome }}</span>
+                                        
+                                        <div class="fixo-info">
+                                            {% if is_admin and not filtro_terapeuta %}
+                                                <div class="text-truncate"><i class="bi bi-person"></i> {{ item.terapeuta.nome|slice:":15" }}</div>
+                                            {% endif %}
+                                            {% if item.sala %}
+                                                <span class="badge bg-light text-dark border mt-1">{{ item.sala.nome }}</span>
+                                            {% endif %}
+                                        </div>
                                     </div>
-                                </div>
+                                {% endif %}
+
                             {% endfor %}
                         {% endwith %}
                     </td>
@@ -163,14 +181,5 @@
             {% endfor %}
         </tbody>
     </table>
-</div>
-
-<div class="alert alert-light border d-flex align-items-center mt-3">
-    <i class="bi bi-info-circle-fill text-primary fs-5 me-3"></i>
-    <div>
-        <small class="d-block text-muted">
-            <strong>Dica:</strong> Para remover agendamentos futuros de um paciente, clique na lixeira (<i class="bi bi-trash-fill small"></i>) no horário fixo dele e confirme a opção "Excluir futuros".
-        </small>
-    </div>
 </div>
 {% endblock %}
