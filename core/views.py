@@ -1112,3 +1112,48 @@ def reverter_agendamento(request, agendamento_id):
         messages.success(request, "Correção realizada: Agendamento voltou para 'Aguardando'.")
     
     return redirect('lista_agendamentos')
+
+@dono_required
+def editar_terapeuta(request, terapeuta_id):
+    terapeuta = get_object_or_404(Terapeuta, id=terapeuta_id)
+    usuario = terapeuta.usuario
+    
+    if request.method == 'POST':
+        # Você pode usar um ModelForm simples para o Terapeuta ou o User
+        nome = request.POST.get('nome')
+        registro = request.POST.get('registro')
+        especialidade = request.POST.get('especialidade')
+        ativo = request.POST.get('ativo') == 'on'
+
+        terapeuta.nome = nome
+        terapeuta.registro_profissional = registro
+        terapeuta.especialidade = especialidade
+        terapeuta.save()
+
+        if usuario:
+            usuario.is_active = ativo
+            usuario.save()
+
+        messages.success(request, f"Dados de {terapeuta.nome} atualizados!")
+        return redirect('lista_terapeutas')
+
+    return render(request, 'editar_terapeuta.html', {
+        'terapeuta': terapeuta,
+        'especialidades': ESPECIALIDADES_CHOICES
+    })
+
+@dono_required
+def excluir_terapeuta(request, terapeuta_id):
+    terapeuta = get_object_or_404(Terapeuta, id=terapeuta_id)
+    
+    # Verifica se existem agendamentos para evitar erro de integridade (PROTECT)
+    if Agendamento.objects.filter(terapeuta=terapeuta).exists():
+        messages.error(request, "Não é possível excluir: este terapeuta possui agendamentos vinculados. Desative o usuário em vez de excluir.")
+    else:
+        nome = terapeuta.nome
+        if terapeuta.usuario:
+            terapeuta.usuario.delete()
+        terapeuta.delete()
+        messages.success(request, f"Terapeuta {nome} removido com sucesso.")
+    
+    return redirect('lista_terapeutas')

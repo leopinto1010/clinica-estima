@@ -53,6 +53,7 @@
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Especialidade</th>
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Usuário de Acesso</th>
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7 text-center">Status</th>
+                    <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7 text-end pe-4">Ações</th>
                 </tr>
             </thead>
             <tbody>
@@ -87,10 +88,21 @@
                             <span class="badge bg-danger">Inativo</span>
                         {% endif %}
                     </td>
+                    <td class="text-end pe-4">
+                        {% if is_dono %}
+                        <a href="{% url 'editar_terapeuta' terapeuta.id %}" class="btn btn-sm btn-outline-warning" title="Editar">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        <a href="{% url 'excluir_terapeuta' terapeuta.id %}" class="btn btn-sm btn-outline-danger" 
+                           onclick="return confirm('Tem certeza que deseja excluir o terapeuta {{ terapeuta.nome }}? Esta ação não pode ser desfeita.')" title="Excluir">
+                            <i class="bi bi-trash"></i>
+                        </a>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="5" class="text-center py-5 text-muted">
+                    <td colspan="6" class="text-center py-5 text-muted">
                         <i class="bi bi-people fs-1 d-block mb-3 opacity-50"></i>
                         Nenhum terapeuta encontrado com os filtros atuais.
                     </td>

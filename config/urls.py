@@ -31,6 +31,9 @@ from core.views import (
     relatorio_grade_pacientes, 
     relatorio_atrasos,
     reverter_agendamento,
+    # Adicione as novas views aqui
+    editar_terapeuta,
+    excluir_terapeuta,
 )
 
 urlpatterns = [
@@ -67,6 +70,9 @@ urlpatterns = [
     # --- Area da Equipe ---
     path('equipe/novo/', cadastrar_equipe, name='cadastrar_equipe'),
     path('equipe/lista/', lista_terapeutas, name='lista_terapeutas'),
+    # Novas rotas para edição e exclusão
+    path('equipe/editar/<int:terapeuta_id>/', editar_terapeuta, name='editar_terapeuta'),
+    path('equipe/excluir/<int:terapeuta_id>/', excluir_terapeuta, name='excluir_terapeuta'),
     
     path('relatorios/', relatorio_mensal, name='relatorio_mensal'),
     path('relatorios/pacientes/', relatorio_pacientes, name='relatorio_pacientes'),
@@ -78,6 +84,5 @@ urlpatterns = [
 
 ]
 
-# --- ROTA PARA ARQUIVOS DE MÍDIA (DEBUG) ---
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

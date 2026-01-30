@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-5">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-warning text-dark py-3">
+                <h5 class="card-title mb-0 fw-bold"><i class="bi bi-pencil-square me-2"></i>Editar Profissional</h5>
+            </div>
+            <div class="card-body p-4">
+                <form method="POST">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Nome Completo</label>
+                        <input type="text" name="nome" class="form-control" value="{{ terapeuta.nome }}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Registro Profissional (CRP/CRM)</label>
+                        <input type="text" name="registro" class="form-control" value="{{ terapeuta.registro_profissional|default:'' }}">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Especialidade / Área</label>
+                        <select name="especialidade" class="form-select">
+                            <option value="">Selecione...</option>
+                            {% for valor, label in especialidades %}
+                                <option value="{{ valor }}" {% if terapeuta.especialidade == valor %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-4 form-check form-switch">
+                        <input class="form-check-input" type="checkbox" name="ativo" id="checkAtivo" {% if terapeuta.usuario.is_active %}checked{% endif %}>
+                        <label class="form-check-label fw-bold small text-muted" for="checkAtivo">Acesso ao Sistema Ativo</label>
+                        <div class="form-text small">Desativar impede que o usuário faça login.</div>
+                    </div>
+
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-warning fw-bold">Salvar Alterações</button>
+                        <a href="{% url 'lista_terapeutas' %}" class="btn btn-light text-muted">Cancelar</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
