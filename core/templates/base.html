@@ -147,6 +147,12 @@
                             <i class="bi bi-people me-2 text-muted"></i>Frequência de Pacientes
                         </a>
                     </li>
+                    
+                    <li>
+                        <a class="dropdown-item" href="{% url 'controle_atendimentos' %}">
+                            <i class="bi bi-table me-2 text-primary"></i>Controle de Atendimentos
+                        </a>
+                    </li>
                 </ul>
             </li>
             {% endif %}
@@ -240,7 +246,6 @@
                 allowInput: true     
             });
 
-            // ATUALIZAÇÃO: allowClear: true adicionado
             $('.campo-busca').select2({ 
                 theme: 'bootstrap-5', 
                 placeholder: "Selecione...", 

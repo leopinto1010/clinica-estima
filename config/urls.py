@@ -33,9 +33,10 @@ from core.views import (
     reverter_agendamento,
     editar_terapeuta,
     excluir_terapeuta,
-    # NOVAS VIEWS IMPORTADAS
+    # NOVAS VIEWS
     adicionar_bloqueio,
     excluir_bloqueio,
+    controle_atendimentos, # <--- NOVA VIEW IMPORTADA
 )
 
 urlpatterns = [
@@ -79,13 +80,15 @@ urlpatterns = [
     path('equipe/editar/<int:terapeuta_id>/', editar_terapeuta, name='editar_terapeuta'),
     path('equipe/excluir/<int:terapeuta_id>/', excluir_terapeuta, name='excluir_terapeuta'),
     
+    # --- RELATÓRIOS ---
     path('relatorios/', relatorio_mensal, name='relatorio_mensal'),
     path('relatorios/pacientes/', relatorio_pacientes, name='relatorio_pacientes'),
-
     path('relatorios/salas/', ocupacao_salas, name='ocupacao_salas'),
     path('relatorios/grade-pacientes/', relatorio_grade_pacientes, name='relatorio_grade_pacientes'),
-
     path('relatorios/atrasos/', relatorio_atrasos, name='relatorio_atrasos'),
+    
+    # NOVA ROTA:
+    path('relatorios/controle-atendimentos/', controle_atendimentos, name='controle_atendimentos'),
 
 ]
 

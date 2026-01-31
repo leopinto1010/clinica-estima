@@ -1252,3 +1252,131 @@ def excluir_terapeuta(request, terapeuta_id):
         messages.success(request, f"Terapeuta {nome} removido com sucesso.")
     
     return redirect('lista_terapeutas')
+
+# --- NOVA FUNCIONALIDADE: CONTROLE DE ATENDIMENTOS ---
+@login_required
+def controle_atendimentos(request):
+    if not (is_admin(request.user) or is_terapeuta(request.user)):
+        messages.error(request, "Acesso restrito.")
+        return redirect('dashboard')
+
+    # Filtros
+    hoje = timezone.localtime(timezone.now())
+    mes_atual = int(request.GET.get('mes', hoje.month))
+    ano_atual = int(request.GET.get('ano', hoje.year))
+    terapeuta_id = request.GET.get('terapeuta')
+
+    filtro_terapeuta_obj = None
+    if is_terapeuta(request.user) and not is_admin(request.user):
+        terapeuta_id = request.user.terapeuta.id
+    
+    if terapeuta_id:
+        filtro_terapeuta_obj = get_object_or_404(Terapeuta, id=terapeuta_id)
+
+    # Configuração do Calendário
+    cal = calendar.Calendar(firstweekday=0) 
+    dias_semana_nomes = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira']
+    
+    relatorio_semanal = []
+
+    # --- PARTE 1: DIAS DA SEMANA (Apenas Agenda Fixa) ---
+    for dia_idx in range(5):
+        datas_do_mes = [
+            d for d in cal.itermonthdates(ano_atual, mes_atual) 
+            if d.month == mes_atual and d.weekday() == dia_idx
+        ]
+        
+        # Filtro: Agenda Fixa EXISTE e (Não deletado OU (Deletado mas é FALTA))
+        # Isso garante que a falta apareça mesmo se foi reposta (deletada logicamente)
+        agendamentos = Agendamento.objects.filter(
+            data__in=datas_do_mes,
+            agenda_fixa__isnull=False # Apenas pacientes da grade fixa
+        ).filter(
+            Q(deletado=False) | Q(status='FALTA')
+        ).select_related('paciente', 'terapeuta').order_by('paciente__nome', 'hora_inicio')
+
+        if filtro_terapeuta_obj:
+            agendamentos = agendamentos.filter(terapeuta=filtro_terapeuta_obj)
+
+        linhas_map = {}
+
+        for ag in agendamentos:
+            chave = (ag.paciente.id, ag.hora_inicio)
+            
+            if chave not in linhas_map:
+                linhas_map[chave] = {
+                    'paciente_nome': ag.paciente.nome,
+                    'hora': ag.hora_inicio,
+                    'terapeuta_nome': ag.terapeuta.nome.split()[0],
+                    'status_por_data': {},
+                    'total_p': 0,
+                    'total_f': 0
+                }
+            
+            sigla = ''
+            if ag.status == 'REALIZADO':
+                sigla = 'P'
+                linhas_map[chave]['total_p'] += 1
+            elif ag.status == 'FALTA':
+                sigla = 'F'
+                linhas_map[chave]['total_f'] += 1
+            
+            linhas_map[chave]['status_por_data'][ag.data] = sigla
+
+        linhas_ordenadas = sorted(linhas_map.values(), key=lambda x: (x['paciente_nome'], x['hora']))
+        
+        relatorio_semanal.append({
+            'nome_dia': dias_semana_nomes[dia_idx],
+            'datas': datas_do_mes,
+            'linhas': linhas_ordenadas
+        })
+
+    # --- PARTE 2: REPOSIÇÕES (Sem Agenda Fixa) ---
+    # Busca agendamentos avulsos (reposições) no mês
+    qs_reposicoes = Agendamento.objects.filter(
+        data__month=mes_atual,
+        data__year=ano_atual,
+        agenda_fixa__isnull=True, # Identifica que é reposição/avulso
+        status='REALIZADO' # Mostra apenas o que foi concretizado
+    ).select_related('paciente', 'terapeuta').order_by('data', 'paciente__nome')
+
+    if filtro_terapeuta_obj:
+        qs_reposicoes = qs_reposicoes.filter(terapeuta=filtro_terapeuta_obj)
+
+    # Agrupa reposições por Paciente + Data (para contar sessões no mesmo dia)
+    mapa_reposicoes = {} # Chave: (data, paciente_id)
+    total_reposicoes_mes = 0
+
+    for rep in qs_reposicoes:
+        chave_rep = (rep.data, rep.paciente.id)
+        if chave_rep not in mapa_reposicoes:
+            mapa_reposicoes[chave_rep] = {
+                'paciente_nome': rep.paciente.nome,
+                'data': rep.data,
+                'terapeuta_nome': rep.terapeuta.nome.split()[0],
+                'qtd_sessoes': 0
+            }
+        mapa_reposicoes[chave_rep]['qtd_sessoes'] += 1
+        total_reposicoes_mes += 1
+
+    lista_reposicoes = sorted(mapa_reposicoes.values(), key=lambda x: (x['data'], x['paciente_nome']))
+
+    # Listas auxiliares para o template
+    meses_pt = [
+        (1, 'Janeiro'), (2, 'Fevereiro'), (3, 'Março'), (4, 'Abril'),
+        (5, 'Maio'), (6, 'Junho'), (7, 'Julho'), (8, 'Agosto'),
+        (9, 'Setembro'), (10, 'Outubro'), (11, 'Novembro'), (12, 'Dezembro')
+    ]
+
+    return render(request, 'controle_atendimentos.html', {
+        'relatorio_semanal': relatorio_semanal,
+        'lista_reposicoes': lista_reposicoes,
+        'total_reposicoes_mes': total_reposicoes_mes,
+        'meses': meses_pt,
+        'anos': range(ano_atual - 2, ano_atual + 2),
+        'mes_atual': mes_atual,
+        'ano_atual': ano_atual,
+        'terapeutas': terapeutas,
+        'filtro_terapeuta_selecionado': int(terapeuta_id) if terapeuta_id else None,
+        'is_admin': is_admin(request.user)
+    })
