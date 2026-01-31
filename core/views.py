@@ -1223,18 +1223,20 @@ def controle_atendimentos(request):
             agenda_fixa__isnull=False
         ).filter(
             Q(deletado=False) | Q(status='FALTA')
-        ).select_related('paciente', 'terapeuta').order_by('paciente__nome', 'hora_inicio')
+        ).select_related('paciente', 'terapeuta', 'agenda_fixa').order_by('paciente__nome', 'hora_inicio')
 
         if filtro_terapeuta_obj:
             agendamentos = agendamentos.filter(terapeuta=filtro_terapeuta_obj)
 
         linhas_map = {}
         for ag in agendamentos:
-            chave = (ag.paciente.id, ag.hora_inicio)
+            # Agrupa pelo ID da Agenda Fixa para manter consistência mesmo se o horário mudar
+            chave = (ag.paciente.id, ag.agenda_fixa.id)
             if chave not in linhas_map:
                 linhas_map[chave] = {
                     'paciente_nome': ag.paciente.nome,
-                    'hora': ag.hora_inicio,
+                    # Usa a hora oficial da grade fixa para unificar a visualização
+                    'hora': ag.agenda_fixa.hora_inicio,
                     'terapeuta_nome': ag.terapeuta.nome.split()[0],
                     'status_por_data': {},
                     'total_p': 0,
