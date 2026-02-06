@@ -25,7 +25,10 @@ class PacienteForm(forms.ModelForm):
         widgets = {
             'nome': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nome Completo'}),
             'cpf': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Apenas números'}),
-            'data_nascimento': forms.DateInput(attrs={'class': 'form-control seletor-apenas-data'}),
+            'data_nascimento': forms.DateInput(
+                format='%Y-%m-%d', 
+                attrs={'class': 'form-control seletor-apenas-data', 'type': 'date'}
+            ),
             'telefone': forms.TextInput(attrs={'class': 'form-control'}),
             'tipo_padrao': forms.Select(attrs={'class': 'form-control'}),
             'convenio': forms.Select(attrs={'class': 'form-control'}),
@@ -83,8 +86,7 @@ class AgendamentoForm(forms.ModelForm):
             hora_fim = dt_fim.time()
             cleaned_data['hora_fim'] = hora_fim 
         
-        # 1. VERIFICAR BLOQUEIO FIXO (Semanal)
-        dia_semana = data.weekday() # 0 = Seg, 6 = Dom
+        dia_semana = data.weekday()
         bloqueado = BloqueioFixo.objects.filter(
             terapeuta=terapeuta,
             dia_semana=dia_semana,
@@ -95,7 +97,6 @@ class AgendamentoForm(forms.ModelForm):
         if bloqueado:
             raise forms.ValidationError(f"Bloqueado! Dr(a) {terapeuta.nome} possui um bloqueio fixo neste horário.")
 
-        # 2. VERIFICAR CONFLITOS DE AGENDAMENTO
         tem_conflito = Agendamento.verificar_conflito(
             terapeuta=terapeuta, data=data, hora_inicio=hora_inicio, hora_fim=hora_fim,
             ignorar_id=self.instance.pk if self.instance.pk else None
@@ -143,8 +144,8 @@ class AgendaFixaForm(forms.ModelForm):
             'sala': forms.Select(attrs={'class': 'form-select'}),
             'dia_semana': forms.Select(attrs={'class': 'form-select'}),
             'hora_fim': forms.TimeInput(attrs={'class': 'form-control', 'type': 'time'}),
-            'data_inicio': forms.DateInput(attrs={'class': 'form-control seletor-apenas-data'}),
-            'data_fim': forms.DateInput(attrs={'class': 'form-control seletor-apenas-data'}),
+            'data_inicio': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control seletor-apenas-data', 'type': 'date'}),
+            'data_fim': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control seletor-apenas-data', 'type': 'date'}),
         }
     
     def __init__(self, *args, **kwargs):
@@ -152,9 +153,7 @@ class AgendaFixaForm(forms.ModelForm):
         self.fields['sala'].required = True
         self.fields['sala'].label = "Sala de Atendimento"
         self.fields['hora_fim'].required = False 
-        
         self.fields['modalidade'].empty_label = "Padrão do Terapeuta"
-        
         self.fields['paciente'].queryset = Paciente.objects.filter(ativo=True).order_by('nome')
 
     def clean(self):
@@ -206,7 +205,6 @@ class BloqueioFixoForm(forms.ModelForm):
         start = cleaned_data.get('hora_inicio')
         end = cleaned_data.get('hora_fim')
 
-        # PADRÕES SOLICITADOS
         HORA_ABERTURA = time(7, 15)  
         HORA_FECHAMENTO = time(19, 30) 
 
