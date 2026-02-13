@@ -908,15 +908,15 @@ def ocupacao_salas(request):
         p_id = item.paciente.id
         chave = (h_str, s_id, p_id)
         
-        # Garante o nome correto do terapeuta
-        nome_terapeuta = item.terapeuta.nome.split()[0]
+        # Garante o primeiro nome do terapeuta
+        nome_terapeuta = item.terapeuta.nome.strip().split()[0]
         
         if chave in agrupados:
             agrupados[chave]['terapeutas'].append(nome_terapeuta)
             if item.agenda_fixa: agrupados[chave]['agenda_fixa'] = True
         else:
             agrupados[chave] = {
-                'paciente_nome': item.paciente.nome, # Garante o nome do paciente
+                'paciente_nome': item.paciente.nome.strip(), # Limpa espaços do nome do paciente
                 'terapeutas': [nome_terapeuta],
                 'agenda_fixa': True if item.agenda_fixa else False,
                 'hora_real': item.hora_inicio 
@@ -927,10 +927,10 @@ def ocupacao_salas(request):
     for (h_str, s_id, p_id), dados in agrupados.items():
         h_visual = encontrar_slot_visual(dados['hora_real'], horarios_grade)
         if h_visual in agenda_map and s_id in agenda_map[h_visual]:
-            texto_terapeutas = " + ".join(dados['terapeutas'])
+            texto_terapeutas = " + ".join(sorted(list(set(dados['terapeutas'])))) # Remove duplicatas e ordena
             item_display = {
-                'paciente_nome': dados['paciente_nome'], # Atribuição correta
-                'terapeuta_nome': texto_terapeutas,     # Atribuição correta
+                'paciente_nome': dados['paciente_nome'], 
+                'terapeuta_nome': texto_terapeutas,
                 'agenda_fixa': dados['agenda_fixa']
             }
             agenda_map[h_visual][s_id].append(item_display)
@@ -1387,9 +1387,10 @@ def agenda_semanal_sala(request):
                 # Agrupa por ID do paciente para mesclar atendimentos simultâneos
                 grupo = temp_map[h_visual][d_str][ag.paciente.id]
                 
-                # Atribuição explicita correta
-                grupo['paciente'] = ag.paciente.nome 
-                grupo['terapeutas'].add(ag.terapeuta.nome)
+                # Atribuição explicita correta com limpeza de string
+                grupo['paciente'] = ag.paciente.nome.strip()
+                # Usa apenas o primeiro nome do terapeuta
+                grupo['terapeutas'].add(ag.terapeuta.nome.strip().split()[0])
 
         # Transfere do temp_map para o agenda_map final formatado
         for h_str, dias in temp_map.items():
@@ -1401,8 +1402,8 @@ def agenda_semanal_sala(request):
                     str_terapeutas = " + ".join(nomes_terapeutas)
                     
                     lista_final.append({
-                        'paciente_nome': dados['paciente'],     # Confirmação: Nome do Paciente
-                        'terapeuta_nome': str_terapeutas        # Confirmação: Nomes dos Terapeutas
+                        'paciente_nome': dados['paciente'],     # Confirmação: Nome do Paciente limpo
+                        'terapeuta_nome': str_terapeutas        # Confirmação: Nomes dos Terapeutas separados
                     })
                 
                 # Substitui a lista vazia pela lista agrupada
