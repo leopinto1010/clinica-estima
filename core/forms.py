@@ -223,3 +223,15 @@ class BloqueioFixoForm(forms.ModelForm):
             raise forms.ValidationError("O horário de início deve ser anterior ao horário de fim.")
 
         return cleaned_data
+    
+class ReposicaoForm(forms.Form):
+    paciente = forms.ModelChoiceField(
+        queryset=Paciente.objects.filter(ativo=True).order_by('nome'),
+        label="Novo Paciente",
+        widget=forms.Select(attrs={'class': 'form-select campo-busca'})
+    )
+    sala = forms.ModelChoiceField(
+        queryset=Sala.objects.all(),
+        label="Sala do Atendimento",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )

@@ -1,83 +1,140 @@
 {% extends 'base.html' %}
+{% load custom_tags %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6 col-lg-5">
-        <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white py-3 border-bottom">
-                <h5 class="card-title mb-0 fw-bold text-primary">
-                    <i class="bi bi-arrow-repeat me-2"></i>Reposição de Horário
-                </h5>
-            </div>
-            <div class="card-body p-4">
-                
-                <div class="alert alert-warning border-warning bg-warning-subtle mb-4">
-                    <h6 class="fw-bold mb-1"><i class="bi bi-exclamation-triangle me-2"></i>Atenção</h6>
-                    <small class="d-block">
-                        O horário de <strong>{{ agendamento_antigo.data|date:"d/m/Y" }}</strong> às <strong>{{ agendamento_antigo.hora_inicio|date:"H:i" }}</strong>
-                        pertencia a <strong>{{ agendamento_antigo.paciente.nome }}</strong>.
-                    </small>
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            
+            <div class="card shadow border-0 mb-4">
+                <div class="card-header bg-primary text-white py-3">
+                    <h4 class="mb-0 fw-bold"><i class="bi bi-arrow-repeat me-2"></i>Reposição de Horário</h4>
                 </div>
+                <div class="card-body p-4">
 
-                <form method="POST" novalidate>
-                    {% csrf_token %}
-                    
-                    {% if precisa_justificar and form_falta %}
-                        <h6 class="fw-bold text-danger border-bottom pb-2 mb-3">
-                            1. Justificar a Falta Anterior
+                    <div class="alert alert-light border shadow-sm mb-4">
+                        <h6 class="alert-heading fw-bold text-primary mb-2">
+                            <i class="bi bi-calendar-event me-2"></i>Detalhes da Vaga Original
                         </h6>
-                        
-                        <div class="mb-3">
-                            <label class="form-label small fw-bold text-muted">Classificação</label>
-                            {{ form_falta.tipo_cancelamento }}
-                            {% if form_falta.tipo_cancelamento.errors %}
-                                <div class="text-danger small">{{ form_falta.tipo_cancelamento.errors }}</div>
-                            {% endif %}
+                        <hr class="my-2">
+                        <div class="row g-2 text-muted small">
+                            <div class="col-md-4">
+                                <strong>Data:</strong><br>
+                                {{ agendamento_antigo.data|date:"d/m/Y" }}
+                            </div>
+                            <div class="col-md-4">
+                                <strong>Horário:</strong><br>
+                                {{ agendamento_antigo.hora_inicio|date:"H:i" }} às {{ agendamento_antigo.hora_fim|date:"H:i" }}
+                            </div>
+                            <div class="col-md-4">
+                                <strong>Terapeuta:</strong><br>
+                                {{ agendamento_antigo.terapeuta.nome }}
+                            </div>
+                            <div class="col-md-4 mt-2">
+                                <strong>Sala Original:</strong><br>
+                                {{ agendamento_antigo.sala.nome }}
+                            </div>
+                            <div class="col-md-8 mt-2">
+                                <strong>Paciente Anterior:</strong><br>
+                                {{ agendamento_antigo.paciente.nome }}
+                            </div>
                         </div>
-
-                        <div class="mb-4">
-                            <label class="form-label small fw-bold text-muted">Motivo / Observação</label>
-                            {{ form_falta.motivo_cancelamento }}
-                            {% if form_falta.motivo_cancelamento.errors %}
-                                <div class="text-danger small">{{ form_falta.motivo_cancelamento.errors }}</div>
-                            {% endif %}
-                        </div>
-                    {% else %}
-                         <div class="alert alert-info py-2 small mb-4">
-                            <i class="bi bi-info-circle me-1"></i> A falta anterior já estava registrada/justificada.
-                         </div>
-                    {% endif %}
-
-                    <h6 class="fw-bold text-primary border-bottom pb-2 mb-3 mt-4">
-                        2. Novo Paciente (Reposição)
-                    </h6>
-
-                    <div class="mb-4">
-                        <label class="form-label fw-bold">Selecione o Paciente:</label>
-                        <select name="paciente" class="form-control campo-busca" required>
-                            {% for choice in form_paciente.paciente.field.choices %}
-                                <option value="{{ choice.0 }}">{{ choice.1 }}</option>
-                            {% endfor %}
-                        </select>
                     </div>
 
-                    <div class="d-grid gap-2">
-                        <button type="submit" class="btn btn-primary fw-bold py-2">
-                            Confirmar Reposição
-                        </button>
-                        <a href="{% url 'lista_agendamentos' %}{% if request.GET.urlencode %}?{{ request.GET.urlencode }}{% endif %}" class="btn btn-light text-muted">Cancelar</a>
-                    </div>
-                </form>
+                    <form method="POST">
+                        {% csrf_token %}
+
+                        {% if precisa_justificar %}
+                        <div class="card mb-4 border-warning">
+                            <div class="card-header bg-warning bg-opacity-10 text-warning-emphasis border-warning border-opacity-25">
+                                <strong><i class="bi bi-exclamation-triangle-fill me-2"></i>Passo 1: Justificar Ausência Anterior</strong>
+                            </div>
+                            <div class="card-body bg-warning bg-opacity-10">
+                                <p class="small mb-3">
+                                    Para liberar este horário, é necessário registrar a falta do paciente <strong>{{ agendamento_antigo.paciente.nome }}</strong>.
+                                </p>
+                                
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold small text-uppercase">Classificação</label>
+                                        {{ form_falta.tipo_cancelamento }}
+                                        {% if form_falta.tipo_cancelamento.errors %}
+                                            <div class="text-danger small">{{ form_falta.tipo_cancelamento.errors.0 }}</div>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label fw-bold small text-uppercase">Motivo</label>
+                                        {{ form_falta.motivo_cancelamento }}
+                                        {% if form_falta.motivo_cancelamento.errors %}
+                                            <div class="text-danger small">{{ form_falta.motivo_cancelamento.errors.0 }}</div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-success d-flex align-items-center mb-4">
+                            <i class="bi bi-check-circle-fill fs-4 me-3"></i>
+                            <div>
+                                <strong>Ausência já justificada.</strong>
+                                <div class="small">O horário está livre para reposição.</div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <div class="card mb-4 border-success">
+                            <div class="card-header bg-success bg-opacity-10 text-success-emphasis border-success border-opacity-25">
+                                <strong><i class="bi bi-person-plus-fill me-2"></i>Passo 2: Dados da Reposição</strong>
+                            </div>
+                            <div class="card-body">
+                                <div class="row g-3">
+                                    <div class="col-md-8">
+                                        <label class="form-label fw-bold small text-uppercase">{{ form_reposicao.paciente.label }}</label>
+                                        {{ form_reposicao.paciente }}
+                                        {% if form_reposicao.paciente.errors %}
+                                            <div class="text-danger small mt-1">{{ form_reposicao.paciente.errors.0 }}</div>
+                                        {% endif %}
+                                        <div class="form-text">Selecione o paciente que ocupará a vaga.</div>
+                                    </div>
+                                    
+                                    <div class="col-md-4">
+                                        <label class="form-label fw-bold small text-uppercase">{{ form_reposicao.sala.label }}</label>
+                                        {{ form_reposicao.sala }}
+                                        {% if form_reposicao.sala.errors %}
+                                            <div class="text-danger small mt-1">{{ form_reposicao.sala.errors.0 }}</div>
+                                        {% endif %}
+                                        <div class="form-text">Você pode alterar a sala se necessário.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center pt-3 border-top">
+                            <a href="{% url 'lista_agendamentos' %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left me-2"></i>Voltar
+                            </a>
+                            <button type="submit" class="btn btn-primary px-4 fw-bold">
+                                <i class="bi bi-check-lg me-2"></i>Confirmar Reposição
+                            </button>
+                        </div>
+
+                    </form>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-    document.addEventListener("DOMContentLoaded", function() {
-        if (typeof $ !== 'undefined' && $.fn.select2) {
-            $('.campo-busca').select2({ theme: 'bootstrap-5', width: '100%' });
-        }
+    $(document).ready(function() {
+        // Inicializa o Select2 para busca de pacientes
+        $('.campo-busca').select2({
+            theme: 'bootstrap-5',
+            width: '100%',
+            placeholder: 'Digite o nome do paciente...',
+            allowClear: true,
+            dropdownParent: $('body') // Garante que o dropdown funcione bem em modais ou cards
+        });
     });
 </script>
 {% endblock %}

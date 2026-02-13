@@ -19,7 +19,7 @@ from .models import (
 
 from .forms import (
     PacienteForm, AgendamentoForm, ConsultaForm, 
-    CadastroEquipeForm, RegistrarFaltaForm, AgendaFixaForm, BloqueioFixoForm
+    CadastroEquipeForm, RegistrarFaltaForm, AgendaFixaForm, BloqueioFixoForm, ReposicaoForm
 )
 
 from .decorators import admin_required, terapeuta_required, dono_required, is_admin, is_terapeuta, is_dono
@@ -538,29 +538,33 @@ def excluir_agenda_fixa(request, id):
 @login_required
 def reposicao_agendamento(request, agendamento_id):
     agendamento_antigo = get_object_or_404(Agendamento, id=agendamento_id)
-    filtros = request.GET.urlencode()
-
+    
+    # Verifica permissões
     if not is_admin(request.user):
-         messages.error(request, "Acesso negado. Contate a administração.")
-         return redirect('dashboard')
+         if agendamento_antigo.terapeuta.usuario != request.user:
+             messages.error(request, "Acesso negado. Contate a administração.")
+             return redirect('dashboard')
 
     precisa_justificar = (agendamento_antigo.status != 'FALTA')
 
     if request.method == 'POST':
-        paciente_id = request.POST.get('paciente')
-        
+        form_reposicao = ReposicaoForm(request.POST)
         form_falta = None
         dados_falta_validos = True
-        
+
+        # Valida a justificativa da falta (se necessário)
         if precisa_justificar:
             form_falta = RegistrarFaltaForm(request.POST, prefix='falta', instance=agendamento_antigo)
             if not form_falta.is_valid():
                 dados_falta_validos = False
         
-        if paciente_id and dados_falta_validos:
+        # Se tudo estiver válido
+        if form_reposicao.is_valid() and dados_falta_validos:
+            paciente_selecionado = form_reposicao.cleaned_data['paciente']
+            sala_selecionada = form_reposicao.cleaned_data['sala'] # Captura a sala do form
+
             try:
-                paciente_selecionado = Paciente.objects.get(id=paciente_id)
-                
+                # 1. Atualiza o agendamento antigo (Justifica falta se precisar e marca como deletado)
                 if precisa_justificar:
                     agendamento_antigo = form_falta.save(commit=False)
                     agendamento_antigo.status = 'FALTA'
@@ -568,44 +572,36 @@ def reposicao_agendamento(request, agendamento_id):
                 agendamento_antigo.deletado = True
                 agendamento_antigo.save()
 
+                # 2. Cria o NOVO agendamento com a sala selecionada (pode ser diferente da original)
                 Agendamento.objects.create(
                     paciente=paciente_selecionado,
                     terapeuta=agendamento_antigo.terapeuta,
-                    sala=agendamento_antigo.sala,
+                    sala=sala_selecionada,  # <--- Usa a sala escolhida no form
                     data=agendamento_antigo.data,
                     hora_inicio=agendamento_antigo.hora_inicio,
                     hora_fim=agendamento_antigo.hora_fim,
                     status='AGUARDANDO',
                     tipo_atendimento=paciente_selecionado.tipo_padrao
                 )
-
-                messages.success(request, "Reposição realizada! Vaga preenchida.")
-                url_retorno = redirect('lista_agendamentos').url
-                if filtros: url_retorno += f'?{filtros}'
-                return redirect(url_retorno)
                 
-            except Paciente.DoesNotExist:
-                messages.error(request, "Paciente inválido.")
-        else:
-            if not paciente_id: messages.error(request, "Selecione o novo paciente.")
-            if form_falta and not form_falta.is_valid(): messages.error(request, "Justifique a falta anterior.")
-    
-    else:
-        if precisa_justificar:
-            form_falta = RegistrarFaltaForm(prefix='falta', initial={'tipo_cancelamento': 'JUSTIFICADA'})
-        else:
-            form_falta = None
+                messages.success(request, "Reposição realizada com sucesso! Vaga preenchida.")
+                return redirect('lista_agendamentos')
+            
+            except Exception as e:
+                messages.error(request, f"Erro ao realizar reposição: {e}")
 
-    # Alteração: O formulário do novo paciente agora vem pré-preenchido com o horário original
-    form_paciente = AgendamentoForm(initial={
-        'data': agendamento_antigo.data,
-        'hora_inicio': agendamento_antigo.hora_inicio,
-        'hora_fim': agendamento_antigo.hora_fim
-    }) 
-    
+    else:
+        # GET: Preenche o formulário. A sala inicial é a mesma do agendamento antigo.
+        form_reposicao = ReposicaoForm(initial={
+            'sala': agendamento_antigo.sala
+        })
+        
+        # Se precisar justificar, inicializa o form de falta
+        form_falta = RegistrarFaltaForm(prefix='falta', instance=agendamento_antigo) if precisa_justificar else None
+
     return render(request, 'form_reposicao.html', {
+        'form_reposicao': form_reposicao,
         'form_falta': form_falta,
-        'form_paciente': form_paciente,
         'agendamento_antigo': agendamento_antigo,
         'precisa_justificar': precisa_justificar
     })
