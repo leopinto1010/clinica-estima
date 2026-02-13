@@ -32,18 +32,25 @@ def remover_acentos(texto):
 
 def encontrar_slot_visual(hora_real, horarios_grade):
     if not horarios_grade: return hora_real.strftime('%H:%M')
-    # Tenta encontrar o slot exato primeiro
     for h in horarios_grade:
         if h == hora_real:
             return h.strftime('%H:%M')
             
-    # Fallback: Encontra o slot mais próximo anterior (comportamento antigo)
     slot_candidato = horarios_grade[0]
     for h in horarios_grade:
         if h > hora_real:
             break
         slot_candidato = h
     return slot_candidato.strftime('%H:%M')
+
+# NOVA FUNÇÃO AUXILIAR
+def formatar_nome_curto(nome_completo):
+    """Retorna apenas o Primeiro Nome + Primeiro Sobrenome."""
+    if not nome_completo: return ""
+    partes = nome_completo.strip().split()
+    if len(partes) >= 2:
+        return f"{partes[0]} {partes[1]}"
+    return partes[0]
 
 @login_required
 def dashboard(request):
@@ -894,7 +901,6 @@ def ocupacao_salas(request):
     salas = sorted(todas_salas, key=sort_key)
     agendamentos = Agendamento.objects.ativos().filter(data=data_atual).select_related('paciente', 'terapeuta', 'sala', 'agenda_fixa')
     
-    # --- Grade dinâmica (30min se houver) ---
     horarios_reais_hoje = list(agendamentos.values_list('hora_inicio', flat=True))
     horarios_grade = get_horarios_clinica(horarios_reais_hoje)
 
@@ -907,8 +913,8 @@ def ocupacao_salas(request):
         p_id = item.paciente.id
         chave = (h_str, s_id, p_id)
         
-        # Garante limpeza de espaços
-        nome_terapeuta = item.terapeuta.nome.strip()
+        # APLICA A FORMATAÇÃO DE NOME CURTO
+        nome_terapeuta = formatar_nome_curto(item.terapeuta.nome)
         nome_paciente = item.paciente.nome.strip()
         
         if chave in agrupados:
@@ -927,7 +933,6 @@ def ocupacao_salas(request):
     for (h_str, s_id, p_id), dados in agrupados.items():
         h_visual = encontrar_slot_visual(dados['hora_real'], horarios_grade)
         if h_visual in agenda_map and s_id in agenda_map[h_visual]:
-            # Junta terapeutas com " + " caso haja mais de um
             texto_terapeutas = " + ".join(sorted(list(set(dados['terapeutas']))))
             
             item_display = {
@@ -1365,7 +1370,6 @@ def agenda_semanal_sala(request):
             data__range=[datas_semana[0], datas_semana[-1]]
         ).select_related('paciente', 'terapeuta')
 
-        # --- Grade dinâmica ---
         horarios_extras = list(agendamentos.values_list('hora_inicio', flat=True))
     
     horarios_grade = get_horarios_clinica(horarios_extras)
@@ -1382,9 +1386,9 @@ def agenda_semanal_sala(request):
             if h_visual in agenda_map and d_str in agenda_map[h_visual]:
                 grupo = temp_map[h_visual][d_str][ag.paciente.id]
                 
-                # Limpeza de strings
                 grupo['paciente'] = ag.paciente.nome.strip()
-                grupo['terapeutas'].add(ag.terapeuta.nome.strip())
+                # APLICA A FORMATAÇÃO DE NOME CURTO
+                grupo['terapeutas'].add(formatar_nome_curto(ag.terapeuta.nome))
 
         for h_str, dias in temp_map.items():
             for d_str, pacientes_dict in dias.items():
