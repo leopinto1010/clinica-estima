@@ -894,10 +894,9 @@ def ocupacao_salas(request):
     salas = sorted(todas_salas, key=sort_key)
     agendamentos = Agendamento.objects.ativos().filter(data=data_atual).select_related('paciente', 'terapeuta', 'sala', 'agenda_fixa')
     
-    # --- Grade dinâmica ---
+    # --- Grade dinâmica (30min se houver) ---
     horarios_reais_hoje = list(agendamentos.values_list('hora_inicio', flat=True))
     horarios_grade = get_horarios_clinica(horarios_reais_hoje)
-    # ----------------------
 
     agrupados = {}
 
@@ -908,15 +907,16 @@ def ocupacao_salas(request):
         p_id = item.paciente.id
         chave = (h_str, s_id, p_id)
         
-        # Garante o nome completo do terapeuta (SEM SPLIT)
+        # Garante limpeza de espaços
         nome_terapeuta = item.terapeuta.nome.strip()
+        nome_paciente = item.paciente.nome.strip()
         
         if chave in agrupados:
             agrupados[chave]['terapeutas'].append(nome_terapeuta)
             if item.agenda_fixa: agrupados[chave]['agenda_fixa'] = True
         else:
             agrupados[chave] = {
-                'paciente_nome': item.paciente.nome.strip(), # Limpa espaços do nome do paciente
+                'paciente_nome': nome_paciente,
                 'terapeutas': [nome_terapeuta],
                 'agenda_fixa': True if item.agenda_fixa else False,
                 'hora_real': item.hora_inicio 
@@ -927,8 +927,9 @@ def ocupacao_salas(request):
     for (h_str, s_id, p_id), dados in agrupados.items():
         h_visual = encontrar_slot_visual(dados['hora_real'], horarios_grade)
         if h_visual in agenda_map and s_id in agenda_map[h_visual]:
-            # Mantém lista ordenada e limpa, unindo com " + " caso haja mais de um
+            # Junta terapeutas com " + " caso haja mais de um
             texto_terapeutas = " + ".join(sorted(list(set(dados['terapeutas']))))
+            
             item_display = {
                 'paciente_nome': dados['paciente_nome'], 
                 'terapeuta_nome': texto_terapeutas,
@@ -1359,7 +1360,6 @@ def agenda_semanal_sala(request):
     if sala_id:
         sala_selecionada = get_object_or_404(Sala, id=sala_id)
         
-        # Busca todos os agendamentos da semana
         agendamentos = Agendamento.objects.ativos().filter(
             sala=sala_selecionada,
             data__range=[datas_semana[0], datas_semana[-1]]
@@ -1368,46 +1368,36 @@ def agenda_semanal_sala(request):
         # --- Grade dinâmica ---
         horarios_extras = list(agendamentos.values_list('hora_inicio', flat=True))
     
-    # Gera a grade dinâmica
     horarios_grade = get_horarios_clinica(horarios_extras)
     
-    # Inicializa o mapa com a nova grade
     agenda_map = {t.strftime('%H:%M'): {d.strftime('%Y-%m-%d'): [] for d in datas_semana} for t in horarios_grade}
 
     if sala_id:
-        # Dicionário temporário para agrupar antes de inserir no mapa final
-        # temp_map[hora][data][paciente_id] = { ... }
         temp_map = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {'paciente': '', 'terapeutas': set()})))
 
         for ag in agendamentos:
             h_visual = encontrar_slot_visual(ag.hora_inicio, horarios_grade)
             d_str = ag.data.strftime('%Y-%m-%d')
             
-            # Só processa se o horário estiver na grade visual
             if h_visual in agenda_map and d_str in agenda_map[h_visual]:
-                # Agrupa por ID do paciente para mesclar atendimentos simultâneos
                 grupo = temp_map[h_visual][d_str][ag.paciente.id]
                 
-                # Atribuição explicita correta com limpeza de string
+                # Limpeza de strings
                 grupo['paciente'] = ag.paciente.nome.strip()
-                # Usa nome completo do terapeuta (SEM SPLIT, conforme solicitado)
                 grupo['terapeutas'].add(ag.terapeuta.nome.strip())
 
-        # Transfere do temp_map para o agenda_map final formatado
         for h_str, dias in temp_map.items():
             for d_str, pacientes_dict in dias.items():
                 lista_final = []
                 for pid, dados in pacientes_dict.items():
-                    # Junta os nomes dos terapeutas com " + "
                     nomes_terapeutas = sorted(list(dados['terapeutas']))
                     str_terapeutas = " + ".join(nomes_terapeutas)
                     
                     lista_final.append({
-                        'paciente_nome': dados['paciente'],     # Confirmação: Nome do Paciente limpo
-                        'terapeuta_nome': str_terapeutas        # Confirmação: Nomes dos Terapeutas separados
+                        'paciente_nome': dados['paciente'],
+                        'terapeuta_nome': str_terapeutas
                     })
                 
-                # Substitui a lista vazia pela lista agrupada
                 agenda_map[h_str][d_str] = lista_final
 
     return render(request, 'relatorio_sala_semanal.html', {

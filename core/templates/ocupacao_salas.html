@@ -85,8 +85,18 @@
     .evento-fixo { border-left-color: #0d6efd; background-color: #f0f7ff; }
     .evento-avulso { border-left-color: #fd7e14; background-color: #fff8e1; }
     
-    .paciente-nome { font-weight: 700; color: #344767; display: block; margin-bottom: 2px; }
-    .terapeuta-nome { font-size: 0.75rem; color: #6c757d; }
+    /* MUDANÇA: Garante que sejam blocos para quebrar linha */
+    .paciente-nome { 
+        font-weight: 700; 
+        color: #344767; 
+        display: block; 
+        margin-bottom: 2px; 
+    }
+    .terapeuta-nome { 
+        font-size: 0.75rem; 
+        color: #6c757d; 
+        display: block; /* Força quebra de linha se necessário */
+    }
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -168,7 +178,7 @@
                                 <div class="card-evento {% if item.agenda_fixa %}evento-fixo{% else %}evento-avulso{% endif %}"
                                      title="Clique para ver detalhes">
                                     
-                                    <span class="paciente-nome">{{ item.paciente_nome }}</span>
+                                    <div class="paciente-nome">{{ item.paciente_nome }}</div>
                                     
                                     <div class="terapeuta-nome">
                                         {{ item.terapeuta_nome }}
