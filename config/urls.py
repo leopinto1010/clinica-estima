@@ -36,7 +36,8 @@ from core.views import (
     # NOVAS VIEWS
     adicionar_bloqueio,
     excluir_bloqueio,
-    controle_atendimentos, # <--- NOVA VIEW IMPORTADA
+    controle_atendimentos,
+    agenda_semanal_sala,
 )
 
 urlpatterns = [
@@ -84,6 +85,7 @@ urlpatterns = [
     path('relatorios/', relatorio_mensal, name='relatorio_mensal'),
     path('relatorios/pacientes/', relatorio_pacientes, name='relatorio_pacientes'),
     path('relatorios/salas/', ocupacao_salas, name='ocupacao_salas'),
+    path('relatorios/salas/semanal/', agenda_semanal_sala, name='agenda_semanal_sala'),
     path('relatorios/grade-pacientes/', relatorio_grade_pacientes, name='relatorio_grade_pacientes'),
     path('relatorios/atrasos/', relatorio_atrasos, name='relatorio_atrasos'),
     

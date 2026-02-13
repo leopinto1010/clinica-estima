@@ -1,0 +1,184 @@
+{% extends 'base.html' %}
+{% load custom_tags %}
+
+{% block content %}
+<style>
+    /* --- ESTILOS GERAIS (Tela) --- */
+    .table-agenda { width: 100%; table-layout: fixed; }
+    .table-agenda th, .table-agenda td {
+        border: 1px solid #dee2e6;
+        padding: 4px;
+        vertical-align: top;
+        font-size: 0.85rem;
+    }
+    .col-horario { 
+        background: #f8f9fa; 
+        font-weight: bold; 
+        width: 70px; 
+        text-align: center; 
+        vertical-align: middle;
+    }
+    .col-dia { text-align: center; background-color: #f8f9fa; }
+    
+    .evento-item {
+        background-color: #f8f9fa;
+        border-radius: 4px;
+        padding: 2px 4px;
+        margin-bottom: 2px;
+        border-left: 3px solid #0d6efd;
+        font-size: 0.8rem;
+        overflow-wrap: break-word; /* Garante que nomes longos quebrem linha */
+    }
+
+    /* --- ESTILOS DE IMPRESSÃO --- */
+    @media print {
+        @page {
+            size: landscape; /* Força paisagem */
+            margin: 0.5cm;   /* Margens mínimas */
+        }
+
+        /* Esconde tudo do site */
+        body * {
+            visibility: hidden;
+            height: 0;
+            overflow: hidden;
+        }
+
+        /* Mostra apenas a área de impressão */
+        #printable-area, #printable-area * {
+            visibility: visible;
+            height: auto;
+            overflow: visible;
+            color: #000 !important;
+            background: transparent !important;
+        }
+
+        /* Posiciona no topo absoluto */
+        #printable-area {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+        }
+
+        .card-header { 
+            padding: 5px 0 !important; 
+            border-bottom: 2px solid #000 !important; 
+            text-align: center !important;
+        }
+        .card-header h3 { margin: 0; font-size: 1.2rem !important; }
+        .card-header p { margin: 0; font-size: 0.9rem !important; }
+
+        /* Tabela compacta */
+        table.table-agenda { 
+            font-size: 7pt !important;
+            border-collapse: collapse !important; 
+        }
+        .table-agenda th, .table-agenda td {
+            padding: 2px !important;
+            border: 1px solid #666 !important;
+        }
+        .col-horario { width: 45px !important; }
+
+        /* Estilo do Agendamento na Impressão */
+        .evento-item {
+            padding: 1px !important;
+            margin-bottom: 1px !important;
+            border-left-width: 2px !important;
+            line-height: 1.1 !important; 
+        }
+        
+        .nome-paciente { font-weight: bold; display: block; }
+        .nome-terapeuta { color: #333 !important; font-style: italic; }
+
+        .no-print { display: none !important; }
+    }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-4 no-print">
+    <div>
+        <h4 class="fw-bold"><i class="bi bi-calendar-week me-2"></i>Agenda Semanal por Sala</h4>
+        <a href="{% url 'ocupacao_salas' %}" class="btn btn-sm btn-link text-muted ps-0">
+            <i class="bi bi-arrow-left"></i> Voltar para Visão Geral
+        </a>
+    </div>
+    <button onclick="window.print()" class="btn btn-primary">
+        <i class="bi bi-printer me-2"></i>Imprimir Folha
+    </button>
+</div>
+
+<div class="card shadow-sm mb-4 no-print">
+    <div class="card-body bg-light py-3">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label small fw-bold text-uppercase text-muted">Sala</label>
+                <select name="sala" class="form-select" onchange="this.form.submit()">
+                    <option value="">-- Selecione a Sala --</option>
+                    {% for s in salas %}
+                        <option value="{{ s.id }}" {% if sala_selecionada.id == s.id %}selected{% endif %}>{{ s.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-uppercase text-muted">Semana de referência</label>
+                <input type="date" name="data_inicio" class="form-control" value="{{ data_inicio_input }}" onchange="this.form.submit()">
+                <div class="form-text small">Selecione qualquer dia da semana desejada.</div>
+            </div>
+        </form>
+    </div>
+</div>
+
+{% if sala_selecionada %}
+<div class="card shadow-sm" id="printable-area">
+    <div class="card-header bg-white pt-2 pb-2 border-bottom">
+        <h3 class="mb-0 fw-bold text-dark">{{ sala_selecionada.nome }}</h3>
+        <p class="text-muted mb-0 small">Semana: {{ datas_semana.0|date:"d/m/Y" }} a {{ datas_semana.5|date:"d/m/Y" }}</p>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-agenda mb-0">
+                <thead>
+                    <tr>
+                        <th class="col-horario text-dark">Horário</th>
+                        {% for data in datas_semana %}
+                        <th class="col-dia text-dark">
+                            <div class="text-uppercase small fw-bold">{{ data|date:"D" }}</div>
+                            <div class="small">{{ data|date:"d/m" }}</div>
+                        </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for hora in horarios_grade %}
+                    <tr>
+                        <td class="col-horario text-dark">{{ hora|date:"H:i" }}</td>
+                        {% for data in datas_semana %}
+                            {% with d_str=data|date:"Y-m-d" h_str=hora|date:"H:i" %}
+                            <td>
+                                {% for item in agenda_map|dict_get:h_str|dict_get:d_str %}
+                                    <div class="evento-item">
+                                        <span class="nome-paciente text-dark">{{ item.paciente_nome }}</span>
+                                        <span class="nome-terapeuta small">{{ item.terapeuta_nome }}</span>
+                                    </div>
+                                {% endfor %}
+                            </td>
+                            {% endwith %}
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info no-print text-center py-5">
+    <i class="bi bi-info-circle fs-1 mb-3 d-block text-primary"></i>
+    <h5>Selecione uma sala acima para visualizar e imprimir a grade semanal.</h5>
+</div>
+{% endif %}
+
+{% endblock %}

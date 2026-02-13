@@ -1310,3 +1310,78 @@ def controle_atendimentos(request):
         'filtro_terapeuta_selecionado': int(terapeuta_id) if terapeuta_id else None,
         'is_admin': is_admin(request.user)
     })
+
+# Em core/views.py, substitua a função agenda_semanal_sala por esta:
+
+@login_required
+def agenda_semanal_sala(request):
+    if not is_admin(request.user):
+        messages.error(request, "Acesso restrito.")
+        return redirect('dashboard')
+
+    sala_id = request.GET.get('sala')
+    data_inicio_str = request.GET.get('data_inicio')
+    
+    if data_inicio_str:
+        data_ref = datetime.strptime(data_inicio_str, '%Y-%m-%d').date()
+    else:
+        data_ref = timezone.now().date()
+    
+    segunda = data_ref - timedelta(days=data_ref.weekday())
+    datas_semana = [segunda + timedelta(days=i) for i in range(6)]
+    
+    sala_selecionada = None
+    horarios_grade = get_horarios_clinica()
+    # Inicializa o mapa com listas vazias
+    agenda_map = {t.strftime('%H:%M'): {d.strftime('%Y-%m-%d'): [] for d in datas_semana} for t in horarios_grade}
+
+    if sala_id:
+        sala_selecionada = get_object_or_404(Sala, id=sala_id)
+        
+        # Busca todos os agendamentos
+        agendamentos = Agendamento.objects.ativos().filter(
+            sala=sala_selecionada,
+            data__range=[datas_semana[0], datas_semana[-1]]
+        ).select_related('paciente', 'terapeuta')
+
+        # Dicionário temporário para agrupar antes de inserir no mapa final
+        # Estrutura: temp_map[hora][data][id_paciente] = { nome: "X", terapeutas: set("A", "B") }
+        temp_map = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {'paciente': '', 'terapeutas': set()})))
+
+        for ag in agendamentos:
+            h_visual = encontrar_slot_visual(ag.hora_inicio, horarios_grade)
+            d_str = ag.data.strftime('%Y-%m-%d')
+            
+            # Só processa se o horário estiver na grade visual
+            if h_visual in agenda_map and d_str in agenda_map[h_visual]:
+                # Agrupa por ID do paciente para mesclar atendimentos simultâneos
+                grupo = temp_map[h_visual][d_str][ag.paciente.id]
+                grupo['paciente'] = ag.paciente.nome
+                grupo['terapeutas'].add(ag.terapeuta.nome)
+
+        # Transfere do temp_map para o agenda_map final formatado
+        for h_str, dias in temp_map.items():
+            for d_str, pacientes_dict in dias.items():
+                lista_final = []
+                for pid, dados in pacientes_dict.items():
+                    # Junta os nomes dos terapeutas com " + "
+                    nomes_terapeutas = sorted(list(dados['terapeutas']))
+                    str_terapeutas = " + ".join(nomes_terapeutas)
+                    
+                    lista_final.append({
+                        'paciente_nome': dados['paciente'],
+                        'terapeuta_nome': str_terapeutas
+                    })
+                
+                # Substitui a lista vazia pela lista agrupada
+                agenda_map[h_str][d_str] = lista_final
+
+    return render(request, 'relatorio_sala_semanal.html', {
+        'sala_selecionada': sala_selecionada,
+        'salas': Sala.objects.all(),
+        'datas_semana': datas_semana,
+        'agenda_map': agenda_map,
+        'horarios_grade': horarios_grade,
+        'data_inicio_input': segunda.strftime('%Y-%m-%d'),
+        'is_admin': True
+    })
