@@ -908,8 +908,8 @@ def ocupacao_salas(request):
         p_id = item.paciente.id
         chave = (h_str, s_id, p_id)
         
-        # Garante o primeiro nome do terapeuta
-        nome_terapeuta = item.terapeuta.nome.strip().split()[0]
+        # Garante o nome completo do terapeuta (SEM SPLIT)
+        nome_terapeuta = item.terapeuta.nome.strip()
         
         if chave in agrupados:
             agrupados[chave]['terapeutas'].append(nome_terapeuta)
@@ -927,7 +927,8 @@ def ocupacao_salas(request):
     for (h_str, s_id, p_id), dados in agrupados.items():
         h_visual = encontrar_slot_visual(dados['hora_real'], horarios_grade)
         if h_visual in agenda_map and s_id in agenda_map[h_visual]:
-            texto_terapeutas = " + ".join(sorted(list(set(dados['terapeutas'])))) # Remove duplicatas e ordena
+            # Mantém lista ordenada e limpa, unindo com " + " caso haja mais de um
+            texto_terapeutas = " + ".join(sorted(list(set(dados['terapeutas']))))
             item_display = {
                 'paciente_nome': dados['paciente_nome'], 
                 'terapeuta_nome': texto_terapeutas,
@@ -1389,8 +1390,8 @@ def agenda_semanal_sala(request):
                 
                 # Atribuição explicita correta com limpeza de string
                 grupo['paciente'] = ag.paciente.nome.strip()
-                # Usa apenas o primeiro nome do terapeuta
-                grupo['terapeutas'].add(ag.terapeuta.nome.strip().split()[0])
+                # Usa nome completo do terapeuta (SEM SPLIT, conforme solicitado)
+                grupo['terapeutas'].add(ag.terapeuta.nome.strip())
 
         # Transfere do temp_map para o agenda_map final formatado
         for h_str, dias in temp_map.items():
