@@ -54,18 +54,16 @@
         }
 
         #printable-area {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            margin: 0 !important;
+            position: relative;
+            margin: 0 auto !important;
             padding: 0 !important;
             border: none !important;
             
-            /* TRUQUE PARA CABER NA PÁGINA: Reduz a escala para 75% */
-            transform: scale(0.75); 
-            transform-origin: top left;
-            width: 133%; /* Compensa o scale (100 / 0.75) para ocupar a largura total */
+            /* Lógica de centralização com Scale */
+            width: 133%; /* Compensa o scale (100 / 0.75) */
+            left: 50%;
+            transform: translateX(-50%) scale(0.75);
+            transform-origin: top center;
         }
 
         .card-header { 
@@ -75,6 +73,11 @@
         }
         .card-header h3 { margin: 0; font-size: 1.1rem !important; }
         .card-header p { margin: 0; font-size: 0.8rem !important; }
+
+        /* Remove sombra do card na impressão */
+        .card.shadow-sm {
+            box-shadow: none !important;
+        }
 
         /* Tabela ultra compacta */
         table.table-agenda { 
