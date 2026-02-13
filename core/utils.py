@@ -7,21 +7,32 @@ def make_datetime_aware(data, hora):
     dt_naive = datetime.combine(data, hora)
     return timezone.make_aware(dt_naive, timezone.get_current_timezone())
 
-def get_horarios_clinica():
-    """Gera a lista de horários de 45min com intervalo de almoço"""
-    horarios = []
+def get_horarios_clinica(extras=None):
+    """
+    Gera a lista de horários padrão de 45min, mas adiciona
+    horários extras (ex: 30min) se fornecidos, garantindo que
+    apareçam na visualização.
+    """
+    horarios = set() # Usar set para evitar duplicatas
     
-    # Manhã: Início 7:15 até 11:45 (7 slots) -> Fim 12:30
+    # --- Grade Padrão (Manhã) ---
     inicio_manha = datetime(2000, 1, 1, 7, 15)
     for i in range(7):
-        horarios.append((inicio_manha + timedelta(minutes=45*i)).time())
+        horarios.add((inicio_manha + timedelta(minutes=45*i)).time())
         
-    # Tarde: Início 13:30 até 18:45 (8 slots) -> Fim 19:30
+    # --- Grade Padrão (Tarde) ---
     inicio_tarde = datetime(2000, 1, 1, 13, 30)
     for i in range(8):
-        horarios.append((inicio_tarde + timedelta(minutes=45*i)).time())
-        
-    return horarios
+        horarios.add((inicio_tarde + timedelta(minutes=45*i)).time())
+
+    # --- Mesclar com horários extras (os que existem de fato no banco) ---
+    if extras:
+        for h in extras:
+            if h: # Garante que não é None
+                horarios.add(h)
+
+    # Retorna lista ordenada
+    return sorted(list(horarios))
 
 def gerar_agenda_futura(dias_a_frente=None, agenda_especifica=None):
     from .models import Agendamento, AgendaFixa

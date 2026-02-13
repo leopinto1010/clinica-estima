@@ -32,6 +32,12 @@ def remover_acentos(texto):
 
 def encontrar_slot_visual(hora_real, horarios_grade):
     if not horarios_grade: return hora_real.strftime('%H:%M')
+    # Tenta encontrar o slot exato primeiro
+    for h in horarios_grade:
+        if h == hora_real:
+            return h.strftime('%H:%M')
+            
+    # Fallback: Encontra o slot mais próximo anterior (comportamento antigo)
     slot_candidato = horarios_grade[0]
     for h in horarios_grade:
         if h > hora_real:
@@ -222,7 +228,12 @@ def lista_agendamentos(request):
         agendamentos = agendamentos.filter(sala_id=filtro_sala)
         bloqueios_fixos = bloqueios_fixos.none()
 
-    horarios_grade = get_horarios_clinica()
+    # --- ATUALIZAÇÃO: Obter horários reais para a grade dinâmica ---
+    horarios_existentes = list(agendamentos.values_list('hora_inicio', flat=True))
+    horarios_bloqueios = list(bloqueios_fixos.values_list('hora_inicio', flat=True))
+    horarios_grade = get_horarios_clinica(horarios_existentes + horarios_bloqueios)
+    # -----------------------------------------------------------------
+
     delta = data_fim - data_inicio
     dates_in_range = []
     for i in range(delta.days + 1):
@@ -267,7 +278,9 @@ def lista_agendamentos(request):
                         }
                         agenda_map[h_str][d_str].append(bloqueio_visual)
                 
-                curr_time += timedelta(minutes=45) 
+                # Avança pelo menor passo possível para garantir cobertura, 
+                # mas o encontrar_slot_visual vai jogar no bucket certo
+                curr_time += timedelta(minutes=15) 
 
     return render(request, 'lista_agendamentos.html', {
         'agenda_map': agenda_map,
@@ -332,7 +345,12 @@ def lista_agendas_fixas(request):
         agendas = agendas.filter(terapeuta_id=terapeuta_id)
         bloqueios = bloqueios.filter(terapeuta_id=terapeuta_id)
     
-    horarios_grade = get_horarios_clinica()
+    # --- ATUALIZAÇÃO: Obter horários reais para a grade dinâmica ---
+    horarios_fixos = list(agendas.values_list('hora_inicio', flat=True))
+    horarios_bloq = list(bloqueios.values_list('hora_inicio', flat=True))
+    horarios_grade = get_horarios_clinica(horarios_fixos + horarios_bloq)
+    # -----------------------------------------------------------------
+    
     range_dias = range(6) 
     
     agenda_map = {t.strftime('%H:%M'): {d: [] for d in range_dias} for t in horarios_grade}
@@ -357,7 +375,7 @@ def lista_agendas_fixas(request):
                         b.tipo_obj = 'bloqueio'
                         agenda_map[h_str][b.dia_semana].append(b)
                 
-                curr_time += timedelta(minutes=45)
+                curr_time += timedelta(minutes=15)
             
     nomes_dias = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
@@ -877,6 +895,12 @@ def ocupacao_salas(request):
     
     salas = sorted(todas_salas, key=sort_key)
     agendamentos = Agendamento.objects.ativos().filter(data=data_atual).select_related('paciente', 'terapeuta', 'sala', 'agenda_fixa')
+    
+    # --- ATUALIZAÇÃO: Obter horários reais para a grade dinâmica ---
+    horarios_reais_hoje = list(agendamentos.values_list('hora_inicio', flat=True))
+    horarios_grade = get_horarios_clinica(horarios_reais_hoje)
+    # -----------------------------------------------------------------
+
     agrupados = {}
 
     for item in agendamentos:
@@ -897,7 +921,6 @@ def ocupacao_salas(request):
                 'hora_real': item.hora_inicio 
             }
 
-    horarios_grade = get_horarios_clinica()
     agenda_map = {t.strftime('%H:%M'): {s.id: [] for s in salas} for t in horarios_grade}
 
     for (h_str, s_id, p_id), dados in agrupados.items():
@@ -1311,8 +1334,6 @@ def controle_atendimentos(request):
         'is_admin': is_admin(request.user)
     })
 
-# Em core/views.py, substitua a função agenda_semanal_sala por esta:
-
 @login_required
 def agenda_semanal_sala(request):
     if not is_admin(request.user):
@@ -1331,21 +1352,28 @@ def agenda_semanal_sala(request):
     datas_semana = [segunda + timedelta(days=i) for i in range(6)]
     
     sala_selecionada = None
-    horarios_grade = get_horarios_clinica()
-    # Inicializa o mapa com listas vazias
-    agenda_map = {t.strftime('%H:%M'): {d.strftime('%Y-%m-%d'): [] for d in datas_semana} for t in horarios_grade}
-
+    horarios_extras = []
+    
     if sala_id:
         sala_selecionada = get_object_or_404(Sala, id=sala_id)
         
-        # Busca todos os agendamentos
+        # Busca todos os agendamentos da semana
         agendamentos = Agendamento.objects.ativos().filter(
             sala=sala_selecionada,
             data__range=[datas_semana[0], datas_semana[-1]]
         ).select_related('paciente', 'terapeuta')
 
+        # --- ATUALIZAÇÃO: Coleta horários para a grade ---
+        horarios_extras = list(agendamentos.values_list('hora_inicio', flat=True))
+    
+    # Gera a grade dinâmica
+    horarios_grade = get_horarios_clinica(horarios_extras)
+    
+    # Inicializa o mapa com a nova grade
+    agenda_map = {t.strftime('%H:%M'): {d.strftime('%Y-%m-%d'): [] for d in datas_semana} for t in horarios_grade}
+
+    if sala_id:
         # Dicionário temporário para agrupar antes de inserir no mapa final
-        # Estrutura: temp_map[hora][data][id_paciente] = { nome: "X", terapeutas: set("A", "B") }
         temp_map = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {'paciente': '', 'terapeutas': set()})))
 
         for ag in agendamentos:
