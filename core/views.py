@@ -43,7 +43,6 @@ def encontrar_slot_visual(hora_real, horarios_grade):
         slot_candidato = h
     return slot_candidato.strftime('%H:%M')
 
-# NOVA FUNÇÃO AUXILIAR
 def formatar_nome_curto(nome_completo):
     """Retorna apenas o Primeiro Nome + Primeiro Sobrenome."""
     if not nome_completo: return ""
