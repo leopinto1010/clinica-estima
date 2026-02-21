@@ -655,12 +655,10 @@ def excluir_agendamento(request, agendamento_id):
         messages.error(request, "Apenas a administração pode excluir agendamentos.")
         return redirect('lista_agendamentos')
 
-    if agendamento.agenda_fixa:
-        messages.error(request, "Este é um horário de Agenda Fixa. Não é possível excluí-lo individualmente.")
-        return redirect('lista_agendamentos')
-
-    agendamento.delete()
-    messages.success(request, "Agendamento avulso excluído.")
+    # Remove o bloqueio de agenda fixa e altera para exclusão lógica
+    agendamento.deletado = True
+    agendamento.save()
+    messages.success(request, "Agendamento excluído da grade deste dia.")
     
     url_retorno = redirect('lista_agendamentos').url
     if filtros: url_retorno += f'?{filtros}'
@@ -1215,7 +1213,7 @@ def controle_atendimentos(request):
         messages.error(request, "Acesso restrito.")
         return redirect('dashboard')
 
-    # Busca a lista de terapeutas para o filtro (evita o NameError)
+    # Busca a lista de terapeutas para o filtro
     terapeutas = Terapeuta.objects.all().order_by('nome') 
 
     # Parâmetros de filtro de data e terapeuta
@@ -1243,7 +1241,7 @@ def controle_atendimentos(request):
             if d.month == mes_atual and d.weekday() == dia_idx
         ]
         
-        # Filtra agendamentos que pertencem à Agenda Fixa e estão realizados ou marcados como falta
+        # Filtra agendamentos
         agendamentos = Agendamento.objects.filter(
             data__in=datas_do_mes,
             agenda_fixa__isnull=False
@@ -1255,14 +1253,20 @@ def controle_atendimentos(request):
             agendamentos = agendamentos.filter(terapeuta=filtro_terapeuta_obj)
 
         linhas_map = {}
+        total_dia_p = 0
+        total_dia_f = 0
+        
+        # NOVO: Dicionário para somar P e F por cada dia específico do mês
+        totais_por_data = {d: {'P': 0, 'F': 0} for d in datas_do_mes}
+
         for ag in agendamentos:
-            # Agrupa pelo ID da Agenda Fixa para manter consistência mesmo se o horário mudar
-            chave = (ag.paciente.id, ag.agenda_fixa.id)
+            # Agrupa por Paciente, Terapeuta e Horário real (Evita duplicação)
+            chave = (ag.paciente.id, ag.terapeuta.id, ag.hora_inicio)
+            
             if chave not in linhas_map:
                 linhas_map[chave] = {
                     'paciente_nome': ag.paciente.nome,
-                    # Usa a hora oficial da grade fixa para unificar a visualização
-                    'hora': ag.agenda_fixa.hora_inicio,
+                    'hora': ag.hora_inicio,
                     'terapeuta_nome': ag.terapeuta.nome.split()[0],
                     'status_por_data': {},
                     'total_p': 0,
@@ -1273,9 +1277,13 @@ def controle_atendimentos(request):
             if ag.status == 'REALIZADO':
                 sigla = 'P'
                 linhas_map[chave]['total_p'] += 1
+                total_dia_p += 1
+                totais_por_data[ag.data]['P'] += 1 # Soma na coluna da data
             elif ag.status == 'FALTA':
                 sigla = 'F'
                 linhas_map[chave]['total_f'] += 1
+                total_dia_f += 1
+                totais_por_data[ag.data]['F'] += 1 # Soma na coluna da data
             
             linhas_map[chave]['status_por_data'][ag.data] = sigla
 
@@ -1284,14 +1292,18 @@ def controle_atendimentos(request):
         relatorio_semanal.append({
             'nome_dia': dias_semana_nomes[dia_idx],
             'datas': datas_do_mes,
-            'linhas': linhas_ordenadas
+            'linhas': linhas_ordenadas,
+            'total_dia_p': total_dia_p,
+            'total_dia_f': total_dia_f,
+            'total_dia_geral': total_dia_p + total_dia_f,
+            'totais_por_data': totais_por_data # Passado para o HTML
         })
 
     # --- PARTE 2: PROCESSAMENTO DAS REPOSIÇÕES (AVULSOS) ---
     qs_reposicoes = Agendamento.objects.filter(
         data__month=mes_atual,
         data__year=ano_atual,
-        agenda_fixa__isnull=True, # Define que é um agendamento avulso/reposição
+        agenda_fixa__isnull=True, 
         status='REALIZADO'
     ).select_related('paciente', 'terapeuta').order_by('data', 'paciente__nome')
 
@@ -1302,13 +1314,12 @@ def controle_atendimentos(request):
     total_reposicoes_mes = 0
 
     for rep in qs_reposicoes:
-        # A chave inclui a hora para que atendimentos em horários diferentes apareçam em linhas separadas
         chave_rep = (rep.data, rep.paciente.id, rep.hora_inicio)
         if chave_rep not in mapa_reposicoes:
             mapa_reposicoes[chave_rep] = {
                 'paciente_nome': rep.paciente.nome,
                 'data': rep.data,
-                'hora': rep.hora_inicio, # Campo enviado para o template
+                'hora': rep.hora_inicio,
                 'terapeuta_nome': rep.terapeuta.nome.split()[0],
                 'qtd_sessoes': 0
             }
@@ -1317,7 +1328,6 @@ def controle_atendimentos(request):
 
     lista_reposicoes = sorted(mapa_reposicoes.values(), key=lambda x: (x['data'], x['paciente_nome'], x['hora']))
 
-    # Dados auxiliares para os selectboxes do template
     meses_pt = [
         (1, 'Janeiro'), (2, 'Fevereiro'), (3, 'Março'), (4, 'Abril'),
         (5, 'Maio'), (6, 'Junho'), (7, 'Julho'), (8, 'Agosto'),

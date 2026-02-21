@@ -109,7 +109,7 @@
             {% csrf_token %}
             <div class="mb-3 text-start">
                 <label class="form-label small fw-bold">Selecione o dia:</label>
-                <input type="date" name="data_para_limpar" class="form-control" required min="{{ agora|date:'Y-m-d' }}">
+                <input type="date" name="data_para_limpar" class="form-control" required>
             </div>
 
             <div class="mb-4 text-start">

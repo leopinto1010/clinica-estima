@@ -116,6 +116,27 @@
                             </tr>
                             {% endfor %}
                         </tbody>
+                        
+                        {# RODAPÉ COM OS TOTAIS DE P E F POR COLUNA #}
+                        <tfoot class="table-light">
+                            <tr>
+                                <td colspan="3" class="text-end fw-bold pe-3 text-secondary text-uppercase align-middle">
+                                    Total Diário:
+                                </td>
+                                
+                                {% for data in dia.datas %}
+                                    {% with totais=dia.totais_por_data|get_item:data %}
+                                    <td class="text-center align-middle" style="font-size: 0.8rem; line-height: 1.2;">
+                                        <span class="text-success fw-bold">{{ totais.P }} P</span><br>
+                                        <span class="text-danger fw-bold">{{ totais.F }} F</span>
+                                    </td>
+                                    {% endwith %}
+                                {% endfor %}
+                                
+                                <td class="text-center fw-bold fs-6 text-success border-start border-3 align-middle">{{ dia.total_dia_p }}</td>
+                                <td class="text-center fw-bold fs-6 text-danger align-middle">{{ dia.total_dia_f }}</td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             </div>
@@ -154,7 +175,7 @@
                         </tbody>
                         <tfoot class="table-light">
                             <tr>
-                                <td colspan="5" class="text-end fw-bold pe-3">TOTAL DE REPOSIÇÕES NO MÊS:</td>
+                                <td colspan="5" class="text-end fw-bold pe-3 text-secondary">TOTAL DE REPOSIÇÕES NO MÊS:</td>
                                 <td class="text-center fw-bold fs-6 text-dark bg-warning-subtle">{{ total_reposicoes_mes }}</td>
                             </tr>
                         </tfoot>
