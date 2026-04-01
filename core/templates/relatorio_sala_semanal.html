@@ -34,85 +34,74 @@
     @media print {
         @page {
             size: landscape; /* Folha deitada */
-            margin: 0.5cm;   /* Margens mínimas */
+            margin: 0.5cm;   /* Margens mínimas para ganhar espaço */
         }
 
-        /* Esconde tudo o que não é da impressão */
+        /* Esconde elementos de interface */
         body * {
             visibility: hidden;
             height: 0;
-            overflow: hidden;
         }
 
-        /* Área de impressão visível */
+        /* Área de impressão visível e fluida */
         #printable-area, #printable-area * {
             visibility: visible;
             height: auto;
-            overflow: visible;
             color: #000 !important;
             background: transparent !important;
         }
 
         #printable-area {
-            position: absolute;
-            left: 0;
-            top: 0;
+            position: static; /* Permite que o conteúdo flua para múltiplas páginas se necessário */
             width: 100%;
             margin: 0 !important;
             padding: 0 !important;
             border: none !important;
-            
-            /* TRUQUE PARA CABER NA PÁGINA: Reduz a escala para 75% */
-            transform: scale(0.75); 
+            transform: scale(0.72); /* Escala levemente reduzida para garantir encaixe horizontal */
             transform-origin: top left;
-            width: 133%; /* Compensa o scale (100 / 0.75) para ocupar a largura total */
+            width: 138%; /* Compensação do scale */
         }
 
-        .card-header { 
-            padding: 2px 0 !important; 
-            border-bottom: 2px solid #000 !important; 
-            text-align: center !important;
-        }
-        .card-header h3 { margin: 0; font-size: 1.1rem !important; }
-        .card-header p { margin: 0; font-size: 0.8rem !important; }
-
-        /* Tabela ultra compacta */
+        /* Tabela ultra compacta para evitar cortes verticais */
         table.table-agenda { 
-            font-size: 9pt !important; /* Fonte base */
+            font-size: 8.5pt !important; 
             border-collapse: collapse !important; 
             width: 100% !important;
+            table-layout: fixed !important;
         }
         
-        /* Evita quebra de página dentro das linhas */
+        /* Evita que uma célula seja cortada entre páginas */
         tr { page-break-inside: avoid; }
+        thead { display: table-header-group; } /* Repete o cabeçalho se houver 2ª página */
         
         .table-agenda th, .table-agenda td {
             padding: 1px 2px !important;
-            border: 1px solid #666 !important;
+            border: 1px solid #444 !important;
+            line-height: 1.1 !important;
         }
-        .col-horario { width: 35px !important; font-size: 8pt !important; }
+
+        .col-horario { width: 40px !important; font-size: 8pt !important; }
 
         .evento-item {
             padding: 1px !important;
             margin-bottom: 1px !important;
             border-left-width: 2px !important;
-            line-height: 1 !important; 
         }
         
         .nome-paciente { 
             font-weight: bold; 
-            display: block; 
-            margin-bottom: 0px;
             font-size: 8pt !important;
+            display: block;
         }
         .nome-terapeuta { 
-            color: #333 !important; 
             font-style: italic; 
-            display: block; 
             font-size: 7pt !important;
+            display: block;
         }
 
         .no-print { display: none !important; }
+        .card { border: none !important; }
+        .card-body { padding: 0 !important; }
     }
 </style>
 
@@ -151,20 +140,20 @@
 
 {% if sala_selecionada %}
 <div class="card shadow-sm" id="printable-area">
-    <div class="card-header bg-white pt-2 pb-2 border-bottom">
+    <div class="card-header bg-white pt-2 pb-2 border-bottom text-center">
         <h3 class="mb-0 fw-bold text-dark">{{ sala_selecionada.nome }}</h3>
-        <p class="text-muted mb-0 small">Semana: {{ datas_semana.0|date:"d/m/Y" }} a {{ datas_semana.5|date:"d/m/Y" }}</p>
+        <p class="text-muted mb-0 small no-print">Semana: {{ datas_semana.0|date:"d/m/Y" }} a {{ datas_semana.5|date:"d/m/Y" }}</p>
     </div>
     <div class="card-body p-0">
-        <div class="table-responsive">
+        <div class="table-responsive" style="overflow: visible !important;">
             <table class="table table-agenda mb-0">
                 <thead>
                     <tr>
                         <th class="col-horario text-dark">Horário</th>
                         {% for data in datas_semana %}
                         <th class="col-dia text-dark">
-                            <div class="text-uppercase small fw-bold">{{ data|date:"D" }}</div>
-                            <div class="small">{{ data|date:"d/m" }}</div>
+                            <div class="text-uppercase small fw-bold">{{ data|date:"l" }}</div>
+                            <div class="small no-print text-muted">{{ data|date:"d/m" }}</div>
                         </th>
                         {% endfor %}
                     </tr>
@@ -177,7 +166,7 @@
                             {% with d_str=data|date:"Y-m-d" h_str=hora|date:"H:i" %}
                             <td>
                                 {% for item in agenda_map|dict_get:h_str|dict_get:d_str %}
-                                    <div class="evento-item">
+                                    <div class="evento-item {% if not item.is_fixa %}no-print{% endif %}">
                                         <div class="nome-paciente text-dark">{{ item.paciente_nome }}</div>
                                         <div class="nome-terapeuta small">{{ item.terapeuta_nome }}</div>
                                     </div>

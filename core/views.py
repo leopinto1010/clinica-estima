@@ -1448,7 +1448,8 @@ def agenda_semanal_sala(request):
     agenda_map = {t.strftime('%H:%M'): {d.strftime('%Y-%m-%d'): [] for d in datas_semana} for t in horarios_grade}
 
     if sala_id:
-        temp_map = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {'paciente': '', 'terapeutas': set()})))
+        # Adicionado 'is_fixa' no dicionário padrão
+        temp_map = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {'paciente': '', 'terapeutas': set(), 'is_fixa': False})))
 
         for ag in agendamentos:
             h_visual = encontrar_slot_visual(ag.hora_inicio, horarios_grade)
@@ -1459,6 +1460,10 @@ def agenda_semanal_sala(request):
                 
                 grupo['paciente'] = ag.paciente.nome.strip()
                 grupo['terapeutas'].add(formatar_nome_curto(ag.terapeuta.nome))
+                
+                # Se esse agendamento veio de uma agenda fixa, marcamos como True
+                if ag.agenda_fixa:
+                    grupo['is_fixa'] = True
 
         for h_str, dias in temp_map.items():
             for d_str, pacientes_dict in dias.items():
@@ -1469,7 +1474,8 @@ def agenda_semanal_sala(request):
                     
                     lista_final.append({
                         'paciente_nome': dados['paciente'],
-                        'terapeuta_nome': str_terapeutas
+                        'terapeuta_nome': str_terapeutas,
+                        'is_fixa': dados['is_fixa'] # Passa a informação para o template
                     })
                 
                 agenda_map[h_str][d_str] = lista_final
