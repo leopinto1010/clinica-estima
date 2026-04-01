@@ -84,6 +84,7 @@
     /* Cores por tipo */
     .evento-fixo { border-left-color: #0d6efd; background-color: #f0f7ff; }
     .evento-avulso { border-left-color: #fd7e14; background-color: #fff8e1; }
+    .evento-bloqueio { border-left-color: #6c757d; background-color: #e9ecef; }
     
     /* MUDANÇA: Garante que sejam blocos para quebrar linha */
     .paciente-nome { 
@@ -97,6 +98,10 @@
         color: #6c757d; 
         display: block; /* Força quebra de linha se necessário */
     }
+    .evento-bloqueio-texto { 
+        font-weight: bold; 
+        color: #495057; 
+    }
 </style>
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -105,10 +110,58 @@
         <p class="text-muted small mb-0">Visão geral de ocupação diária por sala.</p>
     </div>
     
-    <a href="{% url 'agenda_semanal_sala' %}" class="btn btn-outline-dark shadow-sm">
-        <i class="bi bi-printer me-2"></i>Modo Impressão Semanal
-    </a>
+    <div class="d-flex gap-2">
+        {% if is_admin %}
+        <button type="button" class="btn btn-secondary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNovoBloqueioSala">
+            <i class="bi bi-slash-circle me-1"></i> Bloquear Sala
+        </button>
+        {% endif %}
+        
+        <a href="{% url 'agenda_semanal_sala' %}" class="btn btn-outline-dark shadow-sm">
+            <i class="bi bi-printer me-2"></i>Modo Impressão Semanal
+        </a>
+    </div>
 </div>
+
+{% if is_admin %}
+<div id="modalNovoBloqueioSala" class="modal fade" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg">
+      <div class="modal-header bg-secondary text-white border-0">
+        <h5 class="modal-title fs-6"><i class="bi bi-slash-circle me-2"></i>Bloqueio Fixo de Sala</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-4">
+        <form action="{% url 'adicionar_bloqueio_sala' %}" method="POST">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label class="form-label small fw-bold">Sala</label>
+                {{ bloqueio_form.sala }}
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label small fw-bold">Dia da Semana</label>
+                {{ bloqueio_form.dia_semana }}
+            </div>
+            
+            <div class="row mb-4">
+                <div class="col-6">
+                    <label class="form-label small fw-bold">Início</label>
+                    {{ bloqueio_form.hora_inicio }}
+                </div>
+                <div class="col-6">
+                    <label class="form-label small fw-bold">Fim</label>
+                    {{ bloqueio_form.hora_fim }}
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-secondary w-100 rounded-pill">Criar Bloqueio</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <div class="card mb-3 border-0 shadow-sm">
     <div class="card-body bg-light py-2">
@@ -145,6 +198,10 @@
                     <div style="width: 10px; height: 10px; background: #fff8e1; border-left: 2px solid #fd7e14; margin-right: 5px;"></div>
                     <span class="small text-muted">Avulso</span>
                 </div>
+                <div class="d-flex align-items-center">
+                    <div style="width: 10px; height: 10px; background: #e9ecef; border-left: 2px solid #6c757d; margin-right: 5px;"></div>
+                    <span class="small text-muted">Bloqueio</span>
+                </div>
             </div>
 
         </form>
@@ -175,19 +232,34 @@
                         {% with lista_agendamentos=agenda_map|dict_get:chave_hora|dict_get:sala.id %}
                             
                             {% for item in lista_agendamentos %}
-                                <div class="card-evento {% if item.agenda_fixa %}evento-fixo{% else %}evento-avulso{% endif %}"
-                                     title="Clique para ver detalhes">
-                                    
-                                    <div class="paciente-nome">{{ item.paciente_nome }}</div>
-                                    
-                                    <div class="terapeuta-nome">
-                                        {{ item.terapeuta_nome }}
+                            
+                                {% if item.tipo == 'bloqueio' %}
+                                    <div class="card-evento evento-bloqueio" title="Sala Bloqueada">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span class="evento-bloqueio-texto small"><i class="bi bi-lock-fill me-1"></i>Bloqueada</span>
+                                            {% if is_admin %}
+                                            <a href="{% url 'excluir_bloqueio_sala' item.id %}?data={{ data_input }}" class="text-danger ms-1" style="font-size: 0.8rem;" title="Remover Bloqueio" onclick="return confirm('Deseja remover este bloqueio de sala?')">
+                                                <i class="bi bi-x-circle-fill"></i>
+                                            </a>
+                                            {% endif %}
+                                        </div>
                                     </div>
-                                    
-                                    {% if not forloop.last %}
-                                        <hr style="margin: 4px 0; opacity: 0.2;">
-                                    {% endif %}
-                                </div>
+                                {% else %}
+                                    <div class="card-evento {% if item.agenda_fixa %}evento-fixo{% else %}evento-avulso{% endif %}"
+                                         title="Clique para ver detalhes">
+                                        
+                                        <div class="paciente-nome">{{ item.paciente_nome }}</div>
+                                        
+                                        <div class="terapeuta-nome">
+                                            {{ item.terapeuta_nome }}
+                                        </div>
+                                    </div>
+                                {% endif %}
+
+                                {% if not forloop.last %}
+                                    <hr style="margin: 4px 0; opacity: 0.2;">
+                                {% endif %}
+                                
                             {% endfor %}
 
                         {% endwith %}

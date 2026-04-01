@@ -1,7 +1,7 @@
 from django import forms
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import UserCreationForm
-from .models import Paciente, Terapeuta, Agendamento, Consulta, ESPECIALIDADES_CHOICES, AgendaFixa, Sala, BloqueioFixo
+from .models import Paciente, Terapeuta, Agendamento, Consulta, ESPECIALIDADES_CHOICES, AgendaFixa, Sala, BloqueioFixo, BloqueioSala
 from datetime import datetime, timedelta, time
 from django.utils import timezone
 from .utils import get_horarios_clinica
@@ -241,3 +241,43 @@ class ReposicaoForm(forms.Form):
         label="Sala do Atendimento",
         widget=forms.Select(attrs={'class': 'form-select'})
     )
+
+class BloqueioSalaForm(forms.ModelForm):
+    class Meta:
+        model = BloqueioSala
+        fields = ['sala', 'dia_semana', 'hora_inicio', 'hora_fim']
+        widgets = {
+            'sala': forms.Select(attrs={'class': 'form-select'}),
+            'dia_semana': forms.Select(attrs={'class': 'form-select'}),
+            'hora_inicio': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
+            'hora_fim': forms.TimeInput(attrs={'type': 'time', 'class': 'form-control'}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['hora_inicio'].required = False
+        self.fields['hora_fim'].required = False
+
+    def clean(self):
+        cleaned_data = super().clean()
+        start = cleaned_data.get('hora_inicio')
+        end = cleaned_data.get('hora_fim')
+
+        HORA_ABERTURA = time(7, 15)  
+        HORA_FECHAMENTO = time(19, 30) 
+
+        if not start and not end:
+            cleaned_data['hora_inicio'] = HORA_ABERTURA
+            cleaned_data['hora_fim'] = HORA_FECHAMENTO
+        elif not start and end:
+            cleaned_data['hora_inicio'] = HORA_ABERTURA
+        elif start and not end:
+            cleaned_data['hora_fim'] = HORA_FECHAMENTO
+
+        final_start = cleaned_data.get('hora_inicio')
+        final_end = cleaned_data.get('hora_fim')
+
+        if final_start and final_end and final_start >= final_end:
+            raise forms.ValidationError("O horário de início deve ser anterior ao horário de fim.")
+
+        return cleaned_data

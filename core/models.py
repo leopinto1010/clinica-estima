@@ -204,7 +204,6 @@ class AnexoConsulta(models.Model):
         nome = self.arquivo.name.lower()
         return nome.endswith(('.jpg', '.jpeg', '.png', '.webp'))
 
-# --- NOVO MODELO: BLOQUEIO FIXO ---
 class BloqueioFixo(models.Model):
     DIAS_DA_SEMANA = [
         (0, 'Segunda-feira'), (1, 'Terça-feira'), (2, 'Quarta-feira'),
@@ -215,7 +214,6 @@ class BloqueioFixo(models.Model):
     dia_semana = models.IntegerField(choices=DIAS_DA_SEMANA, verbose_name="Dia da Semana")
     hora_inicio = models.TimeField()
     hora_fim = models.TimeField()
-    # Motivo removido
     criado_em = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -224,3 +222,23 @@ class BloqueioFixo(models.Model):
     class Meta:
         verbose_name = "Bloqueio de Agenda (Fixo)"
         verbose_name_plural = "Bloqueios de Agenda (Fixos)"
+
+# --- NOVO MODELO: BLOQUEIO SALA ---
+class BloqueioSala(models.Model):
+    DIAS_DA_SEMANA = [
+        (0, 'Segunda-feira'), (1, 'Terça-feira'), (2, 'Quarta-feira'),
+        (3, 'Quinta-feira'), (4, 'Sexta-feira'), (5, 'Sábado'), (6, 'Domingo'),
+    ]
+
+    sala = models.ForeignKey(Sala, on_delete=models.CASCADE)
+    dia_semana = models.IntegerField(choices=DIAS_DA_SEMANA, verbose_name="Dia da Semana")
+    hora_inicio = models.TimeField()
+    hora_fim = models.TimeField()
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Bloqueio {self.sala} - {self.get_dia_semana_display()}"
+
+    class Meta:
+        verbose_name = "Bloqueio de Sala (Fixo)"
+        verbose_name_plural = "Bloqueios de Salas (Fixos)"

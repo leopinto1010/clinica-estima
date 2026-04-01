@@ -14,12 +14,13 @@ import unicodedata
 from .models import (
     Paciente, Terapeuta, Agendamento, Consulta, AnexoConsulta, 
     TIPO_ATENDIMENTO_CHOICES, ESPECIALIDADES_CHOICES,
-    AgendaFixa, Sala, BloqueioFixo
+    AgendaFixa, Sala, BloqueioFixo, BloqueioSala
 )
 
 from .forms import (
     PacienteForm, AgendamentoForm, ConsultaForm, 
-    CadastroEquipeForm, RegistrarFaltaForm, AgendaFixaForm, BloqueioFixoForm, ReposicaoForm
+    CadastroEquipeForm, RegistrarFaltaForm, AgendaFixaForm, 
+    BloqueioFixoForm, ReposicaoForm, BloqueioSalaForm
 )
 
 from .decorators import admin_required, terapeuta_required, dono_required, is_admin, is_terapeuta, is_dono
@@ -330,7 +331,6 @@ def lista_agendamentos(request):
         'filtro_hoje': filtro_hoje, 'filtro_semana': filtro_semana,
         'tipos_atendimento': TIPO_ATENDIMENTO_CHOICES,
         'pacientes': Paciente.objects.filter(ativo=True).order_by('nome'),
-        # Filtra terapeutas inativos
         'terapeutas': Terapeuta.objects.exclude(usuario__is_active=False).order_by('nome') if is_admin(request.user) else None,
         'salas': Sala.objects.all(),
         'filtro_tipo_selecionado': filtro_tipo,
@@ -430,7 +430,6 @@ def lista_agendas_fixas(request):
         'agenda_map': agenda_map,
         'horarios_grade': horarios_grade,
         'nomes_dias': nomes_dias,
-        # Filtra terapeutas inativos
         'terapeutas': Terapeuta.objects.exclude(usuario__is_active=False).order_by('nome') if eh_admin else None,
         'is_admin': eh_admin, 
         'filtro_terapeuta': int(terapeuta_id) if terapeuta_id else None,
@@ -848,7 +847,6 @@ def lista_consultas_geral(request):
 
     return render(request, 'lista_consultas.html', {
         'agendamentos': agendamentos, 
-        # Filtra terapeutas inativos
         'terapeutas': Terapeuta.objects.exclude(usuario__is_active=False).order_by('nome') if is_admin(request.user) else None,
         'tipos_atendimento': TIPO_ATENDIMENTO_CHOICES,
         'busca_nome': busca_nome or '',
@@ -896,7 +894,6 @@ def lista_terapeutas(request):
         return redirect('dashboard')
     busca = request.GET.get('q')
     filtro_esp = request.GET.get('especialidade')
-    # AQUI continua trazendo todos para poder ativá-los/desativá-los
     terapeutas = Terapeuta.objects.all().select_related('usuario').order_by('nome')
     if busca: terapeutas = terapeutas.filter(nome__icontains=busca)
     if filtro_esp: terapeutas = terapeutas.filter(especialidade=filtro_esp)
@@ -935,8 +932,13 @@ def ocupacao_salas(request):
     salas = sorted(todas_salas, key=sort_key)
     agendamentos = Agendamento.objects.ativos().filter(data=data_atual).select_related('paciente', 'terapeuta', 'sala', 'agenda_fixa')
     
+    dia_semana_atual = data_atual.weekday()
+    bloqueios_sala = BloqueioSala.objects.filter(dia_semana=dia_semana_atual)
+
     horarios_reais_hoje = list(agendamentos.values_list('hora_inicio', flat=True))
-    horarios_grade = get_horarios_clinica(horarios_reais_hoje)
+    horarios_bloq = list(bloqueios_sala.values_list('hora_inicio', flat=True))
+    
+    horarios_grade = get_horarios_clinica(horarios_reais_hoje + horarios_bloq)
 
     agrupados = {}
 
@@ -969,11 +971,29 @@ def ocupacao_salas(request):
             texto_terapeutas = " + ".join(sorted(list(set(dados['terapeutas']))))
             
             item_display = {
+                'tipo': 'agendamento',
                 'paciente_nome': dados['paciente_nome'], 
                 'terapeuta_nome': texto_terapeutas,
                 'agenda_fixa': dados['agenda_fixa']
             }
             agenda_map[h_visual][s_id].append(item_display)
+
+    for b in bloqueios_sala:
+        curr_time = datetime.combine(datetime.today(), b.hora_inicio)
+        end_time = datetime.combine(datetime.today(), b.hora_fim)
+        
+        while curr_time < end_time:
+            h_visual = encontrar_slot_visual(curr_time.time(), horarios_grade)
+            if h_visual in agenda_map and b.sala.id in agenda_map[h_visual]:
+                ja_existe = any(x.get('tipo') == 'bloqueio' and x.get('id') == b.id for x in agenda_map[h_visual][b.sala.id])
+                if not ja_existe:
+                    item_display = {
+                        'tipo': 'bloqueio',
+                        'id': b.id,
+                        'titulo': 'Bloqueado'
+                    }
+                    agenda_map[h_visual][b.sala.id].append(item_display)
+            curr_time += timedelta(minutes=15)
 
     return render(request, 'ocupacao_salas.html', {
         'agenda_map': agenda_map,
@@ -983,8 +1003,40 @@ def ocupacao_salas(request):
         'data_input': data_atual.strftime('%Y-%m-%d'),
         'data_anterior': data_anterior,
         'data_proxima': data_proxima,
-        'is_admin': is_admin(request.user)
+        'is_admin': is_admin(request.user),
+        'bloqueio_form': BloqueioSalaForm() if is_admin(request.user) else None,
     })
+
+@login_required
+def adicionar_bloqueio_sala(request):
+    if request.method == 'POST':
+        if not is_admin(request.user):
+            messages.error(request, "Permissão negada.")
+            return redirect('ocupacao_salas')
+        
+        form = BloqueioSalaForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Sala bloqueada com sucesso.")
+        else:
+            messages.error(request, "Erro ao bloquear sala. Verifique os dados inseridos.")
+            
+    return redirect('ocupacao_salas')
+
+@login_required
+def excluir_bloqueio_sala(request, bloqueio_id):
+    if not is_admin(request.user):
+        messages.error(request, "Permissão negada.")
+    else:
+        bloqueio = get_object_or_404(BloqueioSala, id=bloqueio_id)
+        bloqueio.delete()
+        messages.success(request, "Bloqueio de sala removido.")
+    
+    data_get = request.GET.get('data')
+    url = reverse('ocupacao_salas')
+    if data_get:
+        url += f"?data={data_get}"
+    return redirect(url)
 
 @login_required
 def relatorio_mensal(request):
@@ -1015,7 +1067,6 @@ def relatorio_mensal(request):
     titulo_pagina = ""
 
     if is_admin(request.user):
-        # Filtra terapeutas inativos
         terapeutas_para_analise = Terapeuta.objects.exclude(usuario__is_active=False).order_by('nome')
         titulo_pagina = "Relatório Geral da Clínica"
     elif is_terapeuta(request.user):
@@ -1250,7 +1301,6 @@ def controle_atendimentos(request):
         messages.error(request, "Acesso restrito.")
         return redirect('dashboard')
 
-    # Filtra terapeutas inativos
     terapeutas = Terapeuta.objects.exclude(usuario__is_active=False).order_by('nome') 
 
     hoje = timezone.localtime(timezone.now())
