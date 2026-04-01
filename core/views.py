@@ -43,6 +43,7 @@ def encontrar_slot_visual(hora_real, horarios_grade):
         slot_candidato = h
     return slot_candidato.strftime('%H:%M')
 
+# NOVA FUNÇÃO AUXILIAR
 def formatar_nome_curto(nome_completo):
     """Retorna apenas o Primeiro Nome + Primeiro Sobrenome."""
     if not nome_completo: return ""
@@ -62,11 +63,33 @@ def dashboard(request):
         else:
             qs = Agendamento.objects.none()
 
+    # --- INÍCIO: LÓGICA DE ATENDIMENTO EM CONJUNTO ---
+    agendamentos_lista = list(qs)
+    if agendamentos_lista:
+        pacientes_ids = [a.paciente_id for a in agendamentos_lista]
+        # Busca outros agendamentos de hoje para os mesmos pacientes
+        outros_agendamentos = Agendamento.objects.ativos().filter(
+            data=hoje,
+            paciente_id__in=pacientes_ids
+        ).select_related('terapeuta')
+        
+        joint_map = defaultdict(list)
+        for outro in outros_agendamentos:
+            chave = (outro.paciente_id, outro.hora_inicio, outro.sala_id)
+            joint_map[chave].append(outro.terapeuta.nome)
+            
+        for a in agendamentos_lista:
+            chave = (a.paciente_id, a.hora_inicio, a.sala_id)
+            # Pega o nome de todos que não sejam o terapeuta do agendamento atual
+            co_ters = [formatar_nome_curto(nome) for nome in joint_map[chave] if nome != a.terapeuta.nome]
+            a.co_terapeutas_str = " + ".join(co_ters) if co_ters else ""
+    # --- FIM: LÓGICA DE ATENDIMENTO EM CONJUNTO ---
+
     total_pacientes = Paciente.objects.filter(ativo=True).count()
     total_agendamentos_hoje = qs.count()
     
     return render(request, 'dashboard.html', {
-        'agendamentos_hoje': qs,
+        'agendamentos_hoje': agendamentos_lista, # Envia a lista processada em vez do QuerySet original
         'total_pacientes': total_pacientes,
         'total_agendamentos_hoje': total_agendamentos_hoje,
         'is_admin': is_admin(request.user),
@@ -247,7 +270,29 @@ def lista_agendamentos(request):
 
     agenda_map = {t.strftime('%H:%M'): {d.strftime('%Y-%m-%d'): [] for d in dates_in_range} for t in horarios_grade}
 
-    for item in agendamentos:
+    # --- INÍCIO: LÓGICA DE ATENDIMENTO EM CONJUNTO ---
+    agendamentos_lista = list(agendamentos)
+    if agendamentos_lista:
+        pacientes_ids = set(a.paciente_id for a in agendamentos_lista)
+        
+        # Busca outros agendamentos no período para os mesmos pacientes, independente do terapeuta filtrado
+        outros_agendamentos = Agendamento.objects.ativos().filter(
+            data__range=[data_inicio, data_fim],
+            paciente_id__in=pacientes_ids
+        ).select_related('terapeuta')
+        
+        joint_map = defaultdict(list)
+        for o in outros_agendamentos:
+            chave = (o.data, o.hora_inicio, o.paciente_id, o.sala_id)
+            joint_map[chave].append(o.terapeuta.nome)
+            
+        for a in agendamentos_lista:
+            chave = (a.data, a.hora_inicio, a.paciente_id, a.sala_id)
+            co_ters = [formatar_nome_curto(nome) for nome in joint_map[chave] if nome != a.terapeuta.nome]
+            a.co_terapeutas_str = " + ".join(co_ters) if co_ters else ""
+    # --- FIM: LÓGICA DE ATENDIMENTO EM CONJUNTO ---
+
+    for item in agendamentos_lista:
         h_str = encontrar_slot_visual(item.hora_inicio, horarios_grade)
         d_str = item.data.strftime('%Y-%m-%d')
         
@@ -337,17 +382,30 @@ def novo_agendamento(request):
 
 @login_required
 def lista_agendas_fixas(request):
-    if not is_admin(request.user):
-        messages.error(request, "Acesso restrito. Apenas a administração gerencia a Agenda Fixa.")
+    eh_admin = is_admin(request.user)
+    eh_terapeuta = is_terapeuta(request.user)
+
+    # Permite acesso se for admin OU terapeuta
+    if not (eh_admin or eh_terapeuta):
+        messages.error(request, "Acesso restrito.")
         return redirect('dashboard')
         
     agendas = AgendaFixa.objects.filter(ativo=True).select_related('paciente', 'terapeuta', 'sala')
     bloqueios = BloqueioFixo.objects.select_related('terapeuta').all()
     
     terapeuta_id = request.GET.get('terapeuta')
-    if terapeuta_id:
-        agendas = agendas.filter(terapeuta_id=terapeuta_id)
-        bloqueios = bloqueios.filter(terapeuta_id=terapeuta_id)
+
+    # Se NÃO for admin, filtra obrigatoriamente para o perfil do terapeuta logado
+    if not eh_admin and eh_terapeuta:
+        meu_perfil = request.user.terapeuta
+        agendas = agendas.filter(terapeuta=meu_perfil)
+        bloqueios = bloqueios.filter(terapeuta=meu_perfil)
+        terapeuta_id = meu_perfil.id # Força a variável para o template
+    else:
+        # Lógica original do admin
+        if terapeuta_id:
+            agendas = agendas.filter(terapeuta_id=terapeuta_id)
+            bloqueios = bloqueios.filter(terapeuta_id=terapeuta_id)
     
     # --- Grade dinâmica ---
     horarios_fixos = list(agendas.values_list('hora_inicio', flat=True))
@@ -387,10 +445,10 @@ def lista_agendas_fixas(request):
         'agenda_map': agenda_map,
         'horarios_grade': horarios_grade,
         'nomes_dias': nomes_dias,
-        'terapeutas': Terapeuta.objects.all().order_by('nome'),
-        'is_admin': True, 
-        'filtro_terapeuta': terapeuta_id,
-        'bloqueio_form': BloqueioFixoForm() 
+        'terapeutas': Terapeuta.objects.all().order_by('nome') if eh_admin else None,
+        'is_admin': eh_admin, 
+        'filtro_terapeuta': int(terapeuta_id) if terapeuta_id else None,
+        'bloqueio_form': BloqueioFixoForm() if eh_admin else None 
     })
 
 @login_required
@@ -655,10 +713,12 @@ def excluir_agendamento(request, agendamento_id):
         messages.error(request, "Apenas a administração pode excluir agendamentos.")
         return redirect('lista_agendamentos')
 
-    # Remove o bloqueio de agenda fixa e altera para exclusão lógica
-    agendamento.deletado = True
-    agendamento.save()
-    messages.success(request, "Agendamento excluído da grade deste dia.")
+    if agendamento.agenda_fixa:
+        messages.error(request, "Este é um horário de Agenda Fixa. Não é possível excluí-lo individualmente.")
+        return redirect('lista_agendamentos')
+
+    agendamento.delete()
+    messages.success(request, "Agendamento avulso excluído.")
     
     url_retorno = redirect('lista_agendamentos').url
     if filtros: url_retorno += f'?{filtros}'
@@ -1213,7 +1273,7 @@ def controle_atendimentos(request):
         messages.error(request, "Acesso restrito.")
         return redirect('dashboard')
 
-    # Busca a lista de terapeutas para o filtro
+    # Busca a lista de terapeutas para o filtro (evita o NameError)
     terapeutas = Terapeuta.objects.all().order_by('nome') 
 
     # Parâmetros de filtro de data e terapeuta
@@ -1241,7 +1301,7 @@ def controle_atendimentos(request):
             if d.month == mes_atual and d.weekday() == dia_idx
         ]
         
-        # Filtra agendamentos
+        # Filtra agendamentos que pertencem à Agenda Fixa e estão realizados ou marcados como falta
         agendamentos = Agendamento.objects.filter(
             data__in=datas_do_mes,
             agenda_fixa__isnull=False
@@ -1253,20 +1313,14 @@ def controle_atendimentos(request):
             agendamentos = agendamentos.filter(terapeuta=filtro_terapeuta_obj)
 
         linhas_map = {}
-        total_dia_p = 0
-        total_dia_f = 0
-        
-        # NOVO: Dicionário para somar P e F por cada dia específico do mês
-        totais_por_data = {d: {'P': 0, 'F': 0} for d in datas_do_mes}
-
         for ag in agendamentos:
-            # Agrupa por Paciente, Terapeuta e Horário real (Evita duplicação)
-            chave = (ag.paciente.id, ag.terapeuta.id, ag.hora_inicio)
-            
+            # Agrupa pelo ID da Agenda Fixa para manter consistência mesmo se o horário mudar
+            chave = (ag.paciente.id, ag.agenda_fixa.id)
             if chave not in linhas_map:
                 linhas_map[chave] = {
                     'paciente_nome': ag.paciente.nome,
-                    'hora': ag.hora_inicio,
+                    # Usa a hora oficial da grade fixa para unificar a visualização
+                    'hora': ag.agenda_fixa.hora_inicio,
                     'terapeuta_nome': ag.terapeuta.nome.split()[0],
                     'status_por_data': {},
                     'total_p': 0,
@@ -1277,13 +1331,9 @@ def controle_atendimentos(request):
             if ag.status == 'REALIZADO':
                 sigla = 'P'
                 linhas_map[chave]['total_p'] += 1
-                total_dia_p += 1
-                totais_por_data[ag.data]['P'] += 1 # Soma na coluna da data
             elif ag.status == 'FALTA':
                 sigla = 'F'
                 linhas_map[chave]['total_f'] += 1
-                total_dia_f += 1
-                totais_por_data[ag.data]['F'] += 1 # Soma na coluna da data
             
             linhas_map[chave]['status_por_data'][ag.data] = sigla
 
@@ -1292,18 +1342,14 @@ def controle_atendimentos(request):
         relatorio_semanal.append({
             'nome_dia': dias_semana_nomes[dia_idx],
             'datas': datas_do_mes,
-            'linhas': linhas_ordenadas,
-            'total_dia_p': total_dia_p,
-            'total_dia_f': total_dia_f,
-            'total_dia_geral': total_dia_p + total_dia_f,
-            'totais_por_data': totais_por_data # Passado para o HTML
+            'linhas': linhas_ordenadas
         })
 
     # --- PARTE 2: PROCESSAMENTO DAS REPOSIÇÕES (AVULSOS) ---
     qs_reposicoes = Agendamento.objects.filter(
         data__month=mes_atual,
         data__year=ano_atual,
-        agenda_fixa__isnull=True, 
+        agenda_fixa__isnull=True, # Define que é um agendamento avulso/reposição
         status='REALIZADO'
     ).select_related('paciente', 'terapeuta').order_by('data', 'paciente__nome')
 
@@ -1314,12 +1360,13 @@ def controle_atendimentos(request):
     total_reposicoes_mes = 0
 
     for rep in qs_reposicoes:
+        # A chave inclui a hora para que atendimentos em horários diferentes apareçam em linhas separadas
         chave_rep = (rep.data, rep.paciente.id, rep.hora_inicio)
         if chave_rep not in mapa_reposicoes:
             mapa_reposicoes[chave_rep] = {
                 'paciente_nome': rep.paciente.nome,
                 'data': rep.data,
-                'hora': rep.hora_inicio,
+                'hora': rep.hora_inicio, # Campo enviado para o template
                 'terapeuta_nome': rep.terapeuta.nome.split()[0],
                 'qtd_sessoes': 0
             }
@@ -1328,6 +1375,7 @@ def controle_atendimentos(request):
 
     lista_reposicoes = sorted(mapa_reposicoes.values(), key=lambda x: (x['data'], x['paciente_nome'], x['hora']))
 
+    # Dados auxiliares para os selectboxes do template
     meses_pt = [
         (1, 'Janeiro'), (2, 'Fevereiro'), (3, 'Março'), (4, 'Abril'),
         (5, 'Maio'), (6, 'Junho'), (7, 'Julho'), (8, 'Agosto'),

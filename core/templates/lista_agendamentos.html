@@ -182,7 +182,7 @@
                 <label class="form-label small fw-bold text-muted">Paciente</label>
                 <select name="filtro_paciente" class="form-select campo-busca">
                     <option value="">Buscar Paciente...</option>
-                    {% for p in pacientes %}
+                    {% for p in pacients %}
                         <option value="{{ p.id }}" {% if p.id == filtro_paciente_selecionado %}selected{% endif %}>{{ p.nome }}</option>
                     {% endfor %}
                 </select>
@@ -307,6 +307,12 @@
                                             <div class="fw-bold text-truncate" style="font-size: 0.8rem;">
                                                 {{ item.paciente.nome }}
                                             </div>
+
+                                            {% if item.co_terapeutas_str %}
+                                            <div class="badge bg-primary text-white mt-1 mb-1 fw-normal text-wrap text-start w-100" style="font-size: 0.65rem; line-height: 1.1;" title="Atendimento em Conjunto">
+                                                <i class="bi bi-people-fill me-1"></i> c/ {{ item.co_terapeutas_str }}
+                                            </div>
+                                            {% endif %}
     
                                             <div class="text-primary fw-bold text-truncate" style="font-size: 0.7rem; letter-spacing: -0.3px;">
                                                 {{ item.descricao_modalidade }}
