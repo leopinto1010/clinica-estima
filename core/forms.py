@@ -68,6 +68,8 @@ class AgendamentoForm(forms.ModelForm):
         self.fields['modalidade'].empty_label = "Padrão do Terapeuta"
         
         self.fields['paciente'].queryset = Paciente.objects.filter(ativo=True).order_by('nome')
+        # Filtra terapeutas inativos
+        self.fields['terapeuta'].queryset = Terapeuta.objects.exclude(usuario__is_active=False).order_by('nome')
 
     def clean(self):
         cleaned_data = super().clean()
@@ -155,6 +157,8 @@ class AgendaFixaForm(forms.ModelForm):
         self.fields['hora_fim'].required = False 
         self.fields['modalidade'].empty_label = "Padrão do Terapeuta"
         self.fields['paciente'].queryset = Paciente.objects.filter(ativo=True).order_by('nome')
+        # Filtra terapeutas inativos
+        self.fields['terapeuta'].queryset = Terapeuta.objects.exclude(usuario__is_active=False).order_by('nome')
 
     def clean(self):
         cleaned_data = super().clean()
@@ -199,6 +203,8 @@ class BloqueioFixoForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields['hora_inicio'].required = False
         self.fields['hora_fim'].required = False
+        # Filtra terapeutas inativos
+        self.fields['terapeuta'].queryset = Terapeuta.objects.exclude(usuario__is_active=False).order_by('nome')
 
     def clean(self):
         cleaned_data = super().clean()
