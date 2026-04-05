@@ -21,7 +21,7 @@ class CadastroEquipeForm(UserCreationForm):
 class PacienteForm(forms.ModelForm):
     class Meta:
         model = Paciente
-        fields = ['nome', 'cpf', 'data_nascimento', 'telefone', 'tipo_padrao', 'convenio', 'carteirinha', 'ativo']
+        fields = ['nome', 'cpf', 'data_nascimento', 'telefone', 'tipo_padrao', 'convenio', 'carteirinha', 'autorizacao_imagem', 'ativo']
         widgets = {
             'nome': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nome Completo'}),
             'cpf': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Apenas números'}),
@@ -33,6 +33,7 @@ class PacienteForm(forms.ModelForm):
             'tipo_padrao': forms.Select(attrs={'class': 'form-control'}),
             'convenio': forms.Select(attrs={'class': 'form-control'}),
             'carteirinha': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Nº da Carteira'}),
+            'autorizacao_imagem': forms.Select(attrs={'class': 'form-select'}),
         }
 
 class AgendamentoForm(forms.ModelForm):

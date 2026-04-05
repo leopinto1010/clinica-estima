@@ -20,7 +20,7 @@
     <div class="card-body bg-light">
         <form method="GET" action="." class="row g-3 align-items-end">
             
-            <div class="col-md-4">
+            <div class="col-md-3">
                 <label class="form-label small fw-bold text-muted">Buscar</label>
                 <div class="input-group">
                     <span class="input-group-text bg-white border-end-0"><i class="bi bi-search"></i></span>
@@ -28,21 +28,17 @@
                 </div>
             </div>
 
-            {# --- ALTERAÇÃO AQUI: Filtro de Status apenas para Admin --- #}
             {% if is_admin %}
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label small fw-bold text-muted">Status</label>
                 <select name="status" class="form-select">
-                    <option value="ativos" {% if filtro_status_selecionado == 'ativos' %}selected{% endif %}>Apenas Ativos</option>
-                    <option value="inativos" {% if filtro_status_selecionado == 'inativos' %}selected{% endif %}>Apenas Inativos</option>
+                    <option value="ativos" {% if filtro_status_selecionado == 'ativos' %}selected{% endif %}>Ativos</option>
+                    <option value="inativos" {% if filtro_status_selecionado == 'inativos' %}selected{% endif %}>Inativos</option>
                     <option value="todos" {% if filtro_status_selecionado == 'todos' %}selected{% endif %}>Todos</option>
                 </select>
             </div>
-            {% endif %}
-            {# --------------------------------------------------------- #}
-
-            {% if is_admin %}
-            <div class="col-md-3">
+            
+            <div class="col-md-2">
                 <label class="form-label small fw-bold text-muted">Tipo Padrão</label>
                 <select name="tipo" class="form-select">
                     <option value="">Todos</option>
@@ -55,12 +51,19 @@
             </div>
             {% endif %}
 
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">Uso de Imagem</label>
+                <select name="imagem" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="AUTORIZADO" {% if filtro_imagem_selecionado == 'AUTORIZADO' %}selected{% endif %}>Autorizado</option>
+                    <option value="NAO_AUTORIZADO" {% if filtro_imagem_selecionado == 'NAO_AUTORIZADO' %}selected{% endif %}>Não Autorizado</option>
+                    <option value="NAO_PREENCHIDO" {% if filtro_imagem_selecionado == 'NAO_PREENCHIDO' %}selected{% endif %}>Não Preenchido</option>
+                </select>
+            </div>
+
             <div class="col-md-2">
                 <div class="d-grid gap-2">
                     <button type="submit" class="btn btn-primary">Filtrar</button>
-                    {% if busca_atual or filtro_tipo_selecionado or filtro_status_selecionado != 'ativos' %}
-                        {# Espaço reservado para botão limpar se necessário #}
-                    {% endif %}
                 </div>
             </div>
         </form>
@@ -73,7 +76,6 @@
             <thead class="bg-light">
                 <tr>
                     <th class="ps-4 text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Nome</th>
-                    {# ALTERAÇÃO 1: Título da coluna mudado de CPF para Nascimento #}
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Nascimento</th>
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Status</th>
                     <th class="text-secondary text-uppercase text-xs font-weight-bolder opacity-7">Telefone</th>
@@ -95,7 +97,6 @@
                         {{ paciente.nome }}
                       </a>
                     </td>
-                    {# ALTERAÇÃO 2: Exibindo data_nascimento em vez de cpf #}
                     <td>{{ paciente.data_nascimento|date:"d/m/Y"|default:"-" }}</td>
                     
                     <td>

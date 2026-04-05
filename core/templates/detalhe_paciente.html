@@ -26,6 +26,18 @@
                         <span class="text-muted small fw-bold">Telefone</span>
                         <span class="fw-medium">{{ paciente.telefone|default:"-" }}</span>
                     </li>
+                    <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                        <span class="text-muted small fw-bold">Uso de Imagem</span>
+                        <span class="fw-medium small">
+                            {% if paciente.autorizacao_imagem == 'AUTORIZADO' %}
+                                <span class="text-success fw-bold"><i class="bi bi-check-circle-fill me-1"></i> Autorizado</span>
+                            {% elif paciente.autorizacao_imagem == 'NAO_AUTORIZADO' %}
+                                <span class="text-danger fw-bold"><i class="bi bi-x-circle-fill me-1"></i> Não Autorizado</span>
+                            {% else %}
+                                <span class="text-secondary"><i class="bi bi-dash-circle me-1"></i> Não preenchido</span>
+                            {% endif %}
+                        </span>
+                    </li>
                 </ul>
 
                 {% if is_admin %}

@@ -94,9 +94,15 @@ def dashboard(request):
 
 @login_required
 def lista_pacientes(request):
+    # Trava de segurança no código: auto-preenche qualquer falha de salvamento do nome_search
+    pacientes_sem_search = Paciente.objects.filter(Q(nome_search__isnull=True) | Q(nome_search__exact=''))
+    for p in pacientes_sem_search:
+        p.save()
+
     busca = request.GET.get('q')
     filtro_status = request.GET.get('status')
     filtro_tipo = request.GET.get('tipo')
+    filtro_imagem = request.GET.get('imagem') # <-- NOVO FILTRO AQUI
 
     if is_admin(request.user):
         pacientes = Paciente.objects.all()
@@ -111,11 +117,21 @@ def lista_pacientes(request):
         ).distinct()
 
     if busca:
+        busca = busca.strip() # Remove espaços invisíveis
         busca_limpa = remover_acentos(busca).lower()
-        pacientes = pacientes.filter(Q(nome_search__icontains=busca_limpa) | Q(cpf__icontains=busca))
+        pacientes = pacientes.filter(
+            Q(nome_search__icontains=busca_limpa) | 
+            Q(nome__icontains=busca) | 
+            Q(cpf__icontains=busca)
+        )
     
     if filtro_tipo:
         pacientes = pacientes.filter(tipo_padrao=filtro_tipo)
+        
+    # --- APLICA O FILTRO DE IMAGEM ---
+    if filtro_imagem:
+        pacientes = pacientes.filter(autorizacao_imagem=filtro_imagem)
+    # ---------------------------------
     
     pacientes = pacientes.order_by('nome')
 
@@ -125,6 +141,7 @@ def lista_pacientes(request):
         'tipos_atendimento': TIPO_ATENDIMENTO_CHOICES,
         'filtro_status_selecionado': filtro_status,
         'filtro_tipo_selecionado': filtro_tipo,
+        'filtro_imagem_selecionado': filtro_imagem, # <-- PASSANDO PRO TEMPLATE
         'busca_atual': busca
     })
 
@@ -832,8 +849,12 @@ def lista_consultas_geral(request):
     if data_inicio and data_fim: agendamentos = agendamentos.filter(data__range=[data_inicio, data_fim])
     
     if busca_nome:
+        busca_nome = busca_nome.strip()
         busca_limpa = remover_acentos(busca_nome).lower()
-        agendamentos = agendamentos.filter(paciente__nome_search__icontains=busca_limpa)
+        agendamentos = agendamentos.filter(
+            Q(paciente__nome_search__icontains=busca_limpa) | 
+            Q(paciente__nome__icontains=busca_nome)
+        )
 
     if filtro_tipo: agendamentos = agendamentos.filter(tipo_atendimento=filtro_tipo)
     
@@ -1448,7 +1469,6 @@ def agenda_semanal_sala(request):
     agenda_map = {t.strftime('%H:%M'): {d.strftime('%Y-%m-%d'): [] for d in datas_semana} for t in horarios_grade}
 
     if sala_id:
-        # Adicionado 'is_fixa' no dicionário padrão
         temp_map = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: {'paciente': '', 'terapeutas': set(), 'is_fixa': False})))
 
         for ag in agendamentos:
@@ -1461,7 +1481,6 @@ def agenda_semanal_sala(request):
                 grupo['paciente'] = ag.paciente.nome.strip()
                 grupo['terapeutas'].add(formatar_nome_curto(ag.terapeuta.nome))
                 
-                # Se esse agendamento veio de uma agenda fixa, marcamos como True
                 if ag.agenda_fixa:
                     grupo['is_fixa'] = True
 
@@ -1475,7 +1494,7 @@ def agenda_semanal_sala(request):
                     lista_final.append({
                         'paciente_nome': dados['paciente'],
                         'terapeuta_nome': str_terapeutas,
-                        'is_fixa': dados['is_fixa'] # Passa a informação para o template
+                        'is_fixa': dados['is_fixa']
                     })
                 
                 agenda_map[h_str][d_str] = lista_final

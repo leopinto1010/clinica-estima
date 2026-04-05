@@ -45,6 +45,12 @@ TIPO_ATENDIMENTO_CHOICES = [
     ('SOCIAL', 'Social'),
 ]
 
+AUTORIZACAO_IMAGEM_CHOICES = [
+    ('NAO_PREENCHIDO', 'Não preenchido'),
+    ('AUTORIZADO', 'Autorizado'),
+    ('NAO_AUTORIZADO', 'Não autorizado'),
+]
+
 class Sala(models.Model):
     nome = models.CharField(max_length=50, verbose_name="Nome da Sala")
     def __str__(self): return self.nome
@@ -67,6 +73,12 @@ class Paciente(models.Model):
     tipo_padrao = models.CharField(max_length=20, choices=TIPO_ATENDIMENTO_CHOICES, default='PARTICULAR', verbose_name="Tipo de Atendimento Padrão")
     convenio = models.ForeignKey(Convenio, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="Convênio (Se houver)")
     carteirinha = models.CharField(max_length=50, blank=True, null=True, verbose_name="Número da Carteirinha")
+    autorizacao_imagem = models.CharField(
+        max_length=20, 
+        choices=AUTORIZACAO_IMAGEM_CHOICES, 
+        default='NAO_PREENCHIDO', 
+        verbose_name="Autorização de Uso de Imagem"
+    )
     ativo = models.BooleanField(default=True, verbose_name="Cadastro Ativo")
     class Meta:
         ordering = ['nome']
