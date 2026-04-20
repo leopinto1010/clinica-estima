@@ -1401,7 +1401,9 @@ def controle_atendimentos(request):
     total_reposicoes_mes = 0
 
     for rep in qs_reposicoes:
-        chave_rep = (rep.data, rep.paciente.id, rep.hora_inicio)
+        # Adicionado o rep.terapeuta.id na chave
+        chave_rep = (rep.data, rep.paciente.id, rep.hora_inicio, rep.terapeuta.id) 
+        
         if chave_rep not in mapa_reposicoes:
             mapa_reposicoes[chave_rep] = {
                 'paciente_nome': rep.paciente.nome,
@@ -1413,7 +1415,7 @@ def controle_atendimentos(request):
         mapa_reposicoes[chave_rep]['qtd_sessoes'] += 1
         total_reposicoes_mes += 1
 
-    lista_reposicoes = sorted(mapa_reposicoes.values(), key=lambda x: (x['data'], x['paciente_nome'], x['hora']))
+    lista_reposicoes = sorted(mapa_reposicoes.values(), key=lambda x: (x['data'], x['paciente_nome'], x['hora'], x['terapeuta_nome']))
 
     meses_pt = [
         (1, 'Janeiro'), (2, 'Fevereiro'), (3, 'Março'), (4, 'Abril'),
