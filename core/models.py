@@ -20,7 +20,8 @@ MODALIDADE_CHOICES = [
     ('PEDIASUIT', 'Fisioterapia (Pediasuit)'),       
     ('RESPIRATORIA', 'Fisioterapia (Respiratória)'), 
     ('AT', 'Assistente Terapêutico (AT)'),
-    ('PSICOPEDAGOGIA', 'Psicopedagogia'),            
+    ('PSICOPEDAGOGIA', 'Psicopedagogia'),   
+    ('coordenacao', 'Coordenação'),         
 ]
 
 # --- ESPECIALIDADES ---
