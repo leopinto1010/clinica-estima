@@ -2,7 +2,6 @@ from django.contrib.auth.decorators import user_passes_test
 from django.core.exceptions import PermissionDenied
 
 def is_admin(user):
-    # Admin agora inclui 'Administrativo' OU 'Donos'
     return user.is_authenticated and (
         user.is_superuser or 
         user.groups.filter(name__in=['Administrativo', 'Donos']).exists()
@@ -20,6 +19,10 @@ def is_dono(user):
         user.is_superuser or 
         user.groups.filter(name='Donos').exists()
     )
+
+def is_coordenadora(user):
+    # Perfil de coordenadora foi removido; retornar False para manter compatibilidade com templates existentes.
+    return False
 
 # --- Decorators para usar nas Views ---
 

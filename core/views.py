@@ -23,7 +23,7 @@ from .forms import (
     BloqueioFixoForm, ReposicaoForm, BloqueioSalaForm
 )
 
-from .decorators import admin_required, terapeuta_required, dono_required, is_admin, is_terapeuta, is_dono
+from .decorators import admin_required, terapeuta_required, dono_required, is_admin, is_terapeuta, is_dono, is_coordenadora
 from .utils import setup_grupos, criar_agendamentos_em_lote, gerar_agenda_futura, get_horarios_clinica
 from django.urls import reverse
 
@@ -44,13 +44,30 @@ def encontrar_slot_visual(hora_real, horarios_grade):
         slot_candidato = h
     return slot_candidato.strftime('%H:%M')
 
-def formatar_nome_curto(nome_completo):
-    """Retorna apenas o Primeiro Nome + Primeiro Sobrenome."""
-    if not nome_completo: return ""
+def formatar_nome_terapeuta(nome_completo):
+    """Retorna o primeiro nome + primeiro sobrenome para exibição em relatórios."""
+    if not nome_completo:
+        return ""
     partes = nome_completo.strip().split()
     if len(partes) >= 2:
         return f"{partes[0]} {partes[1]}"
     return partes[0]
+
+
+def formatar_nome_curto(nome_completo):
+    return formatar_nome_terapeuta(nome_completo)
+
+
+def especialidade_visivel(user):
+    if not user.is_authenticated:
+        return None
+    if not is_coordenadora(user):
+        return None
+    try:
+        return user.terapeuta.especialidade
+    except Exception:
+        return None
+
 
 @login_required
 def dashboard(request):
@@ -60,6 +77,12 @@ def dashboard(request):
     if not is_admin(request.user):
         if is_terapeuta(request.user):
             qs = qs.filter(terapeuta=request.user.terapeuta)
+        elif is_coordenadora(request.user):
+            especialidade = especialidade_visivel(request.user)
+            if especialidade:
+                qs = qs.filter(terapeuta__especialidade=especialidade)
+            else:
+                qs = Agendamento.objects.none()
         else:
             qs = Agendamento.objects.none()
 
@@ -110,6 +133,15 @@ def lista_pacientes(request):
             pacientes = pacientes.filter(ativo=True)
         elif filtro_status == 'inativos':
             pacientes = pacientes.filter(ativo=False)
+    elif is_coordenadora(request.user):
+        especialidade = especialidade_visivel(request.user)
+        if especialidade:
+            pacientes = Paciente.objects.filter(
+                ativo=True,
+                agendamento__terapeuta__especialidade=especialidade
+            ).distinct()
+        else:
+            pacientes = Paciente.objects.none()
     else:
         pacientes = Paciente.objects.filter(
             ativo=True, 
@@ -183,7 +215,8 @@ def detalhe_paciente(request, paciente_id):
     paciente = get_object_or_404(Paciente, id=paciente_id)
     tem_permissao = False
     
-    if is_admin(request.user): tem_permissao = True
+    if is_admin(request.user):
+        tem_permissao = True
     elif is_terapeuta(request.user):
         vinculo = Agendamento.objects.ativos().filter(paciente=paciente, terapeuta=request.user.terapeuta).exists()
         if vinculo: tem_permissao = True
@@ -200,7 +233,7 @@ def detalhe_paciente(request, paciente_id):
     terapeutas_ids = historico.values_list('agendamento__terapeuta', flat=True).distinct()
     terapeutas_filtros = Terapeuta.objects.filter(id__in=terapeutas_ids).order_by('nome')
     
-    ocultar_evolucao = is_admin(request.user) and not is_dono(request.user)
+    ocultar_evolucao = (is_admin(request.user) and not is_dono(request.user)) and not (is_terapeuta(request.user) or is_coordenadora(request.user))
     
     return render(request, 'detalhe_paciente.html', {
         'paciente': paciente,
@@ -246,10 +279,14 @@ def lista_agendamentos(request):
         if is_terapeuta(request.user):
             agendamentos = agendamentos.filter(terapeuta=request.user.terapeuta)
             bloqueios_fixos = bloqueios_fixos.filter(terapeuta=request.user.terapeuta)
-        else:
-            agendamentos = Agendamento.objects.none()
-            bloqueios_fixos = bloqueios_fixos.none()
-    else:
+        elif is_coordenadora(request.user):
+            especialidade = especialidade_visivel(request.user)
+            if especialidade:
+                agendamentos = agendamentos.filter(terapeuta__especialidade=especialidade)
+                bloqueios_fixos = bloqueios_fixos.filter(terapeuta__especialidade=especialidade)
+            else:
+                agendamentos = Agendamento.objects.none()
+                bloqueios_fixos = bloqueios_fixos.none()
         if filtro_terapeuta and filtro_terapeuta != 'todos': 
             agendamentos = agendamentos.filter(terapeuta_id=filtro_terapeuta)
             bloqueios_fixos = bloqueios_fixos.filter(terapeuta_id=filtro_terapeuta)
@@ -348,7 +385,7 @@ def lista_agendamentos(request):
         'filtro_hoje': filtro_hoje, 'filtro_semana': filtro_semana,
         'tipos_atendimento': TIPO_ATENDIMENTO_CHOICES,
         'pacientes': Paciente.objects.filter(ativo=True).order_by('nome'),
-        'terapeutas': Terapeuta.objects.exclude(usuario__is_active=False).order_by('nome') if is_admin(request.user) else None,
+        'terapeutas': Terapeuta.objects.exclude(usuario__is_active=False).order_by('nome') if (is_admin(request.user) or is_coordenadora(request.user)) else None,
         'salas': Sala.objects.all(),
         'filtro_tipo_selecionado': filtro_tipo,
         'filtro_terapeuta_selecionado': filtro_terapeuta, 
@@ -360,7 +397,7 @@ def lista_agendamentos(request):
 
 @login_required
 def novo_agendamento(request):
-    if not is_admin(request.user):
+    if not is_admin(request.user) or is_coordenadora(request.user):
         messages.error(request, "Acesso restrito. Agendamentos são feitos apenas pela administração.")
         return redirect('lista_agendamentos')
 
@@ -391,8 +428,9 @@ def novo_agendamento(request):
 def lista_agendas_fixas(request):
     eh_admin = is_admin(request.user)
     eh_terapeuta = is_terapeuta(request.user)
+    eh_coordenadora = is_coordenadora(request.user)
 
-    if not (eh_admin or eh_terapeuta):
+    if not (eh_admin or eh_terapeuta or eh_coordenadora):
         messages.error(request, "Acesso restrito.")
         return redirect('dashboard')
         
@@ -401,7 +439,15 @@ def lista_agendas_fixas(request):
     
     terapeuta_id = request.GET.get('terapeuta')
 
-    if not eh_admin and eh_terapeuta:
+    if eh_coordenadora:
+        especialidade = especialidade_visivel(request.user)
+        if especialidade:
+            agendas = agendas.filter(terapeuta__especialidade=especialidade)
+            bloqueios = bloqueios.filter(terapeuta__especialidade=especialidade)
+        else:
+            agendas = agendas.none()
+            bloqueios = bloqueios.none()
+    elif not eh_admin and eh_terapeuta:
         meu_perfil = request.user.terapeuta
         agendas = agendas.filter(terapeuta=meu_perfil)
         bloqueios = bloqueios.filter(terapeuta=meu_perfil)
@@ -447,7 +493,7 @@ def lista_agendas_fixas(request):
         'agenda_map': agenda_map,
         'horarios_grade': horarios_grade,
         'nomes_dias': nomes_dias,
-        'terapeutas': Terapeuta.objects.exclude(usuario__is_active=False).order_by('nome') if eh_admin else None,
+        'terapeutas': Terapeuta.objects.exclude(usuario__is_active=False).order_by('nome') if (eh_admin or eh_coordenadora) else None,
         'is_admin': eh_admin, 
         'filtro_terapeuta': int(terapeuta_id) if terapeuta_id else None,
         'bloqueio_form': BloqueioFixoForm() if eh_admin else None 
@@ -494,7 +540,7 @@ def excluir_bloqueio(request, bloqueio_id):
 
 @login_required
 def nova_agenda_fixa(request):
-    if not is_admin(request.user):
+    if not is_admin(request.user) or is_coordenadora(request.user):
         messages.error(request, "Acesso restrito.")
         return redirect('dashboard')
 
@@ -515,7 +561,7 @@ def nova_agenda_fixa(request):
 def editar_agenda_fixa(request, id):
     agenda = get_object_or_404(AgendaFixa, id=id)
     
-    if not is_admin(request.user):
+    if not is_admin(request.user) or is_coordenadora(request.user):
         messages.error(request, "Permissão negada.")
         return redirect('dashboard')
 
@@ -562,7 +608,7 @@ def editar_agenda_fixa(request, id):
 def excluir_agenda_fixa(request, id):
     agenda = get_object_or_404(AgendaFixa, id=id)
     
-    if not is_admin(request.user):
+    if not is_admin(request.user) or is_coordenadora(request.user):
         messages.error(request, "Permissão negada.")
         return redirect('dashboard')
 
@@ -663,6 +709,10 @@ def confirmar_agendamento(request, agendamento_id):
     agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
     filtros = request.GET.urlencode()
 
+    if is_coordenadora(request.user):
+        messages.error(request, "Acesso restrito a esta ação.")
+        return redirect('lista_agendamentos')
+
     if not is_admin(request.user) and agendamento.terapeuta.usuario != request.user:
         return redirect('lista_agendamentos')
         
@@ -677,6 +727,10 @@ def confirmar_agendamento(request, agendamento_id):
 def marcar_falta(request, agendamento_id):
     agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
     filtros = request.GET.urlencode()
+
+    if is_coordenadora(request.user):
+        messages.error(request, "Acesso restrito a esta ação.")
+        return redirect('lista_agendamentos')
 
     if not is_admin(request.user) and agendamento.terapeuta.usuario != request.user:
         return redirect('lista_agendamentos')
@@ -704,7 +758,7 @@ def excluir_agendamento(request, agendamento_id):
     agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
     filtros = request.GET.urlencode()
 
-    if not is_admin(request.user):
+    if not is_admin(request.user) or is_coordenadora(request.user):
         messages.error(request, "Apenas a administração pode excluir agendamentos.")
         return redirect('lista_agendamentos')
 
@@ -723,7 +777,11 @@ def excluir_agendamento(request, agendamento_id):
 def realizar_consulta(request, agendamento_id):
     agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
 
-    if is_admin(request.user) and not is_dono(request.user):
+    if is_coordenadora(request.user):
+        messages.error(request, "Perfil de visualização apenas. Não é possível evoluir ou alterar registros.")
+        return redirect('lista_agendamentos')
+
+    if is_admin(request.user) and not is_dono(request.user) and not is_terapeuta(request.user):
         messages.error(request, "Perfil Administrativo não tem acesso a prontuários.")
         return redirect('lista_agendamentos')
 
@@ -796,7 +854,7 @@ def realizar_consulta(request, agendamento_id):
 @login_required
 def limpar_dia(request):
     if request.method == 'POST':
-        if not is_admin(request.user):
+        if not is_admin(request.user) or is_coordenadora(request.user):
             messages.error(request, "Permissão negada.")
             return redirect('lista_agendamentos')
 
@@ -843,8 +901,16 @@ def lista_consultas_geral(request):
     ).exclude(status='AGUARDANDO').select_related('paciente', 'terapeuta').order_by('-data', '-hora_inicio')
     
     if not is_admin(request.user):
-        if is_terapeuta(request.user): agendamentos = agendamentos.filter(terapeuta=request.user.terapeuta)
-        else: agendamentos = Agendamento.objects.none()
+        if is_terapeuta(request.user):
+            agendamentos = agendamentos.filter(terapeuta=request.user.terapeuta)
+        elif is_coordenadora(request.user):
+            especialidade = especialidade_visivel(request.user)
+            if especialidade:
+                agendamentos = agendamentos.filter(terapeuta__especialidade=especialidade)
+            else:
+                agendamentos = Agendamento.objects.none()
+        else:
+            agendamentos = Agendamento.objects.none()
 
     if data_inicio and data_fim: agendamentos = agendamentos.filter(data__range=[data_inicio, data_fim])
     
@@ -868,7 +934,7 @@ def lista_consultas_geral(request):
 
     return render(request, 'lista_consultas.html', {
         'agendamentos': agendamentos, 
-        'terapeutas': Terapeuta.objects.exclude(usuario__is_active=False).order_by('nome') if is_admin(request.user) else None,
+        'terapeutas': Terapeuta.objects.exclude(usuario__is_active=False).order_by('nome') if (is_admin(request.user) or is_coordenadora(request.user)) else None,
         'tipos_atendimento': TIPO_ATENDIMENTO_CHOICES,
         'busca_nome': busca_nome or '',
         'filtro_tipo_selecionado': filtro_tipo,
@@ -881,30 +947,40 @@ def lista_consultas_geral(request):
         'is_admin': is_admin(request.user)
     })
 
-@dono_required
+@admin_required
 def cadastrar_equipe(request):
     setup_grupos()
     if request.method == 'POST':
         form = CadastroEquipeForm(request.POST)
-        papel = request.POST.get('papel_sistema') 
+        papel = request.POST.get('papel_sistema')
+
+        form.fields['especialidade'].required = False
+
         if form.is_valid():
             user = form.save(commit=False)
-            user.is_staff = False 
+            user.is_staff = False
             user.save()
-            grupo = None
-            if papel == 'admin': grupo = Group.objects.get(name='Administrativo')
-            elif papel == 'financeiro': grupo = Group.objects.get(name='Financeiro')
-            elif papel == 'dono': grupo = Group.objects.get(name='Donos')
-            else: 
+            if papel == 'admin':
+                grupo = Group.objects.get(name='Administrativo')
+            elif papel == 'dono':
+                grupo = Group.objects.get(name='Donos')
+            else:
                 grupo = Group.objects.get(name='Terapeutas')
-                Terapeuta.objects.create(
-                    usuario=user, nome=form.cleaned_data['nome_completo'],
-                    registro_profissional=form.cleaned_data['registro'], especialidade=form.cleaned_data['especialidade']
+
+            if papel == 'terapeuta':
+                Terapeuta.objects.update_or_create(
+                    usuario=user,
+                    defaults={
+                        'nome': form.cleaned_data['nome_completo'],
+                        'registro_profissional': form.cleaned_data['registro'],
+                        'especialidade': form.cleaned_data['especialidade'],
+                    }
                 )
+
             user.groups.add(grupo)
             messages.success(request, f"Usuário {user.username} criado como {grupo.name}!")
-            return redirect('lista_pacientes') 
-    else: 
+            return redirect('lista_pacientes')
+    else:
         form = CadastroEquipeForm()
     return render(request, 'cadastrar_equipe.html', {'form': form})
 
@@ -1288,10 +1364,16 @@ def reverter_agendamento(request, agendamento_id):
     
     return redirect('lista_agendamentos')
 
-@dono_required
+@login_required
 def editar_terapeuta(request, terapeuta_id):
     terapeuta = get_object_or_404(Terapeuta, id=terapeuta_id)
     usuario = terapeuta.usuario
+    pode_alterar_papel = request.user.is_superuser or is_dono(request.user)
+
+    if not (pode_alterar_papel or request.user.is_staff):
+        messages.error(request, "Acesso restrito.")
+        return redirect('dashboard')
+
     if request.method == 'POST':
         terapeuta.nome = request.POST.get('nome')
         terapeuta.registro_profissional = request.POST.get('registro')
@@ -1300,9 +1382,30 @@ def editar_terapeuta(request, terapeuta_id):
         if usuario:
             usuario.is_active = request.POST.get('ativo') == 'on'
             usuario.save()
+
+            if pode_alterar_papel:
+                papel = request.POST.get('papel_sistema')
+                grupos_esperados = {'terapeuta': 'Terapeutas'}
+                grupo_nome = grupos_esperados.get(papel, 'Terapeutas')
+                grupo, _ = Group.objects.get_or_create(name=grupo_nome)
+                usuario.groups.clear()
+                usuario.groups.add(grupo)
+
         messages.success(request, f"Dados de {terapeuta.nome} atualizados!")
         return redirect('lista_terapeutas')
-    return render(request, 'editar_terapeuta.html', {'terapeuta': terapeuta, 'especialidades': ESPECIALIDADES_CHOICES})
+
+    grupos_disponiveis = [
+        ('terapeuta', 'Terapeuta'),
+    ]
+    papel_atual = 'terapeuta'
+
+    return render(request, 'editar_terapeuta.html', {
+        'terapeuta': terapeuta,
+        'especialidades': ESPECIALIDADES_CHOICES,
+        'grupos_disponiveis': grupos_disponiveis,
+        'papel_atual': papel_atual,
+        'pode_alterar_papel': pode_alterar_papel,
+    })
 
 @dono_required
 def excluir_terapeuta(request, terapeuta_id):
@@ -1318,11 +1421,17 @@ def excluir_terapeuta(request, terapeuta_id):
 
 @login_required
 def controle_atendimentos(request):
-    if not (is_admin(request.user) or is_terapeuta(request.user)):
+    if not (is_admin(request.user) or is_terapeuta(request.user) or is_coordenadora(request.user)):
         messages.error(request, "Acesso restrito.")
         return redirect('dashboard')
 
-    terapeutas = Terapeuta.objects.exclude(usuario__is_active=False).order_by('nome') 
+    terapeutas = Terapeuta.objects.exclude(usuario__is_active=False).order_by('nome')
+    if is_coordenadora(request.user):
+        especialidade = especialidade_visivel(request.user)
+        if especialidade:
+            terapeutas = terapeutas.filter(especialidade=especialidade)
+        else:
+            terapeutas = Terapeuta.objects.none()
 
     hoje = timezone.localtime(timezone.now())
     mes_atual = int(request.GET.get('mes', hoje.month))
@@ -1357,13 +1466,14 @@ def controle_atendimentos(request):
             agendamentos = agendamentos.filter(terapeuta=filtro_terapeuta_obj)
 
         linhas_map = {}
+        totais_por_data = {data: {'P': 0, 'F': 0} for data in datas_do_mes}
         for ag in agendamentos:
             chave = (ag.paciente.id, ag.agenda_fixa.id)
             if chave not in linhas_map:
                 linhas_map[chave] = {
                     'paciente_nome': ag.paciente.nome,
                     'hora': ag.agenda_fixa.hora_inicio,
-                    'terapeuta_nome': ag.terapeuta.nome.split()[0],
+                    'terapeuta_nome': formatar_nome_terapeuta(ag.terapeuta.nome),
                     'status_por_data': {},
                     'total_p': 0,
                     'total_f': 0
@@ -1373,18 +1483,25 @@ def controle_atendimentos(request):
             if ag.status == 'REALIZADO':
                 sigla = 'P'
                 linhas_map[chave]['total_p'] += 1
+                totais_por_data[ag.data]['P'] += 1
             elif ag.status == 'FALTA':
                 sigla = 'F'
                 linhas_map[chave]['total_f'] += 1
+                totais_por_data[ag.data]['F'] += 1
             
             linhas_map[chave]['status_por_data'][ag.data] = sigla
 
         linhas_ordenadas = sorted(linhas_map.values(), key=lambda x: (x['paciente_nome'], x['hora']))
+        total_dia_p = sum(linha['total_p'] for linha in linhas_ordenadas)
+        total_dia_f = sum(linha['total_f'] for linha in linhas_ordenadas)
         
         relatorio_semanal.append({
             'nome_dia': dias_semana_nomes[dia_idx],
             'datas': datas_do_mes,
-            'linhas': linhas_ordenadas
+            'linhas': linhas_ordenadas,
+            'totais_por_data': totais_por_data,
+            'total_dia_p': total_dia_p,
+            'total_dia_f': total_dia_f,
         })
 
     qs_reposicoes = Agendamento.objects.filter(
@@ -1409,7 +1526,7 @@ def controle_atendimentos(request):
                 'paciente_nome': rep.paciente.nome,
                 'data': rep.data,
                 'hora': rep.hora_inicio, 
-                'terapeuta_nome': rep.terapeuta.nome.split()[0],
+                'terapeuta_nome': formatar_nome_terapeuta(rep.terapeuta.nome),
                 'qtd_sessoes': 0
             }
         mapa_reposicoes[chave_rep]['qtd_sessoes'] += 1

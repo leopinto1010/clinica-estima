@@ -185,5 +185,4 @@ def criar_agendamentos_em_lote(form_data, user_request):
 def setup_grupos():
     Group.objects.get_or_create(name='Administrativo')
     Group.objects.get_or_create(name='Terapeutas')
-    Group.objects.get_or_create(name='Financeiro')
     Group.objects.get_or_create(name='Donos')

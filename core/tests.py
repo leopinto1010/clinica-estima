@@ -3,6 +3,7 @@ from django.utils import timezone
 from datetime import timedelta, time
 from .models import Paciente, Terapeuta, Agendamento
 from django.contrib.auth.models import User
+from .views import formatar_nome_terapeuta
 
 class AgendamentoModelTest(TestCase):
     def setUp(self):
@@ -56,7 +57,11 @@ class AgendamentoModelTest(TestCase):
             self.terapeuta, self.hoje, time(10, 30), time(11, 30)
         )
         self.assertTrue(tem_conflito)
-
+    def test_formatar_nome_terapeuta_com_nome_completo(self):
+        """Deve preservar o primeiro e o sobrenome quando houver nome completo."""
+        self.assertEqual(formatar_nome_terapeuta('Maria Silva'), 'Maria Silva')
+        self.assertEqual(formatar_nome_terapeuta('Ana Maria Souza'), 'Ana Maria')
+        self.assertEqual(formatar_nome_terapeuta('Dr. João Pereira'), 'Dr. João')
         # Tenta agendar 11:00 (logo após, deve estar livre)
         tem_conflito = Agendamento.verificar_conflito(
             self.terapeuta, self.hoje, time(11, 0), time(12, 0)

@@ -87,7 +87,7 @@
         <p class="text-muted small mb-0">Gerencie presenças, faltas e evoluções.</p>
     </div>
     
-    {% if is_admin %}
+    {% if is_admin and not is_coordenadora %}
     <div>
         <button type="button" class="btn btn-outline-danger shadow-sm border-0 bg-white" data-bs-toggle="modal" data-bs-target="#modalLimparDia">
             <i class="bi bi-trash me-1"></i> Limpar Dia
@@ -216,7 +216,7 @@
             </div>
             
             <div class="col-md-2 align-self-end text-end">
-                {% if is_admin %}
+                {% if is_admin and not is_coordenadora %}
                 <a href="{% url 'novo_agendamento' %}" class="btn btn-success shadow-sm w-100 text-nowrap">
                     <i class="bi bi-plus-lg"></i> Marcar Agendamento Avulso
                 </a>
@@ -349,6 +349,7 @@
 
 <script>
     var IS_ADMIN = {{ is_admin|yesno:"true,false" }};
+    var IS_COORDENADORA = {{ is_coordenadora|yesno:"true,false" }};
     var paramsUrl = "{{ request.GET.urlencode }}";
 
     function navegarSemana(acao) {
@@ -389,6 +390,7 @@
         var htmlBotoes = ''; 
         var htmlLixeira = '';
         var url_reverter = url_excluir.replace('excluir', 'reverter');
+        var pode_modificar = IS_ADMIN && !IS_COORDENADORA;
 
         if (paramsUrl) {
             var separator = (url_atender.indexOf('?') === -1) ? '?' : '&';
@@ -399,21 +401,21 @@
             url_reverter += separator + paramsUrl;
         }
 
-        if (IS_ADMIN && (status_cod === 'AGUARDANDO' || status_cod === 'FALTA')) { 
+        if (pode_modificar && (status_cod === 'AGUARDANDO' || status_cod === 'FALTA')) {
              htmlLixeira = `<a href="${url_excluir}" class="btn btn-outline-danger border-0 p-2" onclick="return confirm('ATENÇÃO: Apagar permanentemente?')" title="Excluir"><i class="bi bi-trash fs-5"></i></a>`; 
         }
 
-        if (status_cod === 'AGUARDANDO') { 
+        if (!IS_COORDENADORA && status_cod === 'AGUARDANDO') { 
             htmlBotoes += `<a href="${url_atender}" class="btn btn-primary flex-grow-1 fw-bold rounded-pill">Atender Paciente</a>`; 
             htmlBotoes += `<a href="${url_falta}" class="btn btn-outline-danger rounded-pill px-4">Falta</a>`; 
         
-        } else if (status_cod === 'REALIZADO') { 
+        } else if (!IS_COORDENADORA && status_cod === 'REALIZADO') { 
             htmlBotoes += `<div class="d-flex gap-2 w-100">`;
             htmlBotoes += `  <a href="${url_atender}" class="btn btn-success flex-grow-1 rounded-pill fw-bold">Ver Prontuário</a>`;
             htmlBotoes += `  <a href="${url_reverter}" class="btn btn-warning text-white rounded-pill px-3" onclick="return confirm('ATENÇÃO: Desfazer este atendimento voltará o status para AGUARDANDO. Confirma?')" title="Desfazer"><i class="bi bi-arrow-counterclockwise"></i></a>`;
             htmlBotoes += `</div>`;
             
-        } else if (status_cod === 'FALTA') { 
+        } else if (!IS_COORDENADORA && status_cod === 'FALTA') { 
             htmlBotoes += `<div class="d-flex gap-2 w-100">`;
             htmlBotoes += `  <a href="${url_repor}" class="btn btn-secondary flex-grow-1 rounded-pill fw-bold"><i class="bi bi-arrow-repeat"></i> Repor</a>`; 
             htmlBotoes += `  <a href="${url_reverter}" class="btn btn-warning text-white rounded-pill px-3" onclick="return confirm('ATENÇÃO: Desfazer esta falta voltará o status para AGUARDANDO. Confirma?')" title="Desfazer"><i class="bi bi-arrow-counterclockwise"></i></a>`;

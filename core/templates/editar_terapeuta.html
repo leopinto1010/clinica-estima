@@ -31,6 +31,18 @@
                         </select>
                     </div>
 
+                    {% if pode_alterar_papel %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Papel no Sistema</label>
+                        <select name="papel_sistema" class="form-select">
+                            {% for valor, label in grupos_disponiveis %}
+                                <option value="{{ valor }}" {% if papel_atual == valor %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text small">Apenas superusuário ou dono podem alterar esse campo.</div>
+                    </div>
+                    {% endif %}
+
                     <div class="mb-4 form-check form-switch">
                         <input class="form-check-input" type="checkbox" name="ativo" id="checkAtivo" {% if terapeuta.usuario.is_active %}checked{% endif %}>
                         <label class="form-check-label fw-bold small text-muted" for="checkAtivo">Acesso ao Sistema Ativo</label>

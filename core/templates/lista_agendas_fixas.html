@@ -43,7 +43,7 @@
     </div>
     
     <div class="d-flex gap-2">
-        {% if is_admin %}
+        {% if is_admin and not is_coordenadora %}
         <button type="button" class="btn btn-secondary shadow-sm" data-bs-toggle="modal" data-bs-target="#modalNovoBloqueio">
             <i class="bi bi-slash-circle me-1"></i> Bloquear Horário
         </button>
@@ -134,7 +134,7 @@
                                 
                                 {% if item.tipo_obj == 'bloqueio' %}
                                     <div class="bloqueio-card">
-                                        {% if is_admin %}
+                                        {% if is_admin and not is_coordenadora %}
                                         <div class="fixo-actions">
                                             <a href="{% url 'excluir_bloqueio' item.id %}{% if filtro_terapeuta %}?terapeuta={{ filtro_terapeuta }}{% endif %}" class="btn-icon-sm btn-icon-del text-dark" 
                                                onclick="return confirm('Remover bloqueio?')" title="Remover">
@@ -152,7 +152,7 @@
 
                                 {% else %}
                                     <div class="fixo-card">
-                                        {% if is_admin %}
+                                        {% if is_admin and not is_coordenadora %}
                                         <div class="fixo-actions">
                                             <a href="{% url 'editar_agenda_fixa' item.id %}" class="btn-icon-sm" title="Editar"><i class="bi bi-pencil-fill"></i></a>
                                             <a href="{% url 'excluir_agenda_fixa' item.id %}?{{ request.GET.urlencode }}" class="btn-icon-sm btn-icon-del" title="Excluir/Desativar">

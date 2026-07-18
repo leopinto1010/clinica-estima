@@ -9,5 +9,6 @@ def permissoes_globais(request):
             'is_admin': is_admin(request.user),
             'is_dono': is_dono(request.user),
             'is_terapeuta': is_terapeuta(request.user),
+            'is_coordenadora': False,
         }
     return {}

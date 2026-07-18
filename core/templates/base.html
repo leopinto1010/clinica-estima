@@ -159,25 +159,23 @@
             </li>
             {% endif %}
 
-            {% if is_admin %}
-            <li class="nav-item dropdown">
-                <a class="nav-link dropdown-toggle text-warning" href="#" id="menuGestao" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                    <i class="bi bi-gear-fill me-1"></i> Gestão
-                </a>
-                <ul class="dropdown-menu dropdown-menu-start shadow border-0" aria-labelledby="menuGestao">
-                    <li><h6 class="dropdown-header text-uppercase small fw-bold">Pessoas</h6></li>
-                    <li>
-                        <a class="dropdown-item" href="{% url 'lista_terapeutas' %}">
-                            <i class="bi bi-person-badge me-2 text-success"></i>Lista de Terapeutas
+{% if is_admin %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle text-warning" href="#" id="menuGestao" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-gear-fill me-1"></i> Gestão
                         </a>
-                    </li>
-                    {% if is_dono %}
-                    <li>
-                        <a class="dropdown-item" href="{% url 'cadastrar_equipe' %}">
-                            <i class="bi bi-person-plus me-2 text-success"></i>Cadastrar Membro
-                        </a>
-                    </li>
-                    {% endif %}
+                        <ul class="dropdown-menu dropdown-menu-start shadow border-0" aria-labelledby="menuGestao">
+                            <li><h6 class="dropdown-header text-uppercase small fw-bold">Pessoas</h6></li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'lista_terapeutas' %}">
+                                    <i class="bi bi-person-badge me-2 text-success"></i>Lista de Terapeutas
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="{% url 'cadastrar_equipe' %}">
+                                    <i class="bi bi-person-plus me-2 text-success"></i>Cadastrar Membro
+                                </a>
+                            </li>
                 </ul>
             </li>
             {% endif %}
