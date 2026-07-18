@@ -954,6 +954,10 @@ def cadastrar_equipe(request):
         form = CadastroEquipeForm(request.POST)
         papel = request.POST.get('papel_sistema')
 
+        if papel == 'dono' and not is_dono(request.user):
+            messages.error(request, "Apenas Donos podem cadastrar outro Dono.")
+            return redirect('cadastrar_equipe')
+
         form.fields['especialidade'].required = False
 
         if form.is_valid():
