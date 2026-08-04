@@ -75,14 +75,17 @@ def dashboard(request):
     qs = Agendamento.objects.ativos().filter(data=hoje).select_related('paciente', 'terapeuta', 'sala').order_by('hora_inicio')
 
     if not is_admin(request.user):
-        if is_terapeuta(request.user):
-            qs = qs.filter(terapeuta=request.user.terapeuta)
-        elif is_coordenadora(request.user):
+        if is_coordenadora(request.user):
             especialidade = especialidade_visivel(request.user)
             if especialidade:
-                qs = qs.filter(terapeuta__especialidade=especialidade)
+                condicoes = Q(terapeuta__especialidade=especialidade)
+                if hasattr(request.user, 'terapeuta') and request.user.terapeuta:
+                    condicoes |= Q(terapeuta=request.user.terapeuta)
+                qs = qs.filter(condicoes)
             else:
                 qs = Agendamento.objects.none()
+        elif is_terapeuta(request.user):
+            qs = qs.filter(terapeuta=request.user.terapeuta)
         else:
             qs = Agendamento.objects.none()
 
@@ -136,10 +139,10 @@ def lista_pacientes(request):
     elif is_coordenadora(request.user):
         especialidade = especialidade_visivel(request.user)
         if especialidade:
-            pacientes = Paciente.objects.filter(
-                ativo=True,
-                agendamento__terapeuta__especialidade=especialidade
-            ).distinct()
+            condicoes = Q(agendamento__terapeuta__especialidade=especialidade)
+            if hasattr(request.user, 'terapeuta') and request.user.terapeuta:
+                condicoes |= Q(agendamento__terapeuta=request.user.terapeuta)
+            pacientes = Paciente.objects.filter(ativo=True).filter(condicoes).distinct()
         else:
             pacientes = Paciente.objects.none()
     else:
@@ -219,8 +222,16 @@ def detalhe_paciente(request, paciente_id):
         tem_permissao = True
     elif is_terapeuta(request.user):
         vinculo = Agendamento.objects.ativos().filter(paciente=paciente, terapeuta=request.user.terapeuta).exists()
-        if vinculo: tem_permissao = True
-            
+        if vinculo:
+            tem_permissao = True
+        elif is_coordenadora(request.user):
+            especialidade = especialidade_visivel(request.user)
+            if especialidade:
+                tem_permissao = Agendamento.objects.ativos().filter(
+                    paciente=paciente,
+                    terapeuta__especialidade=especialidade
+                ).exists()
+
     if not tem_permissao:
         messages.error(request, "Sem permissão.")
         return redirect('lista_pacientes')
@@ -276,17 +287,20 @@ def lista_agendamentos(request):
     bloqueios_fixos = BloqueioFixo.objects.select_related('terapeuta').all()
 
     if not is_admin(request.user):
-        if is_terapeuta(request.user):
-            agendamentos = agendamentos.filter(terapeuta=request.user.terapeuta)
-            bloqueios_fixos = bloqueios_fixos.filter(terapeuta=request.user.terapeuta)
-        elif is_coordenadora(request.user):
+        if is_coordenadora(request.user):
             especialidade = especialidade_visivel(request.user)
             if especialidade:
-                agendamentos = agendamentos.filter(terapeuta__especialidade=especialidade)
-                bloqueios_fixos = bloqueios_fixos.filter(terapeuta__especialidade=especialidade)
+                condicoes = Q(terapeuta__especialidade=especialidade)
+                if hasattr(request.user, 'terapeuta') and request.user.terapeuta:
+                    condicoes |= Q(terapeuta=request.user.terapeuta)
+                agendamentos = agendamentos.filter(condicoes)
+                bloqueios_fixos = bloqueios_fixos.filter(condicoes)
             else:
                 agendamentos = Agendamento.objects.none()
                 bloqueios_fixos = bloqueios_fixos.none()
+        elif is_terapeuta(request.user):
+            agendamentos = agendamentos.filter(terapeuta=request.user.terapeuta)
+            bloqueios_fixos = bloqueios_fixos.filter(terapeuta=request.user.terapeuta)
 
     if filtro_terapeuta and filtro_terapeuta != 'todos':
         agendamentos = agendamentos.filter(terapeuta_id=filtro_terapeuta)
@@ -906,14 +920,14 @@ def lista_consultas_geral(request):
     ).exclude(status='AGUARDANDO').select_related('paciente', 'terapeuta').order_by('-data', '-hora_inicio')
     
     if not is_admin(request.user):
-        if is_terapeuta(request.user):
-            agendamentos = agendamentos.filter(terapeuta=request.user.terapeuta)
-        elif is_coordenadora(request.user):
+        if is_coordenadora(request.user):
             especialidade = especialidade_visivel(request.user)
             if especialidade:
                 agendamentos = agendamentos.filter(terapeuta__especialidade=especialidade)
             else:
                 agendamentos = Agendamento.objects.none()
+        elif is_terapeuta(request.user):
+            agendamentos = agendamentos.filter(terapeuta=request.user.terapeuta)
         else:
             agendamentos = Agendamento.objects.none()
 
