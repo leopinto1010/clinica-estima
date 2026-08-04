@@ -107,6 +107,31 @@ class AgendamentoModelTest(TestCase):
         self.assertIn(agendamento_2.id, [item.id for item in agendamentos_visiveis])
         self.assertNotIn(agendamento_1.id, [item.id for item in agendamentos_visiveis])
 
+    def test_coordenador_terapeuta_pode_evoluir_paciente_do_seu_atendimento(self):
+        """Coordenadores que também são terapeutas devem conseguir evoluir os pacientes de seu próprio atendimento."""
+        grupo_coordenacao = Group.objects.get_or_create(name='Coordenação')[0]
+        coordenadora = User.objects.create_user(username='coord_terapeuta', password='123')
+        coordenadora.groups.add(grupo_coordenacao)
+
+        terapeuta = Terapeuta.objects.create(
+            nome='Dr. Coordenadora',
+            usuario=coordenadora,
+            coordenacao=True,
+        )
+
+        agendamento = Agendamento.objects.create(
+            paciente=self.paciente,
+            terapeuta=terapeuta,
+            data=self.hoje,
+            hora_inicio=time(10, 0),
+        )
+
+        self.client.force_login(coordenadora)
+        response = self.client.get(reverse('realizar_consulta', args=[agendamento.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['agendamento'].id, agendamento.id)
+
     def test_formatar_nome_terapeuta_com_nome_completo(self):
         """Deve preservar o primeiro e o sobrenome quando houver nome completo."""
         self.assertEqual(formatar_nome_terapeuta('Maria Silva'), 'Maria Silva')

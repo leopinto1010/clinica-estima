@@ -779,8 +779,10 @@ def excluir_agendamento(request, agendamento_id):
 @login_required
 def realizar_consulta(request, agendamento_id):
     agendamento = get_object_or_404(Agendamento.objects.ativos(), id=agendamento_id)
+    eh_coordenadora = is_coordenadora(request.user)
+    eh_terapeuta_do_atendimento = (is_terapeuta(request.user) and agendamento.terapeuta.usuario == request.user)
 
-    if is_coordenadora(request.user):
+    if eh_coordenadora and not eh_terapeuta_do_atendimento:
         messages.error(request, "Perfil de visualização apenas. Não é possível evoluir ou alterar registros.")
         return redirect('lista_agendamentos')
 
