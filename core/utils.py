@@ -75,25 +75,32 @@ def gerar_agenda_futura(dias_a_frente=None, agenda_especifica=None):
                     hora_fim__gt=grade.hora_inicio
                 ).first()
 
+                agendamento_duplicado = Agendamento.objects.ativos().filter(
+                    paciente=grade.paciente,
+                    terapeuta=grade.terapeuta,
+                    data=data_atual,
+                    hora_inicio=grade.hora_inicio,
+                    hora_fim=grade.hora_fim,
+                    agenda_fixa=grade,
+                ).exists()
+
                 if conflito_ou_existente:
                     # 1. É do MESMO paciente? -> REAPROVEITAR (Absorver e Atualizar)
                     if conflito_ou_existente.paciente == grade.paciente:
                         mudou = False
-                        
+
                         if conflito_ou_existente.agenda_fixa != grade:
                             conflito_ou_existente.agenda_fixa = grade
                             mudou = True
-                        
+
                         if conflito_ou_existente.sala != grade.sala:
                             conflito_ou_existente.sala = grade.sala
                             mudou = True
-                            
-                        # --- ATUALIZADO: Verifica e atualiza a Modalidade ---
+
                         if conflito_ou_existente.modalidade != grade.modalidade:
                             conflito_ou_existente.modalidade = grade.modalidade
                             mudou = True
-                        # ----------------------------------------------------
-                            
+
                         if conflito_ou_existente.hora_inicio != grade.hora_inicio:
                             conflito_ou_existente.hora_inicio = grade.hora_inicio
                             conflito_ou_existente.hora_fim = grade.hora_fim
@@ -102,16 +109,17 @@ def gerar_agenda_futura(dias_a_frente=None, agenda_especifica=None):
                         if mudou:
                             conflito_ou_existente.save()
                             total_criados += 1
-                    
-                    # 2. Se for de OUTRO paciente -> Conflito Real -> Pula
-                
+
+                elif agendamento_duplicado:
+                    continue
+
                 else:
                     # Se NÃO existe nada no horário -> Cria Novo
                     Agendamento.objects.create(
                         agenda_fixa=grade,
                         paciente=grade.paciente,
                         terapeuta=grade.terapeuta,
-                        modalidade=grade.modalidade, # --- NOVO: Copia a modalidade ---
+                        modalidade=grade.modalidade,
                         sala=grade.sala,
                         data=data_atual,
                         hora_inicio=grade.hora_inicio,
@@ -146,7 +154,20 @@ def criar_agendamentos_em_lote(form_data, user_request):
     
     for i in range(0, repeticoes + 1):
         nova_data = data_base + timedelta(weeks=i)
-        
+
+        agendamento_duplicado = Agendamento.objects.filter(
+            paciente=paciente,
+            terapeuta=terapeuta,
+            data=nova_data,
+            hora_inicio=hora_inicio,
+            hora_fim=hora_fim,
+            deletado=False,
+        ).exists()
+
+        if agendamento_duplicado:
+            conflitos.append(nova_data.strftime('%d/%m'))
+            continue
+
         # Verifica conflito apenas com agendamentos ativos
         tem_conflito = Agendamento.verificar_conflito(
             terapeuta=terapeuta,
@@ -171,7 +192,7 @@ def criar_agendamentos_em_lote(form_data, user_request):
                 paciente=paciente,
                 terapeuta=terapeuta,
                 sala=sala,
-                modalidade=modalidade, # --- SALVA A MODALIDADE ---
+                modalidade=modalidade,
                 data=nova_data,
                 hora_inicio=hora_inicio,
                 hora_fim=hora_fim,
@@ -185,4 +206,5 @@ def criar_agendamentos_em_lote(form_data, user_request):
 def setup_grupos():
     Group.objects.get_or_create(name='Administrativo')
     Group.objects.get_or_create(name='Terapeutas')
+    Group.objects.get_or_create(name='Coordenação')
     Group.objects.get_or_create(name='Donos')

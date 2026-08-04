@@ -85,7 +85,7 @@ class AgendamentoForm(forms.ModelForm):
         if not hora_fim:
             dt_inicio_naive = datetime.combine(data, hora_inicio)
             dt_inicio_aware = timezone.make_aware(dt_inicio_naive, timezone.get_current_timezone())
-            dt_fim = dt_inicio_aware + timedelta(minutes=45)
+            dt_fim = dt_inicio_aware + timedelta(minutes=60)
             hora_fim = dt_fim.time()
             cleaned_data['hora_fim'] = hora_fim 
         
@@ -172,7 +172,7 @@ class AgendaFixaForm(forms.ModelForm):
             dummy_date = datetime.now().date()
             dt_inicio_naive = datetime.combine(dummy_date, hora_inicio)
             dt_inicio_aware = timezone.make_aware(dt_inicio_naive, timezone.get_current_timezone())
-            dt_fim = dt_inicio_aware + timedelta(minutes=45)
+            dt_fim = dt_inicio_aware + timedelta(minutes=60)
             cleaned_data['hora_fim'] = dt_fim.time()
             hora_fim = cleaned_data['hora_fim']
             

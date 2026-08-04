@@ -1,5 +1,6 @@
 from django.contrib.auth.decorators import user_passes_test
 from django.core.exceptions import PermissionDenied
+from .models import Terapeuta
 
 def is_admin(user):
     return user.is_authenticated and (
@@ -9,8 +10,9 @@ def is_admin(user):
 
 def is_terapeuta(user):
     return user.is_authenticated and (
-        user.is_superuser or 
-        user.groups.filter(name='Terapeutas').exists()
+        user.is_superuser or
+        user.groups.filter(name__in=['Terapeutas', 'Coordenação']).exists() or
+        hasattr(user, 'terapeuta') and user.terapeuta is not None
     )
 
 def is_dono(user):
@@ -21,8 +23,15 @@ def is_dono(user):
     )
 
 def is_coordenadora(user):
-    # Perfil de coordenadora foi removido; retornar False para manter compatibilidade com templates existentes.
-    return False
+    if not user.is_authenticated:
+        return False
+    if user.groups.filter(name='Coordenação').exists():
+        return True
+    try:
+        terapeuta = user.terapeuta
+    except Terapeuta.DoesNotExist:
+        return False
+    return bool(terapeuta and terapeuta.coordenacao)
 
 # --- Decorators para usar nas Views ---
 

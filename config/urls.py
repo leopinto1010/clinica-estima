@@ -22,6 +22,7 @@ from core.views import (
     cadastrar_equipe,
     lista_terapeutas,
     relatorio_mensal,
+    relatorio_faltas,
     relatorio_pacientes,
     lista_agendas_fixas, 
     nova_agenda_fixa, 
@@ -85,6 +86,7 @@ urlpatterns = [
     
     # --- RELATÓRIOS ---
     path('relatorios/', relatorio_mensal, name='relatorio_mensal'),
+    path('relatorios/faltas/', relatorio_faltas, name='relatorio_faltas'),
     path('relatorios/pacientes/', relatorio_pacientes, name='relatorio_pacientes'),
     path('relatorios/salas/', ocupacao_salas, name='ocupacao_salas'),
     path('relatorios/salas/semanal/', agenda_semanal_sala, name='agenda_semanal_sala'),

@@ -393,6 +393,7 @@ def lista_agendamentos(request):
         'status_choices': Agendamento.STATUS_CHOICES,
         'filtro_status_selecionado': filtro_status,
         'is_admin': is_admin(request.user),
+        'is_coordenadora': is_coordenadora(request.user),
     })
 
 @login_required
@@ -494,7 +495,8 @@ def lista_agendas_fixas(request):
         'horarios_grade': horarios_grade,
         'nomes_dias': nomes_dias,
         'terapeutas': Terapeuta.objects.exclude(usuario__is_active=False).order_by('nome') if (eh_admin or eh_coordenadora) else None,
-        'is_admin': eh_admin, 
+        'is_admin': eh_admin,
+        'is_coordenadora': eh_coordenadora,
         'filtro_terapeuta': int(terapeuta_id) if terapeuta_id else None,
         'bloqueio_form': BloqueioFixoForm() if eh_admin else None 
     })
@@ -944,7 +946,8 @@ def lista_consultas_geral(request):
         'data_fim': str(data_fim) if data_fim else '',
         'filtro_hoje': filtro_hoje,
         'filtro_semana': filtro_semana,
-        'is_admin': is_admin(request.user)
+        'is_admin': is_admin(request.user),
+        'is_coordenadora': is_coordenadora(request.user),
     })
 
 @admin_required
@@ -964,20 +967,27 @@ def cadastrar_equipe(request):
             user = form.save(commit=False)
             user.is_staff = False
             user.save()
+
             if papel == 'admin':
                 grupo = Group.objects.get(name='Administrativo')
             elif papel == 'dono':
                 grupo = Group.objects.get(name='Donos')
+            elif papel == 'coordenacao':
+                grupo = Group.objects.get(name='Coordenação')
             else:
                 grupo = Group.objects.get(name='Terapeutas')
 
-            if papel == 'terapeuta':
+            if papel in ['terapeuta', 'coordenacao']:
+                especialidade = form.cleaned_data.get('especialidade')
+                if papel == 'coordenacao' and not especialidade:
+                    especialidade = 'Coordenação'
                 Terapeuta.objects.update_or_create(
                     usuario=user,
                     defaults={
                         'nome': form.cleaned_data['nome_completo'],
                         'registro_profissional': form.cleaned_data['registro'],
-                        'especialidade': form.cleaned_data['especialidade'],
+                        'especialidade': especialidade,
+                        'coordenacao': papel == 'coordenacao',
                     }
                 )
 
@@ -1197,6 +1207,60 @@ def relatorio_mensal(request):
     })
 
 @login_required
+def relatorio_faltas(request):
+    if not (is_admin(request.user) or is_coordenadora(request.user)):
+        messages.error(request, "Acesso restrito para a Coordenação.")
+        return redirect('dashboard')
+
+    data_inicio_get = request.GET.get('data_inicio')
+    data_fim_get = request.GET.get('data_fim')
+
+    hoje = timezone.localtime(timezone.now()).date()
+    if data_inicio_get and data_fim_get:
+        data_inicio = datetime.strptime(data_inicio_get, '%Y-%m-%d').date()
+        data_fim = datetime.strptime(data_fim_get, '%Y-%m-%d').date()
+    else:
+        data_fim = hoje
+        data_inicio = hoje - timedelta(days=89)
+
+    filtros_agendamento = Q(
+        agendamento__data__range=[data_inicio, data_fim],
+        agendamento__deletado=False,
+    ) & Q(agendamento__status__in=['REALIZADO', 'FALTA'])
+
+    pacientes = Paciente.objects.filter(ativo=True).annotate(
+        total_atendimentos=Count('agendamento', filter=filtros_agendamento),
+        total_realizados=Count('agendamento', filter=filtros_agendamento & Q(agendamento__status='REALIZADO')),
+        total_faltas=Count('agendamento', filter=filtros_agendamento & Q(agendamento__status='FALTA')),
+    ).filter(total_atendimentos__gt=0).order_by('nome')
+
+    relatorio = []
+    for paciente in pacientes:
+        total = paciente.total_atendimentos or 0
+        realizados = paciente.total_realizados or 0
+        faltas = paciente.total_faltas or 0
+        percentual_realizado = round((realizados / total) * 100, 2) if total else 0
+        percentual_falta = round((faltas / total) * 100, 2) if total else 0
+        relatorio.append({
+            'paciente': paciente,
+            'telefone': paciente.telefone or 'Não informado',
+            'percentual_realizado': percentual_realizado,
+            'percentual_falta': percentual_falta,
+            'total_realizados': realizados,
+            'total_faltas': faltas,
+            'total_atendimentos': total,
+        })
+
+    return render(request, 'relatorio_faltas.html', {
+        'relatorio': relatorio,
+        'data_inicio': data_inicio,
+        'data_fim': data_fim,
+        'is_admin': is_admin(request.user),
+        'is_coordenadora': is_coordenadora(request.user),
+    })
+
+
+@login_required
 def relatorio_pacientes(request):
     if not (is_admin(request.user) or is_terapeuta(request.user)): messages.error(request, "Acesso restrito."); return redirect('dashboard')
     hoje = timezone.now(); mes_get = request.GET.get('mes')
@@ -1389,19 +1453,25 @@ def editar_terapeuta(request, terapeuta_id):
 
             if pode_alterar_papel:
                 papel = request.POST.get('papel_sistema')
-                grupos_esperados = {'terapeuta': 'Terapeutas'}
+                grupos_esperados = {
+                    'terapeuta': 'Terapeutas',
+                    'coordenacao': 'Coordenação',
+                }
                 grupo_nome = grupos_esperados.get(papel, 'Terapeutas')
                 grupo, _ = Group.objects.get_or_create(name=grupo_nome)
                 usuario.groups.clear()
                 usuario.groups.add(grupo)
+                terapeuta.coordenacao = papel == 'coordenacao'
+                terapeuta.save()
 
         messages.success(request, f"Dados de {terapeuta.nome} atualizados!")
         return redirect('lista_terapeutas')
 
     grupos_disponiveis = [
         ('terapeuta', 'Terapeuta'),
+        ('coordenacao', 'Coordenação'),
     ]
-    papel_atual = 'terapeuta'
+    papel_atual = 'coordenacao' if terapeuta.coordenacao else 'terapeuta'
 
     return render(request, 'editar_terapeuta.html', {
         'terapeuta': terapeuta,
@@ -1554,7 +1624,8 @@ def controle_atendimentos(request):
         'ano_atual': ano_atual,
         'terapeutas': terapeutas,
         'filtro_terapeuta_selecionado': int(terapeuta_id) if terapeuta_id else None,
-        'is_admin': is_admin(request.user)
+        'is_admin': is_admin(request.user),
+        'is_coordenadora': is_coordenadora(request.user),
     })
 
 @login_required

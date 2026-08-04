@@ -36,7 +36,8 @@ ESPECIALIDADES_CHOICES = [
     ('Musicoterapeuta', 'Musicoterapeuta'),
     ('Arteterapeuta', 'Arteterapeuta'),
     ('Terapeuta Alimentar', 'Terapeuta Alimentar'),
-    ('Assistente Terapêutico', 'Assistente Terapêutico'), 
+    ('Assistente Terapêutico', 'Assistente Terapêutico'),
+    ('Coordenação', 'Coordenação'),
 ]
 
 TIPO_ATENDIMENTO_CHOICES = [
@@ -94,6 +95,7 @@ class Terapeuta(models.Model):
     nome = models.CharField(max_length=100)
     registro_profissional = models.CharField(max_length=50, blank=True, null=True)
     especialidade = models.CharField(max_length=50, choices=ESPECIALIDADES_CHOICES, blank=True, null=True)
+    coordenacao = models.BooleanField(default=False, verbose_name='É Coordenação')
     class Meta: ordering = ['nome']
     def __str__(self): return self.nome
 
@@ -134,7 +136,7 @@ class AgendaFixa(models.Model):
         if not self.hora_fim and self.hora_inicio:
             dummy_date = datetime.now().date()
             dt_inicio = datetime.combine(dummy_date, self.hora_inicio)
-            self.hora_fim = (dt_inicio + timedelta(minutes=45)).time()
+            self.hora_fim = (dt_inicio + timedelta(minutes=60)).time()
         super().save(*args, **kwargs)
 
     @property
@@ -186,7 +188,20 @@ class Agendamento(models.Model):
         if not self.hora_fim and self.hora_inicio:
             dummy_date = datetime.now().date()
             dt_inicio = datetime.combine(dummy_date, self.hora_inicio)
-            self.hora_fim = (dt_inicio + timedelta(minutes=45)).time()
+            self.hora_fim = (dt_inicio + timedelta(minutes=60)).time()
+
+        if self.paciente_id and self.terapeuta_id and self.data and self.hora_inicio:
+            duplicado = Agendamento.objects.filter(
+                paciente=self.paciente,
+                terapeuta=self.terapeuta,
+                data=self.data,
+                hora_inicio=self.hora_inicio,
+                hora_fim=self.hora_fim,
+                deletado=False,
+            ).exclude(pk=self.pk).exists()
+            if duplicado:
+                raise ValueError('Já existe um atendimento idêntico para este paciente/terapeuta no mesmo horário.')
+
         super().save(*args, **kwargs)
 
     @classmethod

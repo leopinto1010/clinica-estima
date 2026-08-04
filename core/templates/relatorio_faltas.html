@@ -1,0 +1,73 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold text-dark mb-1">Relatório de Engajamento e Faltas</h4>
+        <p class="text-muted small mb-0">Análise de presenças e ausências por paciente no período selecionado.</p>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body bg-light">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-muted">Data inicial</label>
+                <input type="date" name="data_inicio" class="form-control" value="{{ data_inicio|date:'Y-m-d' }}">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-muted">Data final</label>
+                <input type="date" name="data_fim" class="form-control" value="{{ data_fim|date:'Y-m-d' }}">
+            </div>
+            <div class="col-md-2 d-grid">
+                <button type="submit" class="btn btn-primary">Filtrar</button>
+            </div>
+            <div class="col-md-2 d-grid">
+                <a href="{% url 'relatorio_faltas' %}" class="btn btn-outline-secondary">Limpar</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light">
+                <tr>
+                    <th class="ps-4">Paciente</th>
+                    <th>Telefones</th>
+                    <th class="text-center">Atendimentos</th>
+                    <th class="text-center">Realizados</th>
+                    <th class="text-center">Faltas</th>
+                    <th class="text-center">% Realizados</th>
+                    <th class="text-center">% Faltas</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in relatorio %}
+                <tr>
+                    <td class="ps-4 fw-bold text-dark">{{ item.paciente.nome }}</td>
+                    <td>{{ item.telefone }}</td>
+                    <td class="text-center fw-bold">{{ item.total_atendimentos }}</td>
+                    <td class="text-center text-success fw-bold">{{ item.total_realizados }}</td>
+                    <td class="text-center text-danger fw-bold">{{ item.total_faltas }}</td>
+                    <td class="text-center">
+                        <span class="badge bg-success-subtle text-success fw-bold">{{ item.percentual_realizado }}%</span>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-danger-subtle text-danger fw-bold">{{ item.percentual_falta }}%</span>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center py-5 text-muted">
+                        <i class="bi bi-person-x fs-2 d-block mb-2 opacity-50"></i>
+                        Nenhum registro encontrado para o período informado.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

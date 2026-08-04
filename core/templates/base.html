@@ -97,7 +97,7 @@
             <li class="nav-item"><a class="nav-link" href="{% url 'lista_pacientes' %}">Pacientes</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'lista_consultas_geral' %}">Histórico</a></li>
             
-            {% if is_admin or user.terapeuta %}
+            {% if is_admin or user.terapeuta or is_coordenadora %}
             <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle" href="#" id="menuPlanilhas" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                     <i class="bi bi-table me-1"></i> Planilhas
@@ -125,7 +125,7 @@
             </li>
             {% endif %}
             
-            {% if is_admin or user.terapeuta %}
+            {% if is_admin or user.terapeuta or is_coordenadora %}
             <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle" href="#" id="menuRelatorios" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                     Relatórios
@@ -149,7 +149,14 @@
                             <i class="bi bi-people me-2 text-muted"></i>Frequência de Pacientes
                         </a>
                     </li>
-                    
+                    {% if is_admin or is_coordenadora %}
+                    <li>
+                        <a class="dropdown-item" href="{% url 'relatorio_faltas' %}">
+                            <i class="bi bi-person-x me-2 text-warning"></i>Engajamento / Faltas
+                        </a>
+                    </li>
+                    {% endif %}
+                     
                     <li>
                         <a class="dropdown-item" href="{% url 'controle_atendimentos' %}">
                             <i class="bi bi-table me-2 text-primary"></i>Controle de Atendimentos
