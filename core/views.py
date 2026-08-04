@@ -287,10 +287,11 @@ def lista_agendamentos(request):
             else:
                 agendamentos = Agendamento.objects.none()
                 bloqueios_fixos = bloqueios_fixos.none()
-        if filtro_terapeuta and filtro_terapeuta != 'todos': 
-            agendamentos = agendamentos.filter(terapeuta_id=filtro_terapeuta)
-            bloqueios_fixos = bloqueios_fixos.filter(terapeuta_id=filtro_terapeuta)
-    
+
+    if filtro_terapeuta and filtro_terapeuta != 'todos':
+        agendamentos = agendamentos.filter(terapeuta_id=filtro_terapeuta)
+        bloqueios_fixos = bloqueios_fixos.filter(terapeuta_id=filtro_terapeuta)
+
     if filtro_paciente:
         agendamentos = agendamentos.filter(paciente_id=filtro_paciente)
         bloqueios_fixos = bloqueios_fixos.none()

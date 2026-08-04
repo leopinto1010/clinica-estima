@@ -2,7 +2,8 @@ from django.test import TestCase
 from django.utils import timezone
 from datetime import timedelta, time
 from .models import Paciente, Terapeuta, Agendamento
-from django.contrib.auth.models import User
+from django.contrib.auth.models import User, Group
+from django.urls import reverse
 from .views import formatar_nome_terapeuta
 
 class AgendamentoModelTest(TestCase):
@@ -57,6 +58,55 @@ class AgendamentoModelTest(TestCase):
             self.terapeuta, self.hoje, time(10, 30), time(11, 30)
         )
         self.assertTrue(tem_conflito)
+
+    def test_lista_agendamentos_filtra_terapeuta_para_admin(self):
+        """O filtro por terapeuta da agenda operacional deve aplicar para administradores."""
+        grupo_admin = Group.objects.get_or_create(name='Administrativo')[0]
+        admin = User.objects.create_user(username='admin_agenda', password='123')
+        admin.groups.add(grupo_admin)
+
+        outro_terapeuta = Terapeuta.objects.create(
+            nome='Dr. Segundo',
+            usuario=User.objects.create_user(username='segundo_terapeuta', password='123')
+        )
+        outro_paciente = Paciente.objects.create(
+            nome='Paciente Dois',
+            cpf='22233344455',
+            data_nascimento='1993-02-02'
+        )
+
+        agendamento_1 = Agendamento.objects.create(
+            paciente=self.paciente,
+            terapeuta=self.terapeuta,
+            data=self.hoje,
+            hora_inicio=time(8, 0),
+        )
+        agendamento_2 = Agendamento.objects.create(
+            paciente=outro_paciente,
+            terapeuta=outro_terapeuta,
+            data=self.hoje,
+            hora_inicio=time(9, 0),
+        )
+
+        self.client.force_login(admin)
+        response = self.client.get(reverse('lista_agendamentos'), {
+            'data_inicio': self.hoje.isoformat(),
+            'data_fim': self.hoje.isoformat(),
+            'filtro_terapeuta': str(outro_terapeuta.id),
+        })
+
+        self.assertEqual(response.status_code, 200)
+        agenda_map = response.context['agenda_map']
+        agendamentos_visiveis = []
+        for slot in agenda_map.values():
+            for dia_map in slot.values():
+                for item in dia_map:
+                    if getattr(item, 'tipo_obj', None) == 'agendamento':
+                        agendamentos_visiveis.append(item)
+
+        self.assertIn(agendamento_2.id, [item.id for item in agendamentos_visiveis])
+        self.assertNotIn(agendamento_1.id, [item.id for item in agendamentos_visiveis])
+
     def test_formatar_nome_terapeuta_com_nome_completo(self):
         """Deve preservar o primeiro e o sobrenome quando houver nome completo."""
         self.assertEqual(formatar_nome_terapeuta('Maria Silva'), 'Maria Silva')
