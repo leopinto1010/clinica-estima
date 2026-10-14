@@ -39,12 +39,12 @@
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
-                        <table class="table table-bordered table-hover mb-0 text-center align-middle">
+                        <table class="table table-bordered table-hover mb-0 text-center align-middle grade-pacientes">
                             <thead class="table-secondary">
                                 <tr>
-                                    <th style="width: 10%;">Horário</th>
+                                    <th>Horário</th>
                                     {% for dia in dias_semana %}
-                                        <th style="width: 18%;">{{ dia }}</th>
+                                        <th>{{ dia }}</th>
                                     {% endfor %}
                                 </tr>
                             </thead>
@@ -86,6 +86,21 @@
 </div>
 
 <style>
+    .grade-pacientes {
+        min-width: 900px;
+        table-layout: fixed;
+    }
+
+    .grade-pacientes th:first-child,
+    .grade-pacientes td:first-child {
+        width: 70px;
+    }
+
+    .grade-pacientes .conteudo-original {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+    }
+
     /* Estilo para células editáveis */
     .celula-interativa {
         cursor: text;
@@ -120,6 +135,7 @@
         .no-print { display: none !important; }
         .quebra-pagina { page-break-inside: avoid; margin-bottom: 2rem; }
         .card { border: none !important; box-shadow: none !important; }
+        .grade-pacientes { min-width: 0; }
         
         .celula-interativa.editado {
             color: #000 !important;
