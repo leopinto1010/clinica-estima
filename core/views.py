@@ -1333,7 +1333,7 @@ def relatorio_grade_pacientes(request):
         horarios_unicos = set()
 
         for item in agendas:
-            if 0 <= item.dia_semana <= 4: 
+            if 0 <= item.dia_semana <= 5:
                 dia = item.dia_semana
                 hora = item.hora_inicio
                 horarios_unicos.add(hora)
@@ -1368,7 +1368,7 @@ def relatorio_grade_pacientes(request):
         linhas_tabela = []
         for hora in horarios_ordenados:
             colunas = []
-            for dia in range(5): 
+            for dia in range(6):
                 lista_atendimentos = grade_map[hora][dia]
                 conteudo = " + ".join(lista_atendimentos) if lista_atendimentos else ""
                 colunas.append(conteudo)
@@ -1378,7 +1378,7 @@ def relatorio_grade_pacientes(request):
 
     return render(request, 'relatorio_grade_pacientes.html', {
         'relatorio': relatorio,
-        'dias_semana': ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira']
+        'dias_semana': ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado']
     })
 
 @login_required

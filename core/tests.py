@@ -1,7 +1,7 @@
 from django.test import TestCase
 from django.utils import timezone
 from datetime import timedelta, time
-from .models import Paciente, Terapeuta, Agendamento
+from .models import Paciente, Terapeuta, AgendaFixa, Agendamento
 from django.contrib.auth.models import User, Group
 from django.urls import reverse
 from .views import formatar_nome_terapeuta
@@ -28,6 +28,37 @@ class AgendamentoModelTest(TestCase):
         )
         self.assertEqual(agendamento.hora_fim, time(15, 0)) # Deve calcular automático +1h
         self.assertFalse(agendamento.deletado)
+
+    def test_grade_paciente_exibe_sexta_e_sabado_sem_adicionar_domingo(self):
+        """A grade do paciente deve renderizar segunda a sábado e manter domingo fora."""
+        grupo_admin = Group.objects.get_or_create(name='Administrativo')[0]
+        self.user.groups.add(grupo_admin)
+        self.client.force_login(self.user)
+
+        for dia_semana in (4, 5, 6):
+            AgendaFixa.objects.create(
+                paciente=self.paciente,
+                terapeuta=self.terapeuta,
+                dia_semana=dia_semana,
+                hora_inicio=time(8, 0),
+                hora_fim=time(9, 0),
+            )
+
+        response = self.client.get(reverse('relatorio_grade_pacientes'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['dias_semana'], [
+            'Segunda-feira', 'Terça-feira', 'Quarta-feira',
+            'Quinta-feira', 'Sexta-feira', 'Sábado',
+        ])
+
+        linhas = response.context['relatorio'][0]['linhas']
+        self.assertEqual(len(linhas), 1)
+        self.assertEqual(len(linhas[0]['colunas']), 6)
+        self.assertTrue(linhas[0]['colunas'][4])
+        self.assertTrue(linhas[0]['colunas'][5])
+        self.assertContains(response, 'Sábado')
+        self.assertNotContains(response, 'Domingo')
 
     def test_soft_delete_manager(self):
         """Testa se o manager .ativos() esconde os deletados"""
