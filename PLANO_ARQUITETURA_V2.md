@@ -115,9 +115,15 @@ Implementado. Representa a área ou especialidade assistencial, com código est�
 
 #### `Professional`
 
-Implementado com nome, registro profissional opcional, situação ativa/inativa e relação opcional 0..1 com `User`. Um usuário sem perfil profissional continua válido, e nenhum `Professional` é criado automaticamente. Forma de contratação/pagamento e atributos operacionais adicionais continuam pendentes de requisito específico.
+Implementado com nome, registro profissional opcional, situação ativa/inativa e relação opcional 0..1 com `User`. Um usuário sem perfil profissional continua válido, e nenhum `Professional` é criado automaticamente. Forma de contratação/pagamento e atributos operacionais adicionais continuam pendentes de requisito específico. Somente profissionais ativos podem ser selecionados para novos agendamentos.
 
-A regra operacional de `Professional.is_active` ainda não foi definida e não deve ser inferida silenciosamente por selectors ou services futuros.
+#### `ProfessionalWeeklyAvailability`
+
+Implementado no app `staff`. Cada linha representa um intervalo recorrente semiaberto de trabalho, com profissional, dia da semana (`0` para segunda-feira até `6` para domingo), hora inicial e hora final. O fim deve ser posterior ao início. São aceitos múltiplos intervalos no mesmo dia e intervalos adjacentes; sobreposições são rejeitadas pelo modelo e pelos services transacionais.
+
+Ausência de intervalo significa indisponibilidade. Um atendimento é elegível somente quando está inteiramente contido em um único intervalo do profissional. A verificação é feita em lote, sem consulta por profissional, e é obrigatória em criação e remanejamento de atendimento, criação, revisão e materialização de agenda fixa, e agendamento ou sugestão de reposição. A confirmação de conflitos de agenda não autoriza ignorar expediente.
+
+Os intervalos representam configuração operacional atual, não histórico clínico, e usam exclusão física com `CASCADE` a partir do profissional. Proprietário e Administrativo administram os intervalos; Terapeuta consulta apenas os próprios; Coordenação permanece sem acesso.
 
 #### `ProfessionalSpecialty`
 
@@ -466,30 +472,15 @@ Substituição é um processo de negócio, não uma inferência de relatório. O
 - atendimento efetivamente criado ou alterado;
 - responsável por cada ação.
 
-### 7.2. Sugestão determinística futura
+### 7.2. Sugestão determinística de profissionais para reposição
 
-O motor de sugestões é uma evolução posterior e não bloqueia a fundação da V2. Quando implementado, deve ser uma função determinística e testável. Ele não decide nem altera a agenda sozinho.
+O motor implementado é determinístico, testável e somente leitura. Ele não decide nem altera a agenda sozinho.
 
-Primeiro aplica filtros obrigatórios:
+Primeiro considera profissionais ativos, com o atendimento inteiro contido em um intervalo de `ProfessionalWeeklyAvailability`. Quando informado, o filtro de especialidade usa o vínculo vigente na data proposta. Depois separa os candidatos entre disponíveis, conflitantes com outro atendimento e fora do horário de trabalho. Atendimentos cancelados não bloqueiam o profissional.
 
-- paciente ativo e elegível;
-- presença confirmada quando essa informação for exigida;
-- compatibilidade de profissional/especialidade;
-- disponibilidade de profissional;
-- disponibilidade de sala;
-- ausência de outro conflito de paciente;
-- autorização de convênio/Unimed válida quando necessária.
+Cada grupo é ordenado por nome sem distinção entre maiúsculas e minúsculas, com chave primária como desempate. A participação no atendimento original é exibida como explicação, mas não altera a posição. A consulta de expediente e conflitos é feita em lote, sem padrão N+1.
 
-Depois ordena os candidatos por critérios visíveis, como:
-
-- paciente já presente na clínica;
-- possibilidade de antecipação;
-- compatibilidade de profissionais e sala;
-- prioridade configurável para profissional diarista;
-- urgência ou tempo de espera, se aprovado;
-- restrições de autorização.
-
-O resultado deve explicar por que cada candidato foi incluído, excluído ou posicionado. A definição de presença, os detalhes de autorização da Unimed/convênio e os pesos do ranking serão decididos nessa etapa futura. Não devem gerar modelos ou mecanismos antecipados na fundação.
+Presença em tempo real e regras detalhadas de autorização da Unimed/convênio continuam futuras.
 
 ## 8. Prontuário e arquivos clínicos seguros
 
@@ -884,13 +875,14 @@ As correções urgentes do legado — autorização da consulta, proteção da m
 - O Proprietário visualiza toda a clínica, mas não edita evolução alheia; se também for Terapeuta, edita somente as próprias evoluções.
 - A V2 não possui `CONFIRMED`; `WAITING` transiciona diretamente para `COMPLETED`, `MISSED` ou `CANCELLED`.
 - Reposição é processo/relação explícita e não status de `Appointment`.
+- A disponibilidade semanal é obrigatória: ausência de intervalo significa indisponibilidade, e o atendimento inteiro deve caber em um único intervalo de profissional ativo.
+- Sugestões de profissionais são ordenadas de forma neutra por nome e chave primária, sem preferência manual ou bônus por participação no atendimento original.
 - Biometria não é estado de `Patient`: a cobertura Unimed aplicável exigirá registros separados de entrada e saída em cada atendimento.
 
 ### 15.4. Pendências consolidadas de equipe e pacientes
 
 Estas questões permanecem abertas ou decididas mas pendentes de implementação:
 
-- definir a regra operacional de `Professional.is_active` para selectors, policies, agenda e criação de novos vínculos;
 - modelar o escopo de `COORDINATION` por especialidade/equipe, incluindo cardinalidade, vigência e eventuais subáreas;
 - implementar `InsuranceProvider` e `PatientCoverage`, incluindo migração de convênio/carteirinha, vigência e autorizações;
 - implementar `PatientConsent` versionado/escopado e definir categorias/finalidades, sem confundir consentimento externo com acesso interno a arquivo clínico;

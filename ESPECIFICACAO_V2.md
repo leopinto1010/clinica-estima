@@ -387,7 +387,7 @@ As definições utilizadas em agenda, relatórios e reposições deverão ser co
 
 ## 19. Reposição
 
-Reposições ainda não foram implementadas. Na V2, reposição será um conceito explícito e não deverá ser inferida simplesmente porque um atendimento é avulso.
+Reposições estão implementadas como conceito explícito e não são inferidas simplesmente porque um atendimento é avulso.
 
 Reposição não é um estado do atendimento. Ela deverá ser representada como processo ou relação explícita entre o atendimento de origem e o atendimento resultante. O atendimento resultante seguirá os mesmos estados dos demais atendimentos e poderá ficar REALIZADO, FALTA ou CANCELADO.
 
@@ -401,23 +401,13 @@ Quando aplicável, deverá ser possível saber:
 
 ## 20. Sugestão automática de reposição
 
-A V2 poderá, em fase posterior à fundação, auxiliar a recepção a encontrar possíveis reposições. A definição detalhada desse mecanismo não bloqueia o início da V2.
+A V2 auxilia a recepção a encontrar profissionais para reposições por regras determinísticas. A sugestão não altera a agenda e a recepção continua responsável pela decisão.
 
-O processo poderá considerar:
+São candidatos os profissionais ativos cujo expediente semanal contém o atendimento inteiro. Um filtro opcional de especialidade considera apenas vínculos vigentes na data proposta. Os candidatos são separados entre disponíveis, em conflito com outro atendimento e fora do horário de trabalho. Atendimento cancelado não ocupa horário.
 
-- paciente que faltou;
-- terapeuta que faltou;
-- pacientes presentes na clínica;
-- terapeutas que atendem esses pacientes;
-- disponibilidade dos terapeutas;
-- agenda dos pacientes;
-- possibilidade de antecipação;
-- sala disponível;
-- conflitos existentes;
-- prioridade operacional dos terapeutas remunerados por diária;
-- necessidade de verificar liberação da Unimed, quando aplicável.
+Dentro de cada grupo, a ordenação é neutra: nome sem distinção entre maiúsculas e minúsculas e, em caso de empate, chave primária. Ter participado do atendimento original é apenas uma informação explicativa e não concede bônus de ordenação.
 
-Quando implementada, essa funcionalidade deverá utilizar regras determinísticas. O sistema sugere e a recepção decide. Detalhes de presença, autorização da Unimed e ranking permanecem decisões futuras da funcionalidade e não são pré-requisitos da fundação arquitetural.
+Detalhes de presença e autorização da Unimed permanecem decisões futuras e não alteram essas regras atuais.
 
 ## 21. Auxílio à criação de agenda
 
@@ -425,13 +415,15 @@ Ao criar ou reorganizar uma agenda, o sistema deverá poder sugerir combinaçõe
 
 Assim como na reposição, será inicialmente um sistema de regras e sugestões, não uma decisão autônoma por IA.
 
-## 22. Prioridade de terapeutas por diária
+## 22. Disponibilidade semanal dos profissionais
 
-A clínica informou que determinadas reposições devem priorizar profissionais remunerados por diária.
+Cada profissional pode ter vários intervalos recorrentes por dia da semana, de segunda-feira (`0`) a domingo (`6`). O horário final deve ser posterior ao inicial. Intervalos adjacentes são permitidos, mas intervalos sobrepostos do mesmo profissional e dia são rejeitados.
 
-Essa característica deverá ser representada como dado configurável e não como lista de nomes escrita no código.
+A ausência de intervalos cadastrados significa indisponibilidade. Para um profissional ser elegível, ele deve estar ativo e o atendimento inteiro deve caber em um único intervalo semanal. Essa regra é obrigatória na criação e no remanejamento de atendimento, em agendas fixas e em reposições; ela não pode ser ignorada pela confirmação de conflitos.
 
-A forma exata será definida durante a modelagem.
+Conflito com outro atendimento e situação fora do horário de trabalho são motivos distintos nas prévias e sugestões. O expediente é uma configuração operacional atual e seus intervalos podem ser removidos fisicamente; atendimentos e demais registros históricos já criados permanecem preservados.
+
+Proprietário e Administrativo podem criar, editar e remover os intervalos. O Terapeuta pode visualizar apenas os horários do próprio perfil profissional. Coordenação não possui acesso a essa administração.
 
 ## 23. Biometria facial
 
