@@ -1,10 +1,14 @@
 from django.test import TestCase
 from django.utils import timezone
 from datetime import timedelta, time
-from .models import Paciente, Terapeuta, AgendaFixa, Agendamento
+from .models import (
+    Paciente, Terapeuta, AgendaFixa, Agendamento, Sala,
+    MODALIDADE_CHOICES,
+)
 from django.contrib.auth.models import User, Group
 from django.urls import reverse
 from .views import formatar_nome_terapeuta
+from .utils import sincronizar_agenda_fixa
 
 class AgendamentoModelTest(TestCase):
     def setUp(self):
@@ -173,3 +177,193 @@ class AgendamentoModelTest(TestCase):
             self.terapeuta, self.hoje, time(11, 0), time(12, 0)
         )
         self.assertFalse(tem_conflito)
+
+
+class AgendaFixaSincronizacaoTest(TestCase):
+    def setUp(self):
+        self.hoje = timezone.localdate()
+        self.admin = User.objects.create_user(username='admin_hotfix', password='123')
+        self.admin.groups.add(Group.objects.get_or_create(name='Administrativo')[0])
+
+        self.usuario_1 = User.objects.create_user(username='terapeuta_hotfix_1', password='123')
+        self.usuario_1.groups.add(Group.objects.get_or_create(name='Terapeutas')[0])
+        self.terapeuta_1 = Terapeuta.objects.create(nome='Juliana Teste', usuario=self.usuario_1)
+
+        self.usuario_2 = User.objects.create_user(username='terapeuta_hotfix_2', password='123')
+        self.usuario_2.groups.add(Group.objects.get_or_create(name='Terapeutas')[0])
+        self.terapeuta_2 = Terapeuta.objects.create(nome='Outra Terapeuta', usuario=self.usuario_2)
+
+        self.paciente = Paciente.objects.create(nome='Paciente Hotfix', cpf='33344455566')
+        self.outro_paciente = Paciente.objects.create(nome='Paciente Controle', cpf='44455566677')
+        self.sala_1 = Sala.objects.create(nome='Sala Hotfix 1')
+        self.sala_2 = Sala.objects.create(nome='Sala Hotfix 2')
+
+    def proxima_data(self, dia_semana, base=None):
+        base = base or self.hoje
+        return base + timedelta(days=(dia_semana - base.weekday()) % 7)
+
+    def criar_agenda(self, dia_semana=None):
+        dia_semana = self.hoje.weekday() if dia_semana is None else dia_semana
+        return AgendaFixa.objects.create(
+            paciente=self.paciente,
+            terapeuta=self.terapeuta_1,
+            sala=self.sala_1,
+            dia_semana=dia_semana,
+            hora_inicio=time(8, 0),
+            hora_fim=time(9, 0),
+            data_inicio=self.hoje - timedelta(days=30),
+        )
+
+    def test_edicao_sincroniza_confirmado_sala_terapeuta_modalidade_e_preserva_passado(self):
+        agenda = self.criar_agenda()
+        data_futura = self.proxima_data(agenda.dia_semana)
+        futuro = Agendamento.objects.create(
+            agenda_fixa=agenda,
+            paciente=self.paciente,
+            terapeuta=self.terapeuta_1,
+            sala=self.sala_1,
+            data=data_futura,
+            hora_inicio=time(8, 0),
+            hora_fim=time(9, 0),
+            status='CONFIRMADO',
+        )
+        data_passada = data_futura - timedelta(days=7)
+        while data_passada >= self.hoje:
+            data_passada -= timedelta(days=7)
+        passado = Agendamento.objects.create(
+            agenda_fixa=agenda,
+            paciente=self.paciente,
+            terapeuta=self.terapeuta_1,
+            sala=self.sala_1,
+            data=data_passada,
+            hora_inicio=time(8, 0),
+            hora_fim=time(9, 0),
+            status='REALIZADO',
+        )
+
+        self.client.force_login(self.admin)
+        response = self.client.post(reverse('editar_agenda_fixa', args=[agenda.id]), {
+            'paciente': self.paciente.id,
+            'terapeuta': self.terapeuta_2.id,
+            'modalidade': 'AVALIACAO_NEUROPSICOLOGICA',
+            'sala': self.sala_2.id,
+            'dia_semana': agenda.dia_semana,
+            'hora_inicio': '10:00',
+            'hora_fim': '11:00',
+            'data_inicio': agenda.data_inicio.isoformat(),
+            'data_fim': '',
+            'ativo': 'on',
+        })
+
+        self.assertEqual(response.status_code, 302)
+        futuro.refresh_from_db()
+        self.assertEqual(futuro.terapeuta, self.terapeuta_2)
+        self.assertEqual(futuro.sala, self.sala_2)
+        self.assertEqual(futuro.hora_inicio, time(10, 0))
+        self.assertEqual(futuro.hora_fim, time(11, 0))
+        self.assertEqual(futuro.modalidade, 'AVALIACAO_NEUROPSICOLOGICA')
+        self.assertFalse(futuro.deletado)
+        self.assertEqual(
+            Agendamento.objects.ativos().filter(agenda_fixa=agenda, data=data_futura).count(),
+            1,
+        )
+
+        passado.refresh_from_db()
+        self.assertEqual(passado.terapeuta, self.terapeuta_1)
+        self.assertEqual(passado.sala, self.sala_1)
+        self.assertEqual(passado.hora_inicio, time(8, 0))
+
+    def test_troca_para_sabado_remove_dia_antigo_sem_afetar_outro_profissional(self):
+        dia_original = 4 if self.hoje.weekday() != 4 else 3
+        agenda = self.criar_agenda(dia_original)
+        data_original = self.proxima_data(dia_original)
+        sincronizar_agenda_fixa(agenda, dias_a_frente=14)
+        copia_original = Agendamento.objects.get(agenda_fixa=agenda, data=data_original)
+
+        data_controle = self.proxima_data(5)
+        controle = Agendamento.objects.create(
+            paciente=self.outro_paciente,
+            terapeuta=self.terapeuta_2,
+            sala=self.sala_2,
+            data=data_controle,
+            hora_inicio=time(14, 0),
+            hora_fim=time(15, 0),
+        )
+
+        agenda.dia_semana = 5
+        agenda.save()
+        sincronizar_agenda_fixa(agenda, dias_a_frente=14)
+
+        copia_original.refresh_from_db()
+        self.assertTrue(copia_original.deletado)
+        sabados = Agendamento.objects.ativos().filter(
+            agenda_fixa=agenda,
+            data__gte=self.hoje,
+        )
+        self.assertTrue(sabados.exists())
+        self.assertTrue(all(item.data.weekday() == 5 for item in sabados))
+        controle.refresh_from_db()
+        self.assertFalse(controle.deletado)
+        self.assertEqual(controle.terapeuta, self.terapeuta_2)
+
+    def test_vigencia_e_desativacao_removem_so_copias_futuras_mutaveis(self):
+        agenda = self.criar_agenda()
+        sincronizar_agenda_fixa(agenda, dias_a_frente=21)
+        futuros = list(Agendamento.objects.ativos().filter(agenda_fixa=agenda).order_by('data'))
+        self.assertGreaterEqual(len(futuros), 3)
+
+        agenda.data_inicio = futuros[1].data
+        agenda.save()
+        sincronizar_agenda_fixa(agenda, dias_a_frente=21)
+        futuros[0].refresh_from_db()
+        self.assertTrue(futuros[0].deletado)
+
+        preservado = futuros[1]
+        preservado.status = 'FALTA'
+        preservado.save()
+        agenda.ativo = False
+        agenda.save()
+        sincronizar_agenda_fixa(agenda, dias_a_frente=21)
+
+        preservado.refresh_from_db()
+        self.assertFalse(preservado.deletado)
+        self.assertEqual(preservado.status, 'FALTA')
+        self.assertFalse(
+            Agendamento.objects.ativos()
+            .filter(agenda_fixa=agenda)
+            .exclude(status__in=('REALIZADO', 'FALTA'))
+            .exists()
+        )
+
+    def test_visoes_diaria_terapeuta_e_sala_usam_a_mesma_copia_sincronizada(self):
+        agenda = self.criar_agenda()
+        data_futura = self.proxima_data(agenda.dia_semana)
+        sincronizar_agenda_fixa(agenda, dias_a_frente=7)
+        copia = Agendamento.objects.ativos().get(agenda_fixa=agenda, data=data_futura)
+
+        self.client.force_login(self.admin)
+        diaria = self.client.get(reverse('lista_agendamentos'), {
+            'data_inicio': data_futura.isoformat(),
+            'data_fim': data_futura.isoformat(),
+        })
+        ocupacao = self.client.get(reverse('ocupacao_salas'), {'data': data_futura.isoformat()})
+
+        self.assertEqual(diaria.status_code, 200)
+        self.assertEqual(ocupacao.status_code, 200)
+        self.assertContains(diaria, self.paciente.nome)
+        self.assertContains(ocupacao, self.paciente.nome)
+
+        self.client.force_login(self.usuario_1)
+        terapeuta = self.client.get(reverse('lista_agendamentos'), {
+            'data_inicio': data_futura.isoformat(),
+            'data_fim': data_futura.isoformat(),
+        })
+        self.assertEqual(terapeuta.status_code, 200)
+        self.assertContains(terapeuta, self.paciente.nome)
+        self.assertEqual(copia.terapeuta, self.terapeuta_1)
+
+    def test_modalidade_neuropsicologica_vem_da_lista_central(self):
+        self.assertIn(
+            ('AVALIACAO_NEUROPSICOLOGICA', 'Avaliação neuropsicológica'),
+            MODALIDADE_CHOICES,
+        )

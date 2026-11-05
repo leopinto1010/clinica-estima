@@ -24,7 +24,10 @@ from .forms import (
 )
 
 from .decorators import admin_required, terapeuta_required, dono_required, is_admin, is_terapeuta, is_dono, is_coordenadora
-from .utils import setup_grupos, criar_agendamentos_em_lote, gerar_agenda_futura, get_horarios_clinica
+from .utils import (
+    setup_grupos, criar_agendamentos_em_lote, gerar_agenda_futura,
+    sincronizar_agenda_fixa, get_horarios_clinica,
+)
 from django.urls import reverse
 
 def remover_acentos(texto):
@@ -564,8 +567,9 @@ def nova_agenda_fixa(request):
     if request.method == 'POST':
         form = AgendaFixaForm(request.POST)
         if form.is_valid():
-            nova_grade = form.save()
-            qtd = gerar_agenda_futura(agenda_especifica=nova_grade) 
+            with transaction.atomic():
+                nova_grade = form.save()
+                qtd = sincronizar_agenda_fixa(nova_grade)
             messages.success(request, f"Regra criada! {qtd} agendamentos foram lançados no calendário.")
             return redirect(f"{reverse('lista_agendas_fixas')}?terapeuta={nova_grade.terapeuta.id}")
             
@@ -583,36 +587,15 @@ def editar_agenda_fixa(request, id):
         return redirect('dashboard')
 
     if request.method == 'POST':
-        dia_semana_antigo = agenda.dia_semana
         form = AgendaFixaForm(request.POST, instance=agenda)
         if form.is_valid():
-            nova_agenda = form.save()
-            hoje = timezone.now().date()
-            
-            if nova_agenda.data_fim:
-                Agendamento.objects.filter(
-                    agenda_fixa=nova_agenda, data__gt=nova_agenda.data_fim, status='AGUARDANDO'
-                ).delete()
-
-            qs_futuros = Agendamento.objects.filter(
-                agenda_fixa=nova_agenda, data__gte=hoje, status='AGUARDANDO'
+            with transaction.atomic():
+                nova_agenda = form.save()
+                total_sincronizados = sincronizar_agenda_fixa(nova_agenda)
+            messages.success(
+                request,
+                f"Agenda Fixa salva e sincronizada. ({total_sincronizados} agendamentos futuros ajustados)."
             )
-            
-            msg_extra = ""
-            if nova_agenda.dia_semana != dia_semana_antigo:
-                total_removidos = qs_futuros.count()
-                qs_futuros.delete()
-                msg_extra = f" ({total_removidos} horários realocados para o novo dia)."
-            else:
-                total_atualizados = qs_futuros.update(
-                    terapeuta=nova_agenda.terapeuta, sala=nova_agenda.sala,
-                    hora_inicio=nova_agenda.hora_inicio, hora_fim=nova_agenda.hora_fim
-                )
-                if total_atualizados > 0:
-                    msg_extra = f" ({total_atualizados} agendamentos futuros atualizados)."
-
-            gerar_agenda_futura(agenda_especifica=nova_agenda)
-            messages.success(request, f"Agenda Fixa salva e sincronizada.{msg_extra}")
             
             return redirect(f"{reverse('lista_agendas_fixas')}?terapeuta={nova_agenda.terapeuta.id}")
             
@@ -632,17 +615,12 @@ def excluir_agenda_fixa(request, id):
     if request.method == 'POST':
         filtros_origem = request.POST.get('filtros_origem', '')
         
-        agenda.ativo = False
-        agenda.save()
-        
-        limpar = request.POST.get('limpar_futuros')
-        msg_extra = ""
-        if limpar:
-            hoje = timezone.now().date()
-            qtd = Agendamento.objects.filter(agenda_fixa=agenda, data__gte=hoje, status='AGUARDANDO').update(deletado=True)
-            msg_extra = f" {qtd} agendamentos futuros foram removidos."
+        with transaction.atomic():
+            agenda.ativo = False
+            agenda.save()
+            qtd = sincronizar_agenda_fixa(agenda)
             
-        messages.success(request, f"Agenda fixa desativada.{msg_extra}")
+        messages.success(request, f"Agenda fixa desativada. {qtd} agendamentos futuros foram removidos.")
         
         url_destino = reverse('lista_agendas_fixas')
         if filtros_origem:

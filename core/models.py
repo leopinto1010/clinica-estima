@@ -21,6 +21,7 @@ MODALIDADE_CHOICES = [
     ('RESPIRATORIA', 'Fisioterapia (Respiratória)'), 
     ('AT', 'Assistente Terapêutico (AT)'),
     ('PSICOPEDAGOGIA', 'Psicopedagogia'),   
+    ('AVALIACAO_NEUROPSICOLOGICA', 'Avaliação neuropsicológica'),
     ('coordenacao', 'Coordenação'),         
 ]
 

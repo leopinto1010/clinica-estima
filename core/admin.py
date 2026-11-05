@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
 from .models import Paciente, Terapeuta, Agendamento, Consulta, Convenio, Sala, AgendaFixa, AnexoConsulta
-from .utils import gerar_agenda_futura
+from .utils import gerar_agenda_futura, sincronizar_agenda_fixa
 
 # --- Ação customizada para gerar agenda em massa ---
 @admin.action(description='Gerar agenda futura para os selecionados (Materializar)')
@@ -10,7 +10,7 @@ def acao_gerar_agenda(modeladmin, request, queryset):
     # Nota: O queryset aqui não é muito usado pois a função gera para todos os ativos,
     # mas mantemos o padrão do Django Admin.
     total = gerar_agenda_futura() 
-    modeladmin.message_user(request, f"Processo concluído. {total} novos agendamentos criados no total baseados na grade ativa.")
+    modeladmin.message_user(request, f"Processo concluído. {total} agendamentos futuros foram sincronizados com a grade ativa.")
 
 # --- 1. Usuários (Customização para mostrar grupos) ---
 class UserAdmin(BaseUserAdmin):
@@ -56,6 +56,20 @@ class AgendaFixaAdmin(admin.ModelAdmin):
     search_fields = ('paciente__nome', 'terapeuta__nome')
     ordering = ('dia_semana', 'hora_inicio')
     actions = [acao_gerar_agenda] 
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        sincronizar_agenda_fixa(obj)
+
+    def delete_model(self, request, obj):
+        obj.ativo = False
+        obj.save(update_fields=['ativo'])
+        sincronizar_agenda_fixa(obj)
+        super().delete_model(request, obj)
+
+    def delete_queryset(self, request, queryset):
+        for obj in queryset:
+            self.delete_model(request, obj)
 
 # --- 4. Salas (NOVO) ---
 @admin.register(Sala)

@@ -2,6 +2,10 @@ from django.contrib.auth.models import Group
 from django.utils import timezone
 from datetime import timedelta, datetime, date
 from django.db.models import Q
+from django.db import transaction
+
+
+STATUS_AGENDAMENTO_IMUTAVEIS = ('REALIZADO', 'FALTA')
 
 def make_datetime_aware(data, hora):
     dt_naive = datetime.combine(data, hora)
@@ -34,104 +38,142 @@ def get_horarios_clinica(extras=None):
     # Retorna lista ordenada
     return sorted(list(horarios))
 
-def gerar_agenda_futura(dias_a_frente=None, agenda_especifica=None):
-    from .models import Agendamento, AgendaFixa
-    
-    hoje = timezone.now().date()
-    
-    # Se não definir dias, o padrão agora é até o FIM DO ANO CORRENTE
-    if dias_a_frente:
-        limite = hoje + timedelta(days=dias_a_frente)
-    else:
-        # Vai até 31/12 do ano atual
-        limite = date(hoje.year, 12, 31)
-    
-    if agenda_especifica:
-        grades = [agenda_especifica]
-    else:
-        grades = AgendaFixa.objects.filter(ativo=True)
-    
-    total_criados = 0
-    
-    for grade in grades:
-        data_atual = max(grade.data_inicio, hoje)
-        limite_grade = limite
-        
-        # Se a grade tiver uma data fim específica menor que o fim do ano, respeita a grade
-        if grade.data_fim:
-            limite_grade = min(limite, grade.data_fim)
-            
-        while data_atual <= limite_grade:
-            if data_atual.weekday() == grade.dia_semana:
-                
-                # --- LÓGICA DE ABSORÇÃO ---
-                # Verifica se já existe algo ocupando este horário 'AGUARDANDO'
-                conflito_ou_existente = Agendamento.objects.ativos().filter(
-                    terapeuta=grade.terapeuta,
-                    data=data_atual,
-                    status='AGUARDANDO'
-                ).filter(
-                    hora_inicio__lt=grade.hora_fim,
-                    hora_fim__gt=grade.hora_inicio
-                ).first()
+def _limite_materializacao(hoje, dias_a_frente=None):
+    if dias_a_frente is not None:
+        return hoje + timedelta(days=dias_a_frente)
+    return date(hoje.year, 12, 31)
 
-                agendamento_duplicado = Agendamento.objects.ativos().filter(
-                    paciente=grade.paciente,
-                    terapeuta=grade.terapeuta,
-                    data=data_atual,
-                    hora_inicio=grade.hora_inicio,
-                    hora_fim=grade.hora_fim,
-                    agenda_fixa=grade,
-                ).exists()
 
-                if conflito_ou_existente:
-                    # 1. É do MESMO paciente? -> REAPROVEITAR (Absorver e Atualizar)
-                    if conflito_ou_existente.paciente == grade.paciente:
-                        mudou = False
+def _agenda_vigente_na_data(agenda, data_agendamento):
+    return (
+        agenda.ativo
+        and data_agendamento >= agenda.data_inicio
+        and (not agenda.data_fim or data_agendamento <= agenda.data_fim)
+        and data_agendamento.weekday() == agenda.dia_semana
+    )
 
-                        if conflito_ou_existente.agenda_fixa != grade:
-                            conflito_ou_existente.agenda_fixa = grade
-                            mudou = True
 
-                        if conflito_ou_existente.sala != grade.sala:
-                            conflito_ou_existente.sala = grade.sala
-                            mudou = True
+def _dados_materializados(agenda):
+    return {
+        'paciente_id': agenda.paciente_id,
+        'terapeuta_id': agenda.terapeuta_id,
+        'modalidade': agenda.modalidade,
+        'sala_id': agenda.sala_id,
+        'hora_inicio': agenda.hora_inicio,
+        'hora_fim': agenda.hora_fim,
+        'tipo_atendimento': agenda.paciente.tipo_padrao,
+    }
 
-                        if conflito_ou_existente.modalidade != grade.modalidade:
-                            conflito_ou_existente.modalidade = grade.modalidade
-                            mudou = True
 
-                        if conflito_ou_existente.hora_inicio != grade.hora_inicio:
-                            conflito_ou_existente.hora_inicio = grade.hora_inicio
-                            conflito_ou_existente.hora_fim = grade.hora_fim
-                            mudou = True
+@transaction.atomic
+def sincronizar_agenda_fixa(agenda, dias_a_frente=None, data_referencia=None):
+    """Sincroniza somente copias futuras e mutaveis de uma AgendaFixa.
 
-                        if mudou:
-                            conflito_ou_existente.save()
-                            total_criados += 1
+    AgendaFixa e a fonte da regra recorrente. Agendamento continua sendo o
+    snapshot operacional usado pelas agendas diaria/profissional e pelas salas.
+    Registros passados e estados finais nunca sao reescritos.
+    """
+    from .models import Agendamento
 
-                elif agendamento_duplicado:
-                    continue
+    hoje = data_referencia or timezone.localdate()
+    limite = _limite_materializacao(hoje, dias_a_frente)
+    dados = _dados_materializados(agenda)
+    total_alterados = 0
 
-                else:
-                    # Se NÃO existe nada no horário -> Cria Novo
-                    Agendamento.objects.create(
-                        agenda_fixa=grade,
-                        paciente=grade.paciente,
-                        terapeuta=grade.terapeuta,
-                        modalidade=grade.modalidade,
-                        sala=grade.sala,
-                        data=data_atual,
-                        hora_inicio=grade.hora_inicio,
-                        hora_fim=grade.hora_fim,
-                        tipo_atendimento=grade.paciente.tipo_padrao,
-                        status='AGUARDANDO'
-                    )
-                    total_criados += 1
-            
+    # Inclui deletados para que uma reativacao reutilize a mesma copia, sem
+    # produzir duplicatas. Estados finais e datas passadas sao historico.
+    vinculados = list(
+        Agendamento.objects.filter(agenda_fixa=agenda, data__gte=hoje)
+        .exclude(status__in=STATUS_AGENDAMENTO_IMUTAVEIS)
+        .order_by('data', 'deletado', 'id')
+    )
+    vinculados_por_data = {}
+    for agendamento in vinculados:
+        vinculados_por_data.setdefault(agendamento.data, []).append(agendamento)
+
+    for data_agendamento, copias in vinculados_por_data.items():
+        if not _agenda_vigente_na_data(agenda, data_agendamento):
+            ids_ativos = [copia.id for copia in copias if not copia.deletado]
+            if ids_ativos:
+                total_alterados += Agendamento.objects.filter(id__in=ids_ativos).update(deletado=True)
+            continue
+
+        principal, *duplicados = copias
+        valores_principal = dict(dados, deletado=False)
+        campos_mudaram = principal.deletado or any(
+            getattr(principal, campo) != valor
+            for campo, valor in valores_principal.items()
+        )
+        if campos_mudaram:
+            Agendamento.objects.filter(pk=principal.pk).update(**valores_principal)
+            total_alterados += 1
+
+        ids_duplicados_ativos = [copia.id for copia in duplicados if not copia.deletado]
+        if ids_duplicados_ativos:
+            total_alterados += Agendamento.objects.filter(id__in=ids_duplicados_ativos).update(deletado=True)
+
+    if not agenda.ativo:
+        return total_alterados
+
+    data_atual = max(agenda.data_inicio, hoje)
+    limite_grade = min(limite, agenda.data_fim) if agenda.data_fim else limite
+
+    while data_atual <= limite_grade:
+        if data_atual.weekday() != agenda.dia_semana:
             data_atual += timedelta(days=1)
-            
-    return total_criados
+            continue
+
+        # Qualquer copia ativa vinculada, inclusive final, representa a data.
+        if Agendamento.objects.filter(
+            agenda_fixa=agenda, data=data_atual, deletado=False
+        ).exists():
+            data_atual += timedelta(days=1)
+            continue
+
+        conflito = (
+            Agendamento.objects.ativos()
+            .filter(terapeuta_id=agenda.terapeuta_id, data=data_atual)
+            .exclude(status='FALTA')
+            .filter(hora_inicio__lt=agenda.hora_fim, hora_fim__gt=agenda.hora_inicio)
+            .first()
+        )
+
+        # Mantem a compatibilidade com o legado: um agendamento avulso do
+        # mesmo paciente pode ser absorvido, mas nunca rouba outra AgendaFixa.
+        if (
+            conflito
+            and conflito.paciente_id == agenda.paciente_id
+            and conflito.agenda_fixa_id is None
+            and conflito.status not in STATUS_AGENDAMENTO_IMUTAVEIS
+        ):
+            Agendamento.objects.filter(pk=conflito.pk).update(
+                agenda_fixa=agenda,
+                **dados,
+            )
+            total_alterados += 1
+        elif not conflito:
+            Agendamento.objects.create(
+                agenda_fixa=agenda,
+                data=data_atual,
+                status='AGUARDANDO',
+                deletado=False,
+                **dados,
+            )
+            total_alterados += 1
+
+        data_atual += timedelta(days=1)
+
+    return total_alterados
+
+
+def gerar_agenda_futura(dias_a_frente=None, agenda_especifica=None):
+    from .models import AgendaFixa
+
+    grades = [agenda_especifica] if agenda_especifica else AgendaFixa.objects.filter(ativo=True)
+    return sum(
+        sincronizar_agenda_fixa(grade, dias_a_frente=dias_a_frente)
+        for grade in grades
+    )
 
 def criar_agendamentos_em_lote(form_data, user_request):
     from .models import Agendamento
