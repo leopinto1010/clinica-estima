@@ -9,6 +9,7 @@ from django import forms
 from django.contrib.auth.models import Group
 import calendar
 from collections import defaultdict
+import logging
 import unicodedata
 
 from .models import (
@@ -29,6 +30,8 @@ from .utils import (
     sincronizar_agenda_fixa, get_horarios_clinica,
 )
 from django.urls import reverse
+
+logger = logging.getLogger(__name__)
 
 def remover_acentos(texto):
     if not texto: return ""
@@ -380,7 +383,7 @@ def lista_agendamentos(request):
                         isinstance(x, dict) and x.get('id') == b.id and x.get('tipo_obj') == 'bloqueio' 
                         for x in agenda_map[h_str][d_str]
                     )
-                    
+
                     if not ja_existe:
                         bloqueio_visual = {
                             'tipo_obj': 'bloqueio',
@@ -661,29 +664,39 @@ def reposicao_agendamento(request, agendamento_id):
             sala_selecionada = form_reposicao.cleaned_data['sala']
 
             try:
-                if precisa_justificar:
-                    agendamento_antigo = form_falta.save(commit=False)
-                    agendamento_antigo.status = 'FALTA'
-                
-                agendamento_antigo.deletado = True
-                agendamento_antigo.save()
+                with transaction.atomic():
+                    if precisa_justificar:
+                        agendamento_antigo = form_falta.save(commit=False)
+                        agendamento_antigo.status = 'FALTA'
 
-                Agendamento.objects.create(
-                    paciente=paciente_selecionado,
-                    terapeuta=agendamento_antigo.terapeuta,
-                    sala=sala_selecionada, 
-                    data=agendamento_antigo.data,
-                    hora_inicio=agendamento_antigo.hora_inicio,
-                    hora_fim=agendamento_antigo.hora_fim,
-                    status='AGUARDANDO',
-                    tipo_atendimento=paciente_selecionado.tipo_padrao
-                )
+                    agendamento_antigo.deletado = True
+                    agendamento_antigo.save()
+
+                    Agendamento.objects.create(
+                        paciente=paciente_selecionado,
+                        terapeuta=agendamento_antigo.terapeuta,
+                        sala=sala_selecionada,
+                        data=agendamento_antigo.data,
+                        hora_inicio=agendamento_antigo.hora_inicio,
+                        hora_fim=agendamento_antigo.hora_fim,
+                        status='AGUARDANDO',
+                        tipo_atendimento=paciente_selecionado.tipo_padrao
+                    )
                 
                 messages.success(request, "Reposição realizada com sucesso! Vaga preenchida.")
                 return redirect('lista_agendamentos')
             
-            except Exception as e:
-                messages.error(request, f"Erro ao realizar reposição: {e}")
+            except Exception:
+                logger.exception(
+                    "Falha ao realizar reposicao do agendamento %s",
+                    agendamento_id,
+                )
+                agendamento_antigo.refresh_from_db()
+                messages.error(
+                    request,
+                    "Não foi possível concluir a reposição. "
+                    "Nenhuma alteração foi salva; confira os dados e tente novamente.",
+                )
 
     else:
         form_reposicao = ReposicaoForm(initial={
@@ -787,8 +800,7 @@ def realizar_consulta(request, agendamento_id):
              messages.error(request, "Acesso negado: Paciente de outro profissional.")
              return redirect('dashboard')
 
-    consulta, _ = Consulta.objects.get_or_create(agendamento=agendamento)
-    anexos_existentes = consulta.anexos.all()
+    consulta = Consulta.objects.filter(agendamento=agendamento).first()
     
     params = request.GET.copy()
     origem = params.pop('origem', [''])[0]
@@ -800,45 +812,79 @@ def realizar_consulta(request, agendamento_id):
     if request.method == 'POST':
         anexo_para_excluir = request.POST.get('excluir_anexo_id')
         if anexo_para_excluir:
+            if consulta is None:
+                messages.error(request, "Não foi possível localizar o prontuário para remover o anexo.")
+                return redirect(request.path + '?' + request.GET.urlencode())
             anexo = get_object_or_404(AnexoConsulta, id=anexo_para_excluir, consulta=consulta)
             anexo.arquivo.delete()
             anexo.delete()
             messages.success(request, "Anexo removido.")
             return redirect(request.path + '?' + request.GET.urlencode())
 
-        form = ConsultaForm(request.POST, instance=consulta)
+        instancia_consulta = consulta or Consulta(agendamento=agendamento)
+        form = ConsultaForm(request.POST, instance=instancia_consulta)
         if form.is_valid():
-            form.save()
-            
             arquivos = request.FILES.getlist('arquivos_anexos')
             count_anexos = 0
             count_erro_tamanho = 0
             LIMITE_MB = 10
-            
-            for f in arquivos:
-                if f.size > LIMITE_MB * 1024 * 1024:
-                    count_erro_tamanho += 1
-                    continue
-                AnexoConsulta.objects.create(consulta=consulta, arquivo=f)
-                count_anexos += 1
-            
-            agendamento.status = 'REALIZADO'
-            if is_dono(request.user):
-                novo_tipo = request.POST.get('tipo_atendimento_select')
-                if novo_tipo: agendamento.tipo_atendimento = novo_tipo
-            agendamento.save()
-            
-            msg = "Prontuário salvo com sucesso!"
-            if count_anexos > 0: msg += f" (+{count_anexos} arquivos)."
-            
-            if count_erro_tamanho > 0:
-                messages.warning(request, f"{msg} Porém, {count_erro_tamanho} arquivo(s) foram ignorados por serem maiores que {LIMITE_MB}MB.")
-            else:
-                messages.success(request, msg)
-            
-            return redirect(url_voltar)
+            anexos_criados = []
+
+            try:
+                with transaction.atomic():
+                    consulta = form.save()
+
+                    for f in arquivos:
+                        if f.size > LIMITE_MB * 1024 * 1024:
+                            count_erro_tamanho += 1
+                            continue
+                        anexo = AnexoConsulta.objects.create(consulta=consulta, arquivo=f)
+                        anexos_criados.append(anexo)
+                        count_anexos += 1
+
+                    agendamento.status = 'REALIZADO'
+                    campos_atualizados = ['status']
+                    if is_dono(request.user):
+                        novo_tipo = request.POST.get('tipo_atendimento_select')
+                        if novo_tipo:
+                            agendamento.tipo_atendimento = novo_tipo
+                            campos_atualizados.append('tipo_atendimento')
+                    agendamento.save(update_fields=campos_atualizados)
+
+                msg = "Prontuário salvo com sucesso!"
+                if count_anexos > 0: msg += f" (+{count_anexos} arquivos)."
+
+                if count_erro_tamanho > 0:
+                    messages.warning(request, f"{msg} Porém, {count_erro_tamanho} arquivo(s) foram ignorados por serem maiores que {LIMITE_MB}MB.")
+                else:
+                    messages.success(request, msg)
+
+                return redirect(url_voltar)
+            except Exception:
+                logger.exception(
+                    "Falha ao salvar evolucao do agendamento %s",
+                    agendamento_id,
+                )
+                for anexo in anexos_criados:
+                    try:
+                        anexo.arquivo.delete(save=False)
+                    except Exception:
+                        logger.exception(
+                            "Falha ao remover arquivo apos rollback do agendamento %s",
+                            agendamento_id,
+                        )
+                agendamento.refresh_from_db()
+                messages.error(
+                    request,
+                    "Não foi possível salvar o prontuário. "
+                    "Nenhuma alteração foi concluída; seu texto foi mantido na tela para nova tentativa.",
+                )
     else:
+        if consulta is None:
+            consulta = Consulta.objects.create(agendamento=agendamento)
         form = ConsultaForm(instance=consulta)
+
+    anexos_existentes = AnexoConsulta.objects.filter(consulta_id=agendamento.id)
     
     return render(request, 'realizar_consulta.html', {
         'form': form, 

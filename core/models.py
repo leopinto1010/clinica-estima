@@ -150,6 +150,10 @@ class AgendamentoManager(models.Manager):
     def ativos(self): return self.filter(deletado=False)
 
 class Agendamento(models.Model):
+    CAMPOS_ESTRUTURAIS = (
+        'paciente_id', 'terapeuta_id', 'data', 'hora_inicio', 'hora_fim',
+    )
+
     STATUS_CHOICES = [
         ('AGUARDANDO', 'Aguardando'), ('REALIZADO', 'Realizado'), ('FALTA', 'Falta'),
     ]
@@ -185,16 +189,54 @@ class Agendamento(models.Model):
 
     class Meta: ordering = ['data', 'hora_inicio'] 
 
+    def _deve_validar_duplicidade(self, update_fields=None):
+        if self.deletado:
+            return False
+
+        if self._state.adding:
+            return True
+
+        if update_fields is not None:
+            campos_informados = set(update_fields)
+            campos_que_exigem_validacao = {
+                'paciente', 'paciente_id', 'terapeuta', 'terapeuta_id',
+                'data', 'hora_inicio', 'hora_fim', 'deletado',
+            }
+            if campos_informados.isdisjoint(campos_que_exigem_validacao):
+                return False
+
+        anterior = (
+            Agendamento.objects.filter(pk=self.pk)
+            .values(*self.CAMPOS_ESTRUTURAIS, 'deletado')
+            .first()
+        )
+        if anterior is None:
+            return True
+
+        if anterior['deletado']:
+            return True
+
+        return any(
+            anterior[campo] != getattr(self, campo)
+            for campo in self.CAMPOS_ESTRUTURAIS
+        )
+
     def save(self, *args, **kwargs):
         if not self.hora_fim and self.hora_inicio:
             dummy_date = datetime.now().date()
             dt_inicio = datetime.combine(dummy_date, self.hora_inicio)
             self.hora_fim = (dt_inicio + timedelta(minutes=60)).time()
 
-        if self.paciente_id and self.terapeuta_id and self.data and self.hora_inicio:
+        if (
+            self._deve_validar_duplicidade(kwargs.get('update_fields'))
+            and self.paciente_id
+            and self.terapeuta_id
+            and self.data
+            and self.hora_inicio
+        ):
             duplicado = Agendamento.objects.filter(
-                paciente=self.paciente,
-                terapeuta=self.terapeuta,
+                paciente_id=self.paciente_id,
+                terapeuta_id=self.terapeuta_id,
                 data=self.data,
                 hora_inicio=self.hora_inicio,
                 hora_fim=self.hora_fim,

@@ -1,11 +1,18 @@
 from django.test import TestCase
+from django.test import override_settings
 from django.utils import timezone
 from datetime import timedelta, time
+from io import StringIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 from .models import (
-    Paciente, Terapeuta, AgendaFixa, Agendamento, Sala,
+    Paciente, Terapeuta, AgendaFixa, Agendamento, AnexoConsulta, Consulta, Sala,
     MODALIDADE_CHOICES,
 )
 from django.contrib.auth.models import User, Group
+from django.core.management import call_command
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
 from .views import formatar_nome_terapeuta
 from .utils import sincronizar_agenda_fixa
@@ -366,4 +373,311 @@ class AgendaFixaSincronizacaoTest(TestCase):
         self.assertIn(
             ('AVALIACAO_NEUROPSICOLOGICA', 'Avaliação neuropsicológica'),
             MODALIDADE_CHOICES,
+        )
+
+
+class AgendamentoDuplicidadeRegressaoTest(TestCase):
+    def setUp(self):
+        self.usuario = User.objects.create_user(username='terapeuta_duplicidade')
+        self.terapeuta = Terapeuta.objects.create(
+            nome='Terapeuta Duplicidade',
+            usuario=self.usuario,
+        )
+        self.paciente = Paciente.objects.create(nome='Paciente Duplicidade')
+        self.outro_paciente = Paciente.objects.create(nome='Paciente Estrutural')
+        self.data = timezone.localdate()
+
+    def dados(self, **alteracoes):
+        dados = {
+            'paciente': self.paciente,
+            'terapeuta': self.terapeuta,
+            'data': self.data,
+            'hora_inicio': time(8, 0),
+            'hora_fim': time(9, 0),
+        }
+        dados.update(alteracoes)
+        return dados
+
+    def criar_duplicados_legados(self):
+        Agendamento.objects.bulk_create([
+            Agendamento(**self.dados()),
+            Agendamento(**self.dados()),
+        ])
+        return list(Agendamento.objects.order_by('id'))
+
+    def test_criacao_de_duplicado_ativo_continua_rejeitada(self):
+        Agendamento.objects.create(**self.dados())
+
+        with self.assertRaisesRegex(ValueError, 'Já existe um atendimento idêntico'):
+            Agendamento.objects.create(**self.dados())
+
+    def test_alteracao_estrutural_para_horario_ocupado_e_rejeitada(self):
+        Agendamento.objects.create(**self.dados())
+        alterado = Agendamento.objects.create(**self.dados(
+            paciente=self.outro_paciente,
+            hora_inicio=time(10, 0),
+            hora_fim=time(11, 0),
+        ))
+
+        alterado.paciente = self.paciente
+        alterado.hora_inicio = time(8, 0)
+        alterado.hora_fim = time(9, 0)
+
+        with self.assertRaisesRegex(ValueError, 'Já existe um atendimento idêntico'):
+            alterado.save()
+
+    def test_alteracao_somente_de_status_ignora_duplicado_legado(self):
+        alvo, _ = self.criar_duplicados_legados()
+
+        alvo.status = 'REALIZADO'
+        alvo.save()
+
+        alvo.refresh_from_db()
+        self.assertEqual(alvo.status, 'REALIZADO')
+
+    def test_alteracao_somente_de_tipo_ignora_duplicado_legado(self):
+        alvo, _ = self.criar_duplicados_legados()
+
+        alvo.tipo_atendimento = 'SOCIAL'
+        alvo.save()
+
+        alvo.refresh_from_db()
+        self.assertEqual(alvo.tipo_atendimento, 'SOCIAL')
+
+    def test_comando_de_auditoria_lista_detalhes_sem_alterar_dados(self):
+        alvo, _ = self.criar_duplicados_legados()
+        Consulta.objects.create(agendamento=alvo, evolucao='Evolução existente')
+        saida = StringIO()
+
+        call_command('auditar_agendamentos_duplicados', stdout=saida)
+
+        texto = saida.getvalue()
+        self.assertIn('ativos=2', texto)
+        self.assertIn(f'id={alvo.id}', texto)
+        self.assertIn('agenda_fixa_id=None', texto)
+        self.assertIn('consulta=sim', texto)
+        self.assertEqual(Agendamento.objects.ativos().count(), 2)
+
+
+class EvolucaoRegressaoTest(TestCase):
+    def setUp(self):
+        self.usuario = User.objects.create_user(username='terapeuta_evolucao')
+        self.usuario.groups.add(Group.objects.get_or_create(name='Terapeutas')[0])
+        self.terapeuta = Terapeuta.objects.create(
+            nome='Terapeuta Evolução',
+            usuario=self.usuario,
+        )
+        self.paciente = Paciente.objects.create(nome='Paciente Evolução')
+        self.data = timezone.localdate()
+        self.client.force_login(self.usuario)
+
+    def criar_agendamento(self):
+        return Agendamento.objects.create(
+            paciente=self.paciente,
+            terapeuta=self.terapeuta,
+            data=self.data,
+            hora_inicio=time(8, 0),
+            hora_fim=time(9, 0),
+        )
+
+    def test_atendimento_normal_salva_evolucao_e_marca_realizado(self):
+        agendamento = self.criar_agendamento()
+
+        response = self.client.post(
+            reverse('realizar_consulta', args=[agendamento.id]),
+            {'evolucao': 'Evolução normal'},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        agendamento.refresh_from_db()
+        self.assertEqual(agendamento.status, 'REALIZADO')
+        self.assertEqual(agendamento.consulta.evolucao, 'Evolução normal')
+
+    def test_evolucao_de_duplicado_legado_salva_sem_value_error(self):
+        alvo = self.criar_agendamento()
+        Agendamento.objects.bulk_create([
+            Agendamento(
+                paciente=self.paciente,
+                terapeuta=self.terapeuta,
+                data=self.data,
+                hora_inicio=time(8, 0),
+                hora_fim=time(9, 0),
+            ),
+        ])
+
+        response = self.client.post(
+            reverse('realizar_consulta', args=[alvo.id]),
+            {'evolucao': 'Evolução do legado'},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        alvo.refresh_from_db()
+        self.assertEqual(alvo.status, 'REALIZADO')
+        self.assertEqual(alvo.consulta.evolucao, 'Evolução do legado')
+        self.assertEqual(Agendamento.objects.ativos().count(), 2)
+
+    def test_falha_apos_salvar_formulario_desfaz_evolucao_e_status(self):
+        agendamento = self.criar_agendamento()
+        consulta = Consulta.objects.create(agendamento=agendamento, evolucao='Texto anterior')
+
+        with TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            arquivo = SimpleUploadedFile('anexo.txt', b'conteudo de teste')
+            with patch.object(Agendamento, 'save', side_effect=RuntimeError('falha simulada')):
+                response = self.client.post(
+                    reverse('realizar_consulta', args=[agendamento.id]),
+                    {
+                        'evolucao': 'Texto que deve sofrer rollback',
+                        'arquivos_anexos': arquivo,
+                    },
+                )
+
+            self.assertFalse(any(item.is_file() for item in Path(media_root).rglob('*')))
+
+        self.assertEqual(response.status_code, 200)
+        agendamento.refresh_from_db()
+        self.assertEqual(agendamento.status, 'AGUARDANDO')
+        self.assertEqual(
+            Consulta.objects.get(agendamento=agendamento).evolucao,
+            'Texto anterior',
+        )
+        self.assertFalse(AnexoConsulta.objects.filter(consulta=consulta).exists())
+        self.assertContains(response, 'Não foi possível salvar o prontuário')
+        self.assertContains(response, 'Texto que deve sofrer rollback')
+
+
+class ReposicaoRegressaoTest(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(username='admin_reposicao')
+        self.admin.groups.add(Group.objects.get_or_create(name='Administrativo')[0])
+        self.terapeuta = Terapeuta.objects.create(nome='Terapeuta Reposição')
+        self.paciente_original = Paciente.objects.create(nome='Paciente Original')
+        self.paciente_reposicao = Paciente.objects.create(nome='Paciente Reposição')
+        self.sala = Sala.objects.create(nome='Sala Reposição')
+        self.data = timezone.localdate()
+        self.client.force_login(self.admin)
+
+    def criar_original(self):
+        return Agendamento.objects.create(
+            paciente=self.paciente_original,
+            terapeuta=self.terapeuta,
+            sala=self.sala,
+            data=self.data,
+            hora_inicio=time(8, 0),
+            hora_fim=time(9, 0),
+        )
+
+    def dados_post(self):
+        return {
+            'paciente': self.paciente_reposicao.id,
+            'sala': self.sala.id,
+            'falta-tipo_cancelamento': 'JUSTIFICADA',
+            'falta-motivo_cancelamento': 'Reposição de teste',
+        }
+
+    def test_reposicao_cria_um_unico_novo_agendamento(self):
+        original = self.criar_original()
+
+        response = self.client.post(
+            reverse('reposicao_agendamento', args=[original.id]),
+            self.dados_post(),
+        )
+
+        self.assertEqual(response.status_code, 302)
+        original.refresh_from_db()
+        self.assertTrue(original.deletado)
+        self.assertEqual(original.status, 'FALTA')
+        self.assertEqual(
+            Agendamento.objects.ativos().filter(
+                paciente=self.paciente_reposicao,
+                terapeuta=self.terapeuta,
+                data=self.data,
+                hora_inicio=time(8, 0),
+                hora_fim=time(9, 0),
+            ).count(),
+            1,
+        )
+
+    def test_falha_na_criacao_da_reposicao_desfaz_soft_delete_do_original(self):
+        original = self.criar_original()
+        existente = Agendamento.objects.create(
+            paciente=self.paciente_reposicao,
+            terapeuta=self.terapeuta,
+            sala=self.sala,
+            data=self.data,
+            hora_inicio=time(8, 0),
+            hora_fim=time(9, 0),
+        )
+
+        response = self.client.post(
+            reverse('reposicao_agendamento', args=[original.id]),
+            self.dados_post(),
+        )
+
+        self.assertEqual(response.status_code, 200)
+        original.refresh_from_db()
+        self.assertFalse(original.deletado)
+        self.assertEqual(original.status, 'AGUARDANDO')
+        self.assertEqual(
+            Agendamento.objects.ativos().filter(
+                paciente=self.paciente_reposicao,
+                terapeuta=self.terapeuta,
+                data=self.data,
+                hora_inicio=time(8, 0),
+                hora_fim=time(9, 0),
+            ).get(),
+            existente,
+        )
+        self.assertContains(response, 'Nenhuma alteração foi salva')
+
+
+class AgendaFixaReposicaoRegressaoTest(TestCase):
+    def test_sincronizacao_nao_reativa_copia_substituida_por_reposicao(self):
+        data = timezone.localdate()
+        usuario = User.objects.create_user(username='terapeuta_grade_reposicao')
+        terapeuta = Terapeuta.objects.create(nome='Terapeuta Grade', usuario=usuario)
+        paciente = Paciente.objects.create(nome='Paciente Grade')
+        sala = Sala.objects.create(nome='Sala Grade')
+        agenda = AgendaFixa.objects.create(
+            paciente=paciente,
+            terapeuta=terapeuta,
+            sala=sala,
+            dia_semana=data.weekday(),
+            hora_inicio=time(8, 0),
+            hora_fim=time(9, 0),
+            data_inicio=data,
+        )
+        copia_substituida = Agendamento.objects.create(
+            agenda_fixa=agenda,
+            paciente=paciente,
+            terapeuta=terapeuta,
+            sala=sala,
+            data=data,
+            hora_inicio=time(8, 0),
+            hora_fim=time(9, 0),
+            deletado=True,
+        )
+        reposicao = Agendamento.objects.create(
+            paciente=paciente,
+            terapeuta=terapeuta,
+            sala=sala,
+            data=data,
+            hora_inicio=time(8, 0),
+            hora_fim=time(9, 0),
+        )
+
+        sincronizar_agenda_fixa(agenda, dias_a_frente=0, data_referencia=data)
+
+        copia_substituida.refresh_from_db()
+        reposicao.refresh_from_db()
+        self.assertTrue(copia_substituida.deletado)
+        self.assertEqual(reposicao.agenda_fixa, agenda)
+        self.assertEqual(
+            Agendamento.objects.ativos().filter(
+                paciente=paciente,
+                terapeuta=terapeuta,
+                data=data,
+                hora_inicio=time(8, 0),
+                hora_fim=time(9, 0),
+            ).count(),
+            1,
         )

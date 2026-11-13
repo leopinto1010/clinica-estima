@@ -100,6 +100,27 @@ def sincronizar_agenda_fixa(agenda, dias_a_frente=None, data_referencia=None):
 
         principal, *duplicados = copias
         valores_principal = dict(dados, deletado=False)
+
+        # Uma reposicao deixa a copia da grade deletada e cria um agendamento
+        # avulso no mesmo horario. Nao reative essa copia se a vaga ja estiver
+        # ocupada; a etapa de materializacao abaixo podera absorver o avulso do
+        # mesmo paciente sem criar dois registros ativos.
+        if principal.deletado:
+            ids_copias = [copia.id for copia in copias]
+            horario_ja_ocupado = (
+                Agendamento.objects.ativos()
+                .filter(terapeuta_id=agenda.terapeuta_id, data=data_agendamento)
+                .exclude(id__in=ids_copias)
+                .exclude(status='FALTA')
+                .filter(
+                    hora_inicio__lt=agenda.hora_fim,
+                    hora_fim__gt=agenda.hora_inicio,
+                )
+                .exists()
+            )
+            if horario_ja_ocupado:
+                continue
+
         campos_mudaram = principal.deletado or any(
             getattr(principal, campo) != valor
             for campo, valor in valores_principal.items()
